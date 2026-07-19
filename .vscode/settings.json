@@ -1,0 +1,34 @@
+{
+  "cSpell.words": [
+    "Adafruit",
+    "Sensirion"
+  ],
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "editor.rulers": [150],
+  "prettier.configPath": "src/Kelvin.Client/prettierrc.json",
+  "prettier.singleAttributePerLine": true,
+  "editor.tabSize": 2,
+  "[typescript]": {
+    "editor.codeActionsOnSave": {
+      "source.addMissingImports.ts": "explicit",
+      "source.fixAll.eslint": "always",
+      "source.organizeImports": "always",
+      "source.removeUnusedImports": "always"
+    }
+  },
+  "[csharp]": {
+    "editor.codeActionsOnSave": ["source.organizeImports"],
+    "editor.defaultFormatter": "csharpier.csharpier-vscode",
+    "editor.detectIndentation": false,
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2
+  },
+  "[xml]": {
+    "editor.defaultFormatter": "csharpier.csharpier-vscode"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "csharpOrganizeUsings.splitGroups": false
+}
