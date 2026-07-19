@@ -4,12 +4,6 @@
 
 sensor_payload incomingReadings;
 
-typedef struct
-{
-  uint8_t senderMac[6];
-  sensor_payload payload;
-} sensor_packet;
-
 void printMacAddress()
 {
   uint8_t mac[6];
@@ -20,17 +14,15 @@ void printMacAddress()
 }
 
 // Callback function executed automatically whenever an ESP-NOW packet is received
-void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
+// void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
+void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int len)
 {
   memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
 
-  sensor_packet packet;
-  memcpy(packet.senderMac, mac, sizeof(packet.senderMac));
-  memcpy(&packet.payload, &incomingReadings, sizeof(packet.payload));
-
   const uint8_t header[2] = {0xAA, 0x55};
   Serial.write(header, sizeof(header));
-  Serial.write(reinterpret_cast<uint8_t *>(&packet), sizeof(packet));
+  Serial.write(info->src_addr, 6);
+  Serial.write(reinterpret_cast<uint8_t *>(&incomingReadings), sizeof(incomingReadings));
 }
 
 void setup()

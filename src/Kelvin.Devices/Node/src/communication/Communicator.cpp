@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <esp_now.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,12 +24,6 @@ std::array<uint8_t, 6> parseGatewayAddress(const char *macAddress)
   return gatewayAddress;
 }
 
-// void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
-// {
-//   Serial.print("ESP-NOW Sent Status: ");
-//   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Fail");
-// }
-
 void Communicator::begin()
 {
   Serial.println("Initializing ESP-NOW...");
@@ -41,8 +36,6 @@ void Communicator::begin()
     Serial.println("Error initializing ESP-NOW");
     return;
   }
-
-  // esp_now_register_send_cb((esp_now_send_cb_t)onDataSent);
 
   esp_now_peer_info_t peerInfo = {};
   auto gatewayAddress = parseGatewayAddress(gatewayMacAddress);

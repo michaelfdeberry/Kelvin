@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <Wire.h>
 #include "../Common/SensorPayload.h"
 #include "./src/communication/Communicator.h"
@@ -10,8 +11,12 @@ EnvironmentMonitor environmentMonitor;
 void setup()
 {
   Serial.begin(9600);
-  Wire.begin();
+  while (!Serial)
+  {
+    delay(100);
+  }
 
+  Wire.begin();
   communicator.begin();
   environmentMonitor.begin();
 }
@@ -37,6 +42,7 @@ void loop()
     return;
   }
 
-  Serial.println("Sensor data sent successfully.");
+  Serial.print("Sensor data sent successfully from ");
+  Serial.println(WiFi.macAddress());
   delay(30000);
 }
