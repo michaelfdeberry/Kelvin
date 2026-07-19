@@ -1,0 +1,6 @@
+arduino-cli lib install "Sensirion Core"
+arduino-cli lib install "Sensirion I2C SCD4x"
+arduino-cli lib install "DHT sensor library"
+arduino-cli lib install "Adafruit Unified Sensor"
+
+arduino-cli compile --fqbn arduino:avr:uno Node.ino
