@@ -7,54 +7,36 @@
 #include "../Common/SensorPayload.h"
 #include "Communicator.h"
 
-const char *gatewayMacAddress = GATEWAY_MAC_ADDRESS;
-
-std::array<uint8_t, 6> parseGatewayAddress(const char *macAddress)
-{
-  int octets[6];
-  std::array<uint8_t, 6> gatewayAddress = {};
-  if (sscanf(macAddress, "%x:%x:%x:%x:%x:%x", &octets[0], &octets[1], &octets[2], &octets[3], &octets[4], &octets[5]) == 6)
-  {
-    for (int i = 0; i < 6; ++i)
-    {
-      gatewayAddress[i] = static_cast<uint8_t>(octets[i]);
-    }
-  }
-
-  return gatewayAddress;
-}
-
 void Communicator::begin()
 {
+#if defined(DEBUG)
   Serial.println("Initializing ESP-NOW...");
+#endif
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
   if (esp_now_init() != ESP_OK)
   {
+#if defined(DEBUG)
     Serial.println("Error initializing ESP-NOW");
+#endif
     return;
   }
 
+  static const uint8_t gatewayMac[] = GATEWAY_MAC_ADDRESS_BYTES;
+  memcpy(gatewayMacAddress, gatewayMac, sizeof(gatewayMacAddress));
+
   esp_now_peer_info_t peerInfo = {};
-  auto gatewayAddress = parseGatewayAddress(gatewayMacAddress);
-  memcpy(peerInfo.peer_addr, gatewayAddress.data(), gatewayAddress.size());
+  memcpy(peerInfo.peer_addr, gatewayMacAddress, sizeof(gatewayMacAddress));
   peerInfo.channel = 0;
   peerInfo.encrypt = false;
 
-  Serial.print("Connecting to Gateway: ");
-  for (int i = 0; i < 6; ++i)
-  {
-    Serial.printf("%02X", peerInfo.peer_addr[i]);
-    if (i < 5)
-      Serial.print(":");
-  }
-  Serial.println();
-
   if (esp_now_add_peer(&peerInfo) != ESP_OK)
   {
+#if defined(DEBUG)
     Serial.println("Failed to add peer");
+#endif
     return;
   }
 }
@@ -62,12 +44,13 @@ void Communicator::begin()
 bool Communicator::send(const void *payload)
 {
   size_t size = sizeof(sensor_payload);
-  auto gatewayAddress = parseGatewayAddress(gatewayMacAddress);
-  esp_err_t result = esp_now_send(gatewayAddress.data(), (uint8_t *)payload, size);
+  esp_err_t result = esp_now_send(gatewayMacAddress, (uint8_t *)payload, size);
 
   if (result != ESP_OK)
   {
+#if defined(DEBUG)
     Serial.println("Radio transmission failed");
+#endif
     return false;
   }
   return true;

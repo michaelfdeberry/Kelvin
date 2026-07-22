@@ -6,6 +6,8 @@ const int voltagePin = BATTERY_PIN;
 const float referenceVoltage = BATTERY_REFERENCE_VOLTAGE;
 const int adcResolution = BATTERY_ADC_RESOLUTION;
 const int multiplicationFactor = BATTERY_MULTIPLICATION_FACTOR;
+const float deadVoltage = BATTERY_DEAD_VOLTAGE;
+const fload chargedVoltage = BATTERY_CHARGED_VOLTAGE;
 
 void BatteryMonitor::begin()
 {
@@ -15,8 +17,7 @@ void BatteryMonitor::begin()
 float BatteryMonitor::readVoltage()
 {
   int rawValue = analogRead(voltagePin);
-  float voltage = (rawValue / (float)adcResolution) * referenceVoltage;
-  return voltage * multiplicationFactor;
+  return rawValue * (referenceVoltage / (float)adcResolution) * multiplicationFactor;
 }
 
 float BatteryMonitor::readAverageVoltage(int samples)
@@ -30,21 +31,8 @@ float BatteryMonitor::readAverageVoltage(int samples)
   return sum / samples;
 }
 
-int BatteryMonitor::getBatterLevel()
+int BatteryMonitor::getBatteryLevel()
 {
-  // TODO: refactor this.
-  // the voltages were moved to the config,
-  // so this being hardcoded is not ideal.
   float voltage = readAverageVoltage(10);
-  if (voltage >= 4.2)
-    return 100;
-  if (voltage >= 4.0)
-    return 80;
-  if (voltage >= 3.8)
-    return 60;
-  if (voltage >= 3.6)
-    return 40;
-  if (voltage >= 3.4)
-    return 20;
-  return 0;
+  return (voltage - deadVoltage) / (chargedVoltage - deadVoltage) * 100;
 }

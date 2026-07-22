@@ -1,16 +1,26 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Kelvin.Server.Models;
 
-public class SensorPacket
+public class SensorPacket : Entity
 {
-  public byte[] Mac { get; } = new byte[6];
+  public string MacAddress { get; set; } = string.Empty;
+
   public float Temperature { get; set; }
+
   public float Humidity { get; set; }
-  public ushort CO2 { get; set; }
+
+  public ushort CO2Level { get; set; }
+
   public float BatteryLevel { get; set; }
+
+  public Guid SensorId { get; set; }
+
+  [ForeignKey(nameof(SensorId))]
+  public virtual Sensor? Sensor { get; set; }
 
   public override string ToString()
   {
-    var macString = BitConverter.ToString(Mac).Replace('-', ':').ToLowerInvariant();
-    return $"MAC={macString}, Temp={Temperature:F2}, Humidity={Humidity:F2}, CO2={CO2}, Battery={BatteryLevel:F2}";
+    return $"MAC={MacAddress}, Temp={Temperature:F2}, Humidity={Humidity:F2}, CO2={CO2Level}, Battery={BatteryLevel:F2}";
   }
 }

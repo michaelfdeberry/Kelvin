@@ -7,6 +7,8 @@
 #include "./sensors/DHT11Sensor.h"
 #elif ENV_SENSOR_TYPE == ENV_SENSOR_SCD4X
 #include "./sensors/SCD4XSensor.h"
+#elif ENV_SENSOR_TYPE == ENV_SENSOR_SHT4X
+#include "./sensors/SHT4XSensor.h"
 #else
 #error "Unsupported sensor type"
 #endif
@@ -15,6 +17,8 @@
 DHT11Sensor sensor;
 #elif ENV_SENSOR_TYPE == ENV_SENSOR_SCD4X
 SCD4XSensor sensor;
+#elif ENV_SENSOR_TYPE == ENV_SENSOR_SHT4X
+SHT4XSensor sensor;
 #endif
 
 BatteryMonitor batteryMonitor;
@@ -30,7 +34,7 @@ bool EnvironmentMonitor::read(sensor_payload &payload)
   bool result = sensor.read(payload);
   if (result)
   {
-    payload.batteryLevel = batteryMonitor.getBatterLevel();
+    payload.batteryLevel = batteryMonitor.getBatteryLevel();
   }
   return result;
 }

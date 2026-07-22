@@ -10,21 +10,17 @@ EnvironmentMonitor environmentMonitor;
 
 void setup()
 {
+#if defined(DEBUG)
   Serial.begin(9600);
   while (!Serial)
   {
     delay(100);
   }
+#endif
 
   Wire.begin();
   communicator.begin();
   environmentMonitor.begin();
-}
-
-void printError(const char *message)
-{
-  Serial.println(message);
-  delay(10000);
 }
 
 void loop()
@@ -32,17 +28,27 @@ void loop()
   sensor_payload payload;
   if (!environmentMonitor.read(payload))
   {
-    printError("Failed to read sensor data.");
+#if defined(DEBUG)
+    Serial.println("Failed to read sensor data.");
+#endif
+
+    delay(10000);
     return;
   }
 
   if (!communicator.send(&payload))
   {
-    printError("Failed to send sensor data.");
+#if defined(DEBUG)
+    Serial.println("Failed to send sensor data.");
+#endif
+
+    delay(10000);
     return;
   }
 
+#if defined(DEBUG)
   Serial.print("Sensor data sent successfully from ");
   Serial.println(WiFi.macAddress());
+#endif
   delay(30000);
 }

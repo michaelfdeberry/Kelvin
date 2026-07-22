@@ -14,22 +14,20 @@ void DHT11Sensor::begin()
 
 bool DHT11Sensor::read(sensor_payload &payload)
 {
-  // The Adafruit library returns floats instead of ints
   float humidity = dht.readHumidity();
-  // Read temperature as Celsius (default).
-  // Pass true to readTemperature(true) if you want Fahrenheit.
   float temperature = dht.readTemperature();
 
-  // The library returns NAN (Not a Number) if the microsecond timing fails
   if (isnan(humidity) || isnan(temperature))
   {
+#if defined(DEBUG)
     Serial.println("Error: Failed to read from DHT sensor! Check wiring/timing.");
+#endif
     return false;
   }
 
-  // Assign to payload (these will implicitly cast to int if your struct requires it)
   payload.humidity = humidity;
   payload.temperature = temperature;
+  payload.co2 = 0;
 
   return true;
 }

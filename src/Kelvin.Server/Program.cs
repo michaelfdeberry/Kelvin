@@ -1,11 +1,29 @@
+using Kelvin.Server.Channels;
+using Kelvin.Server.Data;
+using Kelvin.Server.Gateways;
+using Kelvin.Server.Sensors;
 using Kelvin.Server.Services;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var profilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+var databasePath = Path.Combine(profilePath, "kelvin", "kelvin.db");
+Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// dependencies
+builder.Services.AddScoped<IGatewayManager, GatewayManager>();
+builder.Services.AddScoped<ISensorsManager, SensorsManager>();
+
 builder.Services.AddHostedService<GatewayService>();
+
+builder.Services.AddSingleton<ISensorPacketChannel, SensorPacketChannel>();
+
+builder.Services.AddDbContext<KelvinContext>(options => options.UseSqlite($"Data Source={databasePath}"));
 
 var app = builder.Build();
 

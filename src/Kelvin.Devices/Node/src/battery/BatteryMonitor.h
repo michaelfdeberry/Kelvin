@@ -6,5 +6,5 @@ public:
   void begin();
   float readVoltage();
   float readAverageVoltage(int samples);
-  int getBatterLevel();
+  int getBatteryLevel();
 };
