@@ -1,18 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Kelvin.Server.Models;
 
-namespace Kelvin.Server.Integration;
+namespace Kelvin.Server.Integration.GeoCoding;
 
-public interface IGeoCodingApi
-{
-  Task<IReadOnlyList<GeoCodingLocation>> SearchAsync(string name, int count = 10, CancellationToken cancellationToken = default);
-
-  Task<GeoCodingLocation?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
-}
-
-public sealed class OpenMeteoGeoCodingApi(IHttpClientFactory httpClientFactory) : IGeoCodingApi
+public sealed partial class OpenMeteoGeoCodingApi(IHttpClientFactory httpClientFactory) : IGeoCodingApi
 {
   private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -26,7 +18,7 @@ public sealed class OpenMeteoGeoCodingApi(IHttpClientFactory httpClientFactory) 
     var httpClient = httpClientFactory.CreateClient(ClientName);
     var requestUri = $"search?name={Uri.EscapeDataString(name)}&count={count.ToString(CultureInfo.InvariantCulture)}&language=en&format=json";
 
-    var response = await httpClient.GetFromJsonAsync<GeoCodingResponse>(requestUri, JsonOptions, cancellationToken);
+    var response = await httpClient.GetFromJsonAsync<OpenMeteoGeoCodingResponse>(requestUri, JsonOptions, cancellationToken);
     if (response?.Results is null || response.Results.Count == 0)
       return [];
 
@@ -58,7 +50,7 @@ public sealed class OpenMeteoGeoCodingApi(IHttpClientFactory httpClientFactory) 
     var httpClient = httpClientFactory.CreateClient(ClientName);
     var requestUri = $"get?id={id.ToString(CultureInfo.InvariantCulture)}&format=json";
 
-    var response = await httpClient.GetFromJsonAsync<GeoCodingLocationResponse>(requestUri, JsonOptions, cancellationToken);
+    var response = await httpClient.GetFromJsonAsync<OpenMeteoGeoCodingLocationResponse>(requestUri, JsonOptions, cancellationToken);
     if (response is null || string.IsNullOrWhiteSpace(response.Name))
       return null;
 
@@ -77,56 +69,5 @@ public sealed class OpenMeteoGeoCodingApi(IHttpClientFactory httpClientFactory) 
       Admin3 = response.Admin3,
       PostCodes = response.PostCodes ?? [],
     };
-  }
-
-  private sealed class GeoCodingResponse
-  {
-    [JsonPropertyName("results")]
-    public List<GeoCodingLocationResponse>? Results { get; set; }
-  }
-
-  private sealed class GeoCodingLocationResponse
-  {
-    [JsonPropertyName("id")]
-    public long Id { get; set; }
-
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    [JsonPropertyName("latitude")]
-    public double Latitude { get; set; }
-
-    [JsonPropertyName("longitude")]
-    public double Longitude { get; set; }
-
-    [JsonPropertyName("elevation")]
-    public double? Elevation { get; set; }
-
-    [JsonPropertyName("timezone")]
-    public string? TimeZone { get; set; }
-
-    [JsonPropertyName("country")]
-    public string? Country { get; set; }
-
-    [JsonPropertyName("country_code")]
-    public string? CountryCode { get; set; }
-
-    [JsonPropertyName("admin1")]
-    public string? Admin1 { get; set; }
-
-    [JsonPropertyName("admin2")]
-    public string? Admin2 { get; set; }
-
-    [JsonPropertyName("admin3")]
-    public string? Admin3 { get; set; }
-
-    [JsonPropertyName("feature_code")]
-    public string? FeatureCode { get; set; }
-
-    [JsonPropertyName("population")]
-    public long? Population { get; set; }
-
-    [JsonPropertyName("postcodes")]
-    public List<string>? PostCodes { get; set; }
   }
 }

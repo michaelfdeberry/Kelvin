@@ -12,7 +12,7 @@ public class WeatherForecast
 
   public WeatherCurrent? Current { get; set; }
 
-  public IReadOnlyList<WeatherForecastDay> Daily { get; set; } = [];
+  public IEnumerable<WeatherForecastDay> Daily { get; set; } = [];
 }
 
 public class WeatherCurrent

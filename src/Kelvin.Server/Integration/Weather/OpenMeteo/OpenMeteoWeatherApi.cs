@@ -1,16 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Kelvin.Server.Models;
 
-namespace Kelvin.Server.Integration;
+namespace Kelvin.Server.Integration.Weather;
 
-public interface IWeatherApi
-{
-  Task<WeatherForecast?> GetForecastAsync(double latitude, double longitude, CancellationToken cancellationToken = default);
-}
-
-public sealed class MeteoWeatherApi(IHttpClientFactory httpClientFactory) : IWeatherApi
+public sealed partial class OpenMeteoWeatherApi(IHttpClientFactory httpClientFactory) : IWeatherApi
 {
   private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -22,7 +16,7 @@ public sealed class MeteoWeatherApi(IHttpClientFactory httpClientFactory) : IWea
     var requestUri =
       $"forecast?latitude={latitude.ToString(CultureInfo.InvariantCulture)}&longitude={longitude.ToString(CultureInfo.InvariantCulture)}&timezone=auto&forecast_days=7&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min";
 
-    var response = await httpClient.GetFromJsonAsync<MeteoForecastResponse>(requestUri, JsonOptions, cancellationToken);
+    var response = await httpClient.GetFromJsonAsync<OpenMeteoForecastResponse>(requestUri, JsonOptions, cancellationToken);
     if (response is null)
       return null;
 
@@ -48,7 +42,7 @@ public sealed class MeteoWeatherApi(IHttpClientFactory httpClientFactory) : IWea
     };
   }
 
-  private static IReadOnlyList<WeatherForecastDay> BuildDailyForecast(MeteoDailyForecast daily)
+  private static IEnumerable<WeatherForecastDay> BuildDailyForecast(OpenMeteoDailyForecast daily)
   {
     var count = new[] { daily.Time.Count, daily.Temperature2mMax.Count, daily.Temperature2mMin.Count, daily.WeatherCode.Count }.Min();
 
@@ -119,58 +113,4 @@ public sealed class MeteoWeatherApi(IHttpClientFactory httpClientFactory) : IWea
       99 => "Thunderstorm with heavy hail",
       _ => "Unknown",
     };
-
-  private sealed class MeteoForecastResponse
-  {
-    [JsonPropertyName("latitude")]
-    public double Latitude { get; set; }
-
-    [JsonPropertyName("longitude")]
-    public double Longitude { get; set; }
-
-    [JsonPropertyName("timezone")]
-    public string Timezone { get; set; } = string.Empty;
-
-    [JsonPropertyName("current")]
-    public MeteoCurrentWeather? Current { get; set; }
-
-    [JsonPropertyName("daily")]
-    public MeteoDailyForecast? Daily { get; set; }
-  }
-
-  private sealed class MeteoCurrentWeather
-  {
-    [JsonPropertyName("time")]
-    public string Time { get; set; } = string.Empty;
-
-    [JsonPropertyName("temperature_2m")]
-    public double Temperature2m { get; set; }
-
-    [JsonPropertyName("relative_humidity_2m")]
-    public double RelativeHumidity2m { get; set; }
-
-    [JsonPropertyName("apparent_temperature")]
-    public double ApparentTemperature2m { get; set; }
-
-    [JsonPropertyName("weather_code")]
-    public int WeatherCode { get; set; }
-
-    [JsonPropertyName("wind_speed_10m")]
-    public double WindSpeed10m { get; set; }
-  }
-
-  private sealed class MeteoDailyForecast
-  {
-    [JsonPropertyName("time")]
-    public List<string> Time { get; set; } = [];
-
-    [JsonPropertyName("temperature_2m_max")]
-    public List<double> Temperature2mMax { get; set; } = [];
-
-    [JsonPropertyName("temperature_2m_min")]
-    public List<double> Temperature2mMin { get; set; } = [];
-
-    [JsonPropertyName("weather_code")]
-    public List<int> WeatherCode { get; set; } = [];
-  }
 }
