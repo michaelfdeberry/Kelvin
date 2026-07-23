@@ -4,12 +4,14 @@
 
 sensor_payload incomingReadings;
 
+const uint8_t packetHeader[2] = {0xAA, 0x55};
+const uint8_t infoHeader[2] = {0xAB, 0x56};
+
 void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int len)
 {
   memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
 
-  const uint8_t header[2] = {0xAA, 0x55};
-  Serial.write(header, sizeof(header));
+  Serial.write(packetHeader, sizeof(packetHeader));
   Serial.write(info->src_addr, 6);
   Serial.write(reinterpret_cast<uint8_t *>(&incomingReadings), sizeof(incomingReadings));
 }
@@ -43,9 +45,12 @@ void loop()
 
     if (command.equalsIgnoreCase("info"))
     {
-      Serial.print("Gateway MAC: ");
-      Serial.print(WIFI.macAddress());
-      Serial.println();
+      uint8_t macAddress[6];
+      WiFi.macAddress(macAddress);
+      delay(200);
+
+      Serial.write(infoHeader, sizeof(infoHeader));
+      Serial.write(macAddress, sizeof(macAddress));
     }
   }
 

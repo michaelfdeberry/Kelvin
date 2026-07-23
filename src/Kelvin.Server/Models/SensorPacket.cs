@@ -14,7 +14,7 @@ public class SensorPacket : Entity
 
   public float BatteryLevel { get; set; }
 
-  public Guid SensorId { get; set; }
+  public Guid? SensorId { get; set; }
 
   [ForeignKey(nameof(SensorId))]
   public virtual Sensor? Sensor { get; set; }

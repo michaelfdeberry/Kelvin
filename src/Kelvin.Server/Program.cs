@@ -1,7 +1,6 @@
-using Kelvin.Server.Channels;
+using Kelvin.Server.Application;
 using Kelvin.Server.Data;
-using Kelvin.Server.Gateways;
-using Kelvin.Server.Sensors;
+using Kelvin.Server.Integration;
 using Kelvin.Server.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,17 +14,24 @@ Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-// dependencies
-builder.Services.AddScoped<IGatewayManager, GatewayManager>();
-builder.Services.AddScoped<ISensorsManager, SensorsManager>();
-
-builder.Services.AddHostedService<GatewayService>();
-
-builder.Services.AddSingleton<ISensorPacketChannel, SensorPacketChannel>();
-
+// Dependency Injection
 builder.Services.AddDbContext<KelvinContext>(options => options.UseSqlite($"Data Source={databasePath}"));
+builder.Services.AddSingleton<IDispatcher, Dispatcher>();
+builder.Services.AddHttpClient("OpenMeteo", client => client.BaseAddress = new Uri("https://api.open-meteo.com/v1/"));
+builder.Services.AddSingleton<IWeatherApi, MeteoWeatherApi>();
+builder.Services.AddSingleton<IGeoCodingApi, OpenMeteoGeoCodingApi>();
+builder.Services.AddHostedService<GatewayService>();
+builder.Services.AddHostedService<SensingService>();
+builder.Services.AddHostedService<ControlService>();
+builder.Services.RegisterDependencies();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+  var context = scope.ServiceProvider.GetRequiredService<KelvinContext>();
+  context.Database.EnsureCreated();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -35,28 +41,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
-
-app.MapGet(
-    "/weatherforecast",
-    () =>
-    {
-      var forecast = Enumerable
-        .Range(1, 5)
-        .Select(index => new WeatherForecast(
-          DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-          Random.Shared.Next(-20, 55),
-          summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-      return forecast;
-    }
-  )
-  .WithName("GetWeatherForecast");
+app.MapEndpoints();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-  public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

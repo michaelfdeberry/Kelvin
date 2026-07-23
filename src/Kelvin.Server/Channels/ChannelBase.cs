@@ -9,7 +9,7 @@ public interface IChannelBase<T>
   Task<T> ReadAsync(Guid subscriberId, CancellationToken cancellationToken = default);
 }
 
-public abstract class ChannelBase<T>(ILogger logger) : IDisposable, IChannelBase<T>
+public abstract class ChannelBase<T>(ILogger<ChannelBase<T>> logger) : IDisposable, IChannelBase<T>
 {
   private readonly ConcurrentDictionary<Guid, Channel<T>> _subscribers = new();
 

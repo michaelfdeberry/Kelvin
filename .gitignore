@@ -9,6 +9,10 @@
 
 libraries/
 
+## temporarily ignore the client directory until there some real code in there. 
+src/Kelvin.Client/
+scripts/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
