@@ -2,6 +2,7 @@ using System.Net.NetworkInformation;
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Gateways;
 
@@ -12,7 +13,7 @@ public static class SaveGatewayMacAddressErrors
   public static readonly Error InvalidMacAddress = new("SaveGatewayMacAddress.InvalidMacAddress", "The specified MAC address is invalid.");
 }
 
-public class SaveGatewayMacAddressHandler(KelvinContext context) : IHandler<SaveGatewayMacAddressRequest>
+public class SaveGatewayMacAddressHandler(KelvinContext context, IMemoryCache cache) : IHandler<SaveGatewayMacAddressRequest>
 {
   public async Task<Result> HandleAsync(SaveGatewayMacAddressRequest request, CancellationToken ct = default)
   {
@@ -30,6 +31,7 @@ public class SaveGatewayMacAddressHandler(KelvinContext context) : IHandler<Save
     }
 
     await context.SaveChangesAsync(ct);
+    cache.Remove(GatewayCache.Key);
     return Result.Success();
   }
 }

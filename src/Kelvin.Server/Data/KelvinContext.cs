@@ -11,6 +11,14 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
 
   public DbSet<SensorPacket> SensorPackets => Set<SensorPacket>();
 
+  public DbSet<Preferences> Preferences => Set<Preferences>();
+
+  public DbSet<Thermostat> Thermostats => Set<Thermostat>();
+
+  public DbSet<SetPoint> SetPoints => Set<SetPoint>();
+
+  public DbSet<Schedule> Schedules => Set<Schedule>();
+
   protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
   {
     base.OnConfiguring(optionsBuilder);

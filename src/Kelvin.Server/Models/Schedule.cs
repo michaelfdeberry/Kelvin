@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Kelvin.Server.Models;
 
 public class Schedule : Entity
@@ -25,10 +27,15 @@ public class Schedule : Entity
   /// <summary>
   /// The target temperature for the schedule in degrees Celsius.
   /// </summary>
-  public int TargetTemperatureC { get; set; }
+  public float TargetTemperatureC { get; set; }
 
   /// <summary>
   /// The location temperature at which the schedule will be activated.
   /// </summary>
-  public int? ActivationTemperatureC { get; set; }
+  public float? ActivationTemperatureC { get; set; }
+
+  public Guid ThermostatId { get; set; }
+
+  [ForeignKey("ThermostatId")]
+  public virtual Thermostat? Thermostat { get; set; }
 }

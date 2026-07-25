@@ -103,9 +103,13 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
           logger.LogError(e, "Failed to reopen port.");
         }
       }
+      catch (OperationCanceledException)
+      {
+        logger.LogInformation("GatewayService is stopping due to cancellation.");
+      }
       catch (Exception ex)
       {
-        Console.WriteLine(ex.Message);
+        logger.LogError(ex, "An error occurred in GatewayService while ingesting sensor packets.");
       }
     }
 
@@ -202,10 +206,10 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
     var packet = new SensorPacket
     {
       MacAddress = string.Join(':', macBytes.Select(b => b.ToString("X2"))).ToLowerInvariant(),
-      Temperature = BitConverter.ToSingle(buffer, MAC_SIZE + 0),
-      Humidity = BitConverter.ToSingle(buffer, MAC_SIZE + 4),
-      CO2Level = BitConverter.ToUInt16(buffer, MAC_SIZE + 8),
-      BatteryLevel = BitConverter.ToSingle(buffer, MAC_SIZE + 12),
+      TemperatureC = BitConverter.ToSingle(buffer, MAC_SIZE + 0),
+      HumidityPercentage = BitConverter.ToSingle(buffer, MAC_SIZE + 4),
+      CO2LevelPpm = BitConverter.ToUInt16(buffer, MAC_SIZE + 8),
+      BatteryLevelPercentage = BitConverter.ToSingle(buffer, MAC_SIZE + 12),
     };
 
     return packet;

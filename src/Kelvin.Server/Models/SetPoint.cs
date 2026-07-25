@@ -1,6 +1,8 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Kelvin.Server.Models;
 
-public class Run : Entity
+public class SetPoint : Entity
 {
   /// <summary>
   /// The type of run, either heating or cooling. This determines whether the run is intended to raise or lower the temperature.
@@ -10,10 +12,15 @@ public class Run : Entity
   /// <summary>
   /// The target temperature for the run in degrees Celsius.
   /// </summary>
-  public int TargetTemperatureC { get; set; }
+  public float TargetTemperatureC { get; set; }
 
   /// <summary>
   /// The location temperature at which the run will be activated.
   /// </summary>
-  public int? ActivationTemperatureC { get; set; }
+  public float? ActivationTemperatureC { get; set; }
+
+  public Guid ThermostatId { get; set; }
+
+  [ForeignKey("ThermostatId")]
+  public virtual Thermostat? Thermostat { get; set; }
 }

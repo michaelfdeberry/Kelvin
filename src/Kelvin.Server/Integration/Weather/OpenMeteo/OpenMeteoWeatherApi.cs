@@ -12,34 +12,41 @@ public sealed partial class OpenMeteoWeatherApi(IHttpClientFactory httpClientFac
 
   public async Task<WeatherForecast?> GetForecastAsync(double latitude, double longitude, CancellationToken cancellationToken = default)
   {
-    var httpClient = httpClientFactory.CreateClient(ClientName);
-    var requestUri =
-      $"forecast?latitude={latitude.ToString(CultureInfo.InvariantCulture)}&longitude={longitude.ToString(CultureInfo.InvariantCulture)}&timezone=auto&forecast_days=7&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min";
-
-    var response = await httpClient.GetFromJsonAsync<OpenMeteoForecastResponse>(requestUri, JsonOptions, cancellationToken);
-    if (response is null)
-      return null;
-
-    return new WeatherForecast
+    try
     {
-      Latitude = response.Latitude,
-      Longitude = response.Longitude,
-      TimeZone = response.Timezone,
-      RetrievedAt = DateTimeOffset.UtcNow,
-      Current = response.Current is null
-        ? null
-        : new WeatherCurrent
-        {
-          Timestamp = ParseDateTimeOffset(response.Current.Time),
-          TemperatureC = response.Current.Temperature2m,
-          ApparentTemperatureC = response.Current.ApparentTemperature2m,
-          Humidity = response.Current.RelativeHumidity2m,
-          WindSpeedKph = response.Current.WindSpeed10m,
-          WeatherCode = response.Current.WeatherCode,
-          Summary = DescribeWeatherCode(response.Current.WeatherCode),
-        },
-      Daily = response.Daily is null ? [] : BuildDailyForecast(response.Daily),
-    };
+      var httpClient = httpClientFactory.CreateClient(ClientName);
+      var requestUri =
+        $"forecast?latitude={latitude.ToString(CultureInfo.InvariantCulture)}&longitude={longitude.ToString(CultureInfo.InvariantCulture)}&timezone=auto&forecast_days=7&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min";
+
+      var response = await httpClient.GetFromJsonAsync<OpenMeteoForecastResponse>(requestUri, JsonOptions, cancellationToken);
+      if (response is null)
+        return null;
+
+      return new WeatherForecast
+      {
+        Latitude = response.Latitude,
+        Longitude = response.Longitude,
+        TimeZone = response.Timezone,
+        RetrievedAt = DateTimeOffset.UtcNow,
+        Current = response.Current is null
+          ? null
+          : new WeatherCurrent
+          {
+            Timestamp = ParseDateTimeOffset(response.Current.Time),
+            TemperatureC = response.Current.Temperature2m,
+            ApparentTemperatureC = response.Current.ApparentTemperature2m,
+            Humidity = response.Current.RelativeHumidity2m,
+            WindSpeedKph = response.Current.WindSpeed10m,
+            WeatherCode = response.Current.WeatherCode,
+            Summary = DescribeWeatherCode(response.Current.WeatherCode),
+          },
+        Daily = response.Daily is null ? [] : BuildDailyForecast(response.Daily),
+      };
+    }
+    catch (Exception ex)
+    {
+      throw new WeatherException("An error occurred while retrieving the weather forecast.", ex);
+    }
   }
 
   private static IEnumerable<WeatherForecastDay> BuildDailyForecast(OpenMeteoDailyForecast daily)

@@ -26,18 +26,23 @@ public class SensingService(ILogger<SensingService> logger, ISensorPacketChannel
         if (sensorPacket.SensorId is null)
           continue;
 
+        // just averaging everything for now, this may change later.
         _environment ??= new();
         _environment.Timestamp = DateTimeOffset.UtcNow;
-        _environment.Temperature = _environment.Areas.Values.Average(p => p.Temperature);
-        _environment.Humidity = _environment.Areas.Values.Average(p => p.Humidity);
-        _environment.CO2Level = _environment.Areas.Values.Average(p => p.CO2Level);
-        _environment.Areas.AddOrUpdate(sensorPacket.SensorId.Value, sensorPacket, (_, __) => sensorPacket);
+        _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
+        _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
+        _environment.CO2LevelPpm = _environment.Areas.Values.Average(p => p.CO2LevelPpm);
+        _environment.Areas.AddOrUpdate(sensorPacket.SensorId.Value, sensorPacket, (_, _) => sensorPacket);
 
         await environmentChannel.WriteAsync(_environment, stoppingToken);
       }
+      catch (OperationCanceledException)
+      {
+        logger.LogInformation("SensingService is stopping due to cancellation.");
+      }
       catch (Exception ex)
       {
-        logger.LogError(ex, "Error processing sensor packet");
+        logger.LogError(ex, "An error occurred in SensingService while processing sensor packets.");
       }
     }
   }
