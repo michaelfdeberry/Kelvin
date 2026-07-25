@@ -1,4 +1,3 @@
-using System.Device.Gpio;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Gateways;
@@ -10,59 +9,25 @@ public class ControlService(
   ILogger<ControlService> logger,
   IControlChannel controlChannel,
   IDispatcher dispatcher,
-  IConfiguration configuration,
+  IRelayController relays,
   IHostApplicationLifetime lifetime
 ) : BackgroundService
 {
   private static readonly Guid subscriberId = Guid.NewGuid();
 
-  // Set Gpio:Required to false only for development on machines without GPIO hardware.
-  // On the appliance it must stay true: a thermostat that logs "Activating Heating Relay" while
-  // actuating nothing looks healthy and isn't.
-  private const string GpioRequiredConfigurationKey = "Gpio:Required";
-
-  // The relay board is active low: driving a pin LOW energizes the relay, HIGH releases it.
-  private static readonly PinValue RelayOn = PinValue.Low;
-  private static readonly PinValue RelayOff = PinValue.High;
-
   // Hardware safety configurations
   private const int DefaultMinimumOffDurationMinutes = 5;
   private const int DefaultMinimumOnDurationMinutes = 3;
-  private TimeSpan minOffDuration;
-  private TimeSpan minOnDuration;
 
   // State tracking
-  private ControlState _currentState = ControlState.Idle;
+  private ControlState _currentState = ControlState.Dwell;
   private DateTimeOffset _lastStateChangeTime = DateTimeOffset.MinValue;
-  private Task? _transitionTimer;
-  private ControlState? _delayedState;
-
-  // GPIO
-  private GpioController? _gpio;
-  private bool _gpioRequired;
-  private GetGatewayResponse? _gateway;
+  private CancellationTokenSource? _pendingDwellCts;
+  private Task? _pendingDwellTask;
 
   public override Task StartAsync(CancellationToken cancellationToken)
   {
-    _gpioRequired = configuration.GetValue(GpioRequiredConfigurationKey, true);
-
-    try
-    {
-      _gpio = new GpioController();
-    }
-    catch (Exception ex)
-    {
-      if (_gpioRequired)
-        throw new InvalidOperationException(
-          "Unable to initialize the GPIO controller, so the HVAC relays cannot be actuated. On a Raspberry Pi 5 "
-            + "System.Device.Gpio requires the libgpiod runtime (libgpiod.so.2 or libgpiod.so.3); install it and verify "
-            + $"with 'gpiodetect'. Set {GpioRequiredConfigurationKey} to false to run without relay control.",
-          ex
-        );
-
-      logger.LogWarning(ex, "GPIO is not available and {ConfigurationKey} is false. HVAC relays will not be actuated.", GpioRequiredConfigurationKey);
-    }
-
+    relays.Initialize();
     return base.StartAsync(cancellationToken);
   }
 
@@ -75,39 +40,30 @@ public class ControlService(
         using var readCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         var controlMessageTask = controlChannel.ReadAsync(subscriberId, readCancellation.Token);
 
-        if (_transitionTimer is not null)
+        var gatewayResult = await dispatcher.DispatchAsync<GetGatewayRequest, GetGatewayResponse>(new(), stoppingToken);
+        gatewayResult.EnsureSuccess();
+
+        var gateway = gatewayResult.Value!;
+
+        if (_pendingDwellTask is not null)
         {
-          await Task.WhenAny(controlMessageTask, _transitionTimer);
-          if (_transitionTimer.IsCompleted)
+          var completed = await Task.WhenAny(controlMessageTask, _pendingDwellTask);
+          if (completed == _pendingDwellTask)
           {
             readCancellation.Cancel();
-            _transitionTimer = null;
-            var delayedState = _delayedState!.Value;
-            _delayedState = null;
-            await TransitionToState(delayedState);
+            CancelPendingDwellTransition();
+            TransitionToState(ControlState.Dwell);
             continue;
           }
-
-          await controlMessageTask;
-          logger.LogInformation("Ignoring control message while waiting to transition to {DelayedState}.", _delayedState);
-          continue;
         }
 
         var controlMessage = await controlMessageTask;
         if (controlMessage is null)
           continue;
 
-        var gatewayResult = await dispatcher.DispatchAsync<GetGatewayRequest, GetGatewayResponse>(new(), stoppingToken);
-        gatewayResult.EnsureSuccess();
+        relays.Configure(gateway);
 
-        var gateway = gatewayResult.Value!;
-        // make sure to use the configured minimum durations, or fall back to defaults if not set
-        minOffDuration = TimeSpan.FromMinutes(gateway.MinimumOffDurationMinutes ?? DefaultMinimumOffDurationMinutes);
-        minOnDuration = TimeSpan.FromMinutes(gateway.MinimumOnDurationMinutes ?? DefaultMinimumOnDurationMinutes);
-
-        ConfigureGpio(gateway);
-
-        await EvaluateAndActuateAsync(controlMessage.State);
+        EvaluateAndActuate(gateway, controlMessage.State);
       }
       catch (OperationCanceledException)
       {
@@ -127,64 +83,87 @@ public class ControlService(
     }
   }
 
-  private async Task EvaluateAndActuateAsync(ControlState requestedState)
+  private void EvaluateAndActuate(GetGatewayResponse gateway, ControlState requestedState)
   {
+    // make sure to use the configured minimum durations, or fall back to defaults if not set
+    var minOffDuration = TimeSpan.FromMinutes(gateway.MinimumOffDurationMinutes ?? DefaultMinimumOffDurationMinutes);
+    var minOnDuration = TimeSpan.FromMinutes(gateway.MinimumOnDurationMinutes ?? DefaultMinimumOnDurationMinutes);
     var now = DateTimeOffset.UtcNow;
     var timeInCurrentState = now - _lastStateChangeTime;
 
-    if (requestedState == ControlState.Enable)
+    // Control belongs to the legacy thermostat while disabled, so every other request is ignored until
+    // an Enable message arrives. No minimum duration is tracked for this, Disable blocks everything.
+    if (_currentState == ControlState.Disable)
     {
-      if (_currentState == ControlState.Disable)
-      {
-        await TransitionToState(ControlState.Enable);
-        return;
-      }
-
-      // already enabled; re-assert control without disturbing the current state or its minimum duration timers
-      WritePin(_gateway?.ControlPin, RelayOn, nameof(GetGatewayResponse.ControlPin));
+      logger.LogInformation("Ignoring {RequestedState} request while Disabled.", requestedState);
       return;
     }
 
+    // disabling control is either on demand by the user or due to a failure, so control should be reverted to the legacy thermostat immediately
     if (requestedState == ControlState.Disable)
     {
+      if (_pendingDwellTask is not null)
+      {
+        logger.LogInformation("Received Disable while waiting to transition to Dwell; cancelling the wait.");
+        CancelPendingDwellTransition();
+      }
+
       if ((_currentState == ControlState.Heating || _currentState == ControlState.Cooling) && timeInCurrentState < minOnDuration)
       {
-        var remaining = minOnDuration - timeInCurrentState;
-        logger.LogInformation(
-          "Requested Disabled, but Minimum On-Time ({RequiredMinutes}m) has not elapsed. Transitioning to Disabled in {RemainingSeconds}s and ignoring control messages until then.",
-          minOnDuration.TotalMinutes,
-          remaining.TotalSeconds
-        );
-        ScheduleTransition(ControlState.Disable, remaining);
-        return;
+        logger.LogWarning("Disabling immediately even though Minimum On-Time ({RequiredMinutes}m) has not elapsed.", minOnDuration.TotalMinutes);
       }
 
-      await TransitionToState(ControlState.Disable);
+      TransitionToState(ControlState.Disable);
       return;
     }
 
-    if (requestedState == ControlState.Idle)
+    // The fan can be toggled independently of other states and doesn't need to be tracked
+    if (requestedState is ControlState.FanOn or ControlState.FanOff)
     {
-      if (!IsInactive(_currentState))
+      ToggleFan(requestedState);
+      return;
+    }
+
+    // If the requested state is Enable, it means Kelvin is taking control from the legacy thermostat.
+    if (requestedState == ControlState.Enable)
+    {
+      // this doesn't need to transition to state because if it wasn't enabled it's already in a state equivalent to Dwell
+      // just set the current state to dwell and enable the relay.
+      _currentState = ControlState.Dwell;
+      relays.EnableControl();
+      return;
+    }
+
+    if (requestedState == ControlState.Dwell)
+    {
+      if (_currentState != ControlState.Dwell)
       {
-        // Check Minimum On-Time guard
-        if (timeInCurrentState < minOnDuration)
+        // already waiting to transition to Dwell
+        if (_pendingDwellTask is not null)
         {
-          logger.LogInformation(
-            "Requested Idle/Off, but Minimum On-Time ({RequiredMinutes}m) has not elapsed. Holding current state for {RemainingSeconds}s.",
-            minOnDuration.TotalMinutes,
-            (minOnDuration - timeInCurrentState).TotalSeconds
-          );
-          return; // Hold state
+          return;
         }
 
-        await TransitionToState(ControlState.Idle);
+        // leaving an active Heating/Cooling call for Dwell is subject to the Minimum On-Time guard.
+        if (timeInCurrentState < minOnDuration)
+        {
+          var remaining = minOnDuration - timeInCurrentState;
+          logger.LogInformation(
+            "Requested Dwell, but Minimum On-Time ({RequiredMinutes}m) has not elapsed. Transitioning to Dwell in {RemainingSeconds}s unless another call for {CurrentState} arrives first.",
+            minOnDuration.TotalMinutes,
+            remaining.TotalSeconds,
+            _currentState
+          );
+          ScheduleDwellTransition(remaining);
+          return;
+        }
+
+        TransitionToState(ControlState.Dwell);
       }
       return;
     }
 
-    // Handle active heating or cooling requests
-    if (IsInactive(_currentState))
+    if (_currentState == ControlState.Dwell)
     {
       // Check Minimum Off-Time
       if (timeInCurrentState < minOffDuration)
@@ -200,170 +179,102 @@ public class ControlService(
         return;
       }
 
-      await TransitionToState(requestedState);
+      TransitionToState(requestedState);
     }
-    else if (_currentState != requestedState)
+    else if (_currentState == requestedState)
     {
-      logger.LogWarning(
-        "Attempted to switch state from {_currentState} to {requestedState} without an intermediate Idle state.",
+      if (_pendingDwellTask is not null)
+      {
+        logger.LogInformation(
+          "Received another call for {RequestedState} while waiting to transition to Dwell; cancelling the wait.",
+          requestedState
+        );
+        CancelPendingDwellTransition();
+      }
+    }
+    else
+    {
+      // Heating and Cooling are the only two active states reachable here, so this guards against a direct Heating<->Cooling switch
+      // Maybe there is some concern for this in the automatic mode, but it probably wouldn't make sense to configure it that tightly anyway.
+      // There will need to be some validation against this being configured in this way.
+      //
+      // This is being treated as a critical error because it shouldn't be possible to reach this point without a bug in the code.
+      // Reverting control because going from heating to cooling may crack the heater core and going from cooling to heating may
+      // damage the AC compressor, which is a safety concern.
+      //
+      // My current assumptions is that normal thermostats are dumb and the furnace control board is designed to handle this,
+      // I wouldn't bet my furnace on it though.
+      // TODO: research this topic more.
+      logger.LogCritical(
+        "Attempted to switch directly from {_currentState} to {requestedState} without an intermediate idle state. Ignoring the request.",
         _currentState,
         requestedState
       );
+      TransitionToState(ControlState.Disable);
     }
   }
 
-  private void ScheduleTransition(ControlState state, TimeSpan delay)
+  private void ToggleFan(ControlState requestedState)
   {
-    _delayedState = state;
-    _transitionTimer = Task.Delay(delay, CancellationToken.None);
+    if (requestedState == ControlState.FanOn)
+    {
+      logger.LogInformation("Activating Fan Relay (Fan - G).");
+      relays.EnableFan();
+    }
+    else
+    {
+      logger.LogInformation("Deactivating Fan Relay (Fan - G).");
+      relays.DisableFan();
+    }
   }
 
-  // Enabled and Idle both mean Kelvin holds control with no call for heat or cool, so they gate transitions the same way.
-  private static bool IsInactive(ControlState state) => state is ControlState.Idle or ControlState.Enable;
+  private void ScheduleDwellTransition(TimeSpan delay)
+  {
+    _pendingDwellCts = new CancellationTokenSource();
+    _pendingDwellTask = Task.Delay(delay, _pendingDwellCts.Token);
+  }
 
-  private Task TransitionToState(ControlState newState)
+  private void CancelPendingDwellTransition()
+  {
+    if (_pendingDwellCts is null)
+      return;
+
+    _pendingDwellCts.Cancel();
+    _pendingDwellCts.Dispose();
+    _pendingDwellCts = null;
+    _pendingDwellTask = null;
+  }
+
+  private void TransitionToState(ControlState newState)
   {
     _currentState = newState;
     _lastStateChangeTime = DateTimeOffset.UtcNow;
 
     switch (newState)
     {
-      case ControlState.FanOn:
-        logger.LogInformation("Activating Fan Relay (Fan - G).");
-        WritePin(_gateway?.FanPin, RelayOn, nameof(GetGatewayResponse.FanPin));
-        break;
-      case ControlState.FanOff:
-        logger.LogInformation("Deactivating Fan Relay (Fan - G).");
-        WritePin(_gateway?.FanPin, RelayOff, nameof(GetGatewayResponse.FanPin));
-        break;
-      case ControlState.Heating:
-        logger.LogInformation("Activating Heating Relay (Heat - W).");
-        WritePin(_gateway?.CoolingPin, RelayOff, nameof(GetGatewayResponse.CoolingPin));
-        WritePin(_gateway?.HeatingPin, RelayOn, nameof(GetGatewayResponse.HeatingPin));
-        break;
-      case ControlState.Cooling:
-        logger.LogInformation("Activating Cooling Relay (Cool - Y).");
-        WritePin(_gateway?.HeatingPin, RelayOff, nameof(GetGatewayResponse.HeatingPin));
-        WritePin(_gateway?.CoolingPin, RelayOn, nameof(GetGatewayResponse.CoolingPin));
-        break;
       case ControlState.Enable:
         logger.LogInformation("Taking control from the Legacy Thermostat (Control - relay energized).");
-        WritePin(_gateway?.HeatingPin, RelayOff, nameof(GetGatewayResponse.HeatingPin));
-        WritePin(_gateway?.CoolingPin, RelayOff, nameof(GetGatewayResponse.CoolingPin));
-        WritePin(_gateway?.FanPin, RelayOff, nameof(GetGatewayResponse.FanPin));
-        WritePin(_gateway?.ControlPin, RelayOn, nameof(GetGatewayResponse.ControlPin));
-        break;
-      case ControlState.Idle:
-        logger.LogInformation("Deactivating HVAC relays.");
-        WritePin(_gateway?.HeatingPin, RelayOff, nameof(GetGatewayResponse.HeatingPin));
-        WritePin(_gateway?.CoolingPin, RelayOff, nameof(GetGatewayResponse.CoolingPin));
+        relays.EnableControl();
         break;
       case ControlState.Disable:
         logger.LogInformation("Deactivating HVAC relays, reverting control to Failsafe NC (Legacy Thermostat).");
-        WritePin(_gateway?.HeatingPin, RelayOff, nameof(GetGatewayResponse.HeatingPin));
-        WritePin(_gateway?.CoolingPin, RelayOff, nameof(GetGatewayResponse.CoolingPin));
-        WritePin(_gateway?.FanPin, RelayOff, nameof(GetGatewayResponse.FanPin));
-        WritePin(_gateway?.ControlPin, RelayOff, nameof(GetGatewayResponse.ControlPin));
+        relays.DisableControl();
+        break;
+      case ControlState.Dwell:
+        logger.LogInformation("Deactivating HVAC relays.");
+        relays.EnableDwell();
+        break;
+      case ControlState.Heating:
+        logger.LogInformation("Activating Heating Relay (Heat - W).");
+        relays.EnableHeating();
+        break;
+      case ControlState.Cooling:
+        logger.LogInformation("Activating Cooling Relay (Cool - Y).");
+        relays.EnableCooling();
         break;
       default:
         logger.LogWarning("Unhandled ControlState: {newState}", newState);
         break;
     }
-
-    return Task.CompletedTask;
-  }
-
-  private void ConfigureGpio(GetGatewayResponse gateway)
-  {
-    ClosePinIfReplaced(_gateway?.HeatingPin, gateway.HeatingPin);
-    ClosePinIfReplaced(_gateway?.CoolingPin, gateway.CoolingPin);
-    ClosePinIfReplaced(_gateway?.FanPin, gateway.FanPin);
-    ClosePinIfReplaced(_gateway?.ControlPin, gateway.ControlPin);
-
-    _gateway = gateway;
-
-    OpenPin(gateway.HeatingPin, nameof(gateway.HeatingPin));
-    OpenPin(gateway.CoolingPin, nameof(gateway.CoolingPin));
-    OpenPin(gateway.FanPin, nameof(gateway.FanPin));
-    OpenPin(gateway.ControlPin, nameof(gateway.ControlPin));
-  }
-
-  private void ClosePinIfReplaced(int? previous, int? configured)
-  {
-    if (previous == configured || previous is not int pin || _gpio?.IsPinOpen(pin) != true)
-      return;
-
-    _gpio.Write(pin, RelayOff);
-    _gpio.ClosePin(pin);
-  }
-
-  private void OpenPin(int? configured, string pinName)
-  {
-    // already open pins keep their current value; a pin that failed to open previously is retried here
-    if (configured is not int pin || _gpio is null || _gpio.IsPinOpen(pin))
-      return;
-
-    try
-    {
-      // start released so the furnace stays on the failsafe path until a state is requested
-      _gpio.OpenPin(pin, PinMode.Output, RelayOff);
-      logger.LogInformation("Opened GPIO pin {Pin} for {PinName}.", pin, pinName);
-    }
-    catch (Exception ex)
-    {
-      if (_gpioRequired)
-        throw new GpioUnavailableException($"Failed to open GPIO pin {pin} for {pinName}.", ex);
-
-      logger.LogError(ex, "Failed to open GPIO pin {Pin} for {PinName}.", pin, pinName);
-    }
-  }
-
-  private void WritePin(int? pin, PinValue value, string pinName)
-  {
-    if (pin is not int pinNumber)
-      return;
-
-    if (_gpio is null || !_gpio.IsPinOpen(pinNumber))
-    {
-      if (_gpioRequired)
-        throw new GpioUnavailableException($"Unable to write {value} to {pinName}; GPIO pin {pinNumber} is not open.");
-
-      logger.LogWarning("Unable to write {Value} to {PinName}; GPIO pin {Pin} is not open.", value, pinName, pinNumber);
-      return;
-    }
-
-    try
-    {
-      _gpio.Write(pinNumber, value);
-    }
-    catch (Exception ex)
-    {
-      if (_gpioRequired)
-        throw new GpioUnavailableException($"Failed to write {value} to GPIO pin {pinNumber} for {pinName}.", ex);
-
-      logger.LogError(ex, "Failed to write {Value} to GPIO pin {Pin} for {PinName}.", value, pinNumber, pinName);
-    }
-  }
-
-  public override void Dispose()
-  {
-    if (_gpio is not null)
-    {
-      foreach (var pin in new[] { _gateway?.HeatingPin, _gateway?.CoolingPin, _gateway?.FanPin, _gateway?.ControlPin })
-      {
-        if (pin is int pinNumber && _gpio.IsPinOpen(pinNumber))
-        {
-          // release every relay so the legacy thermostat regains control when the service stops
-          _gpio.Write(pinNumber, RelayOff);
-          _gpio.ClosePin(pinNumber);
-        }
-      }
-
-      _gpio.Dispose();
-      _gpio = null;
-    }
-
-    base.Dispose();
-    GC.SuppressFinalize(this);
   }
 }

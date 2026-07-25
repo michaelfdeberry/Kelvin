@@ -22,6 +22,7 @@ builder.Services.AddSingleton<IDispatcher, Dispatcher>();
 builder.Services.AddHttpClient("OpenMeteo", client => client.BaseAddress = new Uri("https://api.open-meteo.com/v1/"));
 builder.Services.AddSingleton<IWeatherApi, OpenMeteoWeatherApi>();
 builder.Services.AddSingleton<IGeoCodingApi, OpenMeteoGeoCodingApi>();
+builder.Services.AddSingleton<IRelayController, RelayController>();
 builder.Services.AddHostedService<ControlService>();
 builder.Services.AddHostedService<GatewayService>();
 builder.Services.AddHostedService<SensingService>();

@@ -15,7 +15,7 @@ public class ThermostatService(
 ) : BackgroundService
 {
   private static readonly Guid subscriberId = Guid.NewGuid();
-  private ControlState _activeCall = ControlState.Idle;
+  private ControlState _activeCall = ControlState.Dwell;
   private readonly float defaultHysteresis = 0.6f;
   private readonly float minSafeHysteresis = 0.3f;
   private readonly float maxSafeHysteresis = 2.0f;
@@ -40,20 +40,20 @@ public class ThermostatService(
         if (thermostat.Mode == RunMode.Disabled)
         {
           logger.LogInformation("Thermostat is Disabled, skipping environment processing.");
-          _activeCall = ControlState.Idle;
+          _activeCall = ControlState.Dwell;
           // the updating of the state will dispatch the control message, but do it here just in case.
           await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable), stoppingToken);
           continue;
         }
 
-        // re-assert control every cycle so a restart, or an error state that fell back to Disabled, re-energizes the control relay
+        // re-assert control every cycle so a restart re-energizes the control relay, noop if already energized.
         await controlChannel.WriteAsync(new ControlMessage(ControlState.Enable), stoppingToken);
 
         if (thermostat.Mode == RunMode.Off)
         {
           logger.LogInformation("Thermostat is Off, skipping environment processing.");
-          _activeCall = ControlState.Idle;
-          await controlChannel.WriteAsync(new ControlMessage(ControlState.Idle), stoppingToken);
+          _activeCall = ControlState.Dwell;
+          await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), stoppingToken);
           continue;
         }
 
@@ -91,6 +91,7 @@ public class ThermostatService(
   )
   {
     var environmentTemperatureC = environment.TemperatureC;
+    var previousActiveCall = _activeCall;
 
     var currentTimeOnly = TimeOnly.FromDateTime(DateTimeOffset.Now.DateTime);
     var activeSchedules = thermostat.Schedules.Where(s => s.Enabled && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
@@ -111,8 +112,8 @@ public class ThermostatService(
     if (heatingTargetTemp is null && coolingTargetTemp is null)
     {
       logger.LogInformation("No active heating or cooling schedules or set points found.");
-      _activeCall = ControlState.Idle;
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Idle), cancellationToken);
+      _activeCall = ControlState.Dwell;
+      await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), cancellationToken);
       return RunMode.Off;
     }
 
@@ -132,10 +133,11 @@ public class ThermostatService(
     bool callForHeating = false;
     bool callForCooling = false;
     var hysteresis = GetHysteresis(thermostat.HysteresisC);
+
     // determine if the environment temperature is below the heating target temp or above the cooling target temp, taking into account hysteresis
     if ((useForecastForHeating && forecastCallsForHeating) || !useForecastForHeating)
     {
-      if (_activeCall == ControlState.Idle && environmentTemperatureC <= (heatingTargetTemp - hysteresis))
+      if (_activeCall == ControlState.Dwell && environmentTemperatureC <= (heatingTargetTemp - hysteresis))
       {
         callForHeating = true;
       }
@@ -147,7 +149,7 @@ public class ThermostatService(
 
     if ((useForecastForCooling && forecastCallsForCooling) || !useForecastForCooling)
     {
-      if (_activeCall == ControlState.Idle && environmentTemperatureC >= (coolingTargetTemp + hysteresis))
+      if (_activeCall == ControlState.Dwell && environmentTemperatureC >= (coolingTargetTemp + hysteresis))
       {
         callForCooling = true;
       }
@@ -157,11 +159,26 @@ public class ThermostatService(
       }
     }
 
+    if ((callForHeating && previousActiveCall == ControlState.Cooling) || (callForCooling && previousActiveCall == ControlState.Heating))
+    {
+      // It should never be possible to switch directly between an active heating call and an active
+      // cooling call; the hysteresis logic above is gated on _activeCall specifically to prevent this.
+      // Treat it as a critical error and fall back to Dwell rather than flipping the call directly.
+      logger.LogCritical(
+        "Attempted to switch directly from {PreviousActiveCall} to a call for {RequestedCall} without an intermediate Dwell state.",
+        previousActiveCall,
+        callForHeating ? RunType.Heating : RunType.Cooling
+      );
+      _activeCall = ControlState.Dwell;
+      await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), cancellationToken);
+      return RunMode.Off;
+    }
+
     if (callForHeating && callForCooling)
     {
       // turn off the system, revert control to the dumb thermostat, and log the error.
       logger.LogCritical("Both heating and cooling conditions are met. This is an unexpected state.");
-      _activeCall = ControlState.Idle;
+      _activeCall = ControlState.Dwell;
       await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable), cancellationToken);
       return RunMode.Off;
     }
@@ -184,8 +201,8 @@ public class ThermostatService(
 
     // no conditions are met for heating or cooling, so we will turn off the system
     logger.LogInformation("No conditions are met for heating or cooling, turning off the system.");
-    _activeCall = ControlState.Idle;
-    await controlChannel.WriteAsync(new ControlMessage(ControlState.Idle), cancellationToken);
+    _activeCall = ControlState.Dwell;
+    await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), cancellationToken);
 
     return RunMode.Off;
   }

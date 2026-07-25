@@ -17,9 +17,9 @@ public enum ControlState
   Enable,
 
   /// <summary>
-  /// The system is idle and not actively heating or cooling.
+  /// The system is dwelling and not actively heating or cooling.
   /// </summary>
-  Idle,
+  Dwell,
 
   /// <summary>
   /// The system is actively heating to reach the target temperature.

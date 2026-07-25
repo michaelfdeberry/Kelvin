@@ -35,7 +35,7 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
       await controlChannel.WriteAsync(new ControlMessage(ControlState.Enable), ct);
 
       if (thermostat.Mode == RunMode.Off)
-        await controlChannel.WriteAsync(new ControlMessage(ControlState.Idle), ct);
+        await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), ct);
     }
 
     await context.SaveChangesAsync(ct);
