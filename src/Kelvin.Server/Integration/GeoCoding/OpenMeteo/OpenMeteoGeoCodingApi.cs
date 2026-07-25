@@ -8,14 +8,14 @@ public sealed partial class OpenMeteoGeoCodingApi(IHttpClientFactory httpClientF
 {
   private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-  private const string ClientName = "OpenMeteo";
+  private const string CLIENT_NAME = "OpenMeteo";
 
   public async Task<IReadOnlyList<GeoCodingLocation>> SearchAsync(string name, int count = 10, CancellationToken cancellationToken = default)
   {
     if (string.IsNullOrWhiteSpace(name))
       return [];
 
-    var httpClient = httpClientFactory.CreateClient(ClientName);
+    var httpClient = httpClientFactory.CreateClient(CLIENT_NAME);
     var requestUri = $"search?name={Uri.EscapeDataString(name)}&count={count.ToString(CultureInfo.InvariantCulture)}&language=en&format=json";
 
     var response = await httpClient.GetFromJsonAsync<OpenMeteoGeoCodingResponse>(requestUri, JsonOptions, cancellationToken);
@@ -47,7 +47,7 @@ public sealed partial class OpenMeteoGeoCodingApi(IHttpClientFactory httpClientF
     if (id <= 0)
       return null;
 
-    var httpClient = httpClientFactory.CreateClient(ClientName);
+    var httpClient = httpClientFactory.CreateClient(CLIENT_NAME);
     var requestUri = $"get?id={id.ToString(CultureInfo.InvariantCulture)}&format=json";
 
     var response = await httpClient.GetFromJsonAsync<OpenMeteoGeoCodingLocationResponse>(requestUri, JsonOptions, cancellationToken);

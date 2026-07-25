@@ -16,8 +16,8 @@ public class ControlService(
   private static readonly Guid subscriberId = Guid.NewGuid();
 
   // Hardware safety configurations
-  private const int DefaultMinimumOffDurationMinutes = 5;
-  private const int DefaultMinimumOnDurationMinutes = 3;
+  private const int DEFAULT_MIN_OFF_DURATION_MINUTES = 5;
+  private const int DEFAULT_MIN_ON_DURATION_MINUTES = 3;
 
   // State tracking
   private ControlState _currentState = ControlState.Dwell;
@@ -86,8 +86,8 @@ public class ControlService(
   private void EvaluateAndActuate(GetGatewayResponse gateway, ControlState requestedState)
   {
     // make sure to use the configured minimum durations, or fall back to defaults if not set
-    var minOffDuration = TimeSpan.FromMinutes(gateway.MinimumOffDurationMinutes ?? DefaultMinimumOffDurationMinutes);
-    var minOnDuration = TimeSpan.FromMinutes(gateway.MinimumOnDurationMinutes ?? DefaultMinimumOnDurationMinutes);
+    var minOffDuration = TimeSpan.FromMinutes(gateway.MinimumOffDurationMinutes ?? DEFAULT_MIN_OFF_DURATION_MINUTES);
+    var minOnDuration = TimeSpan.FromMinutes(gateway.MinimumOnDurationMinutes ?? DEFAULT_MIN_ON_DURATION_MINUTES);
     var now = DateTimeOffset.UtcNow;
     var timeInCurrentState = now - _lastStateChangeTime;
 
