@@ -5,11 +5,21 @@ using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Services;
 
+/// <summary>
+/// Consumes control messages and actuates the HVAC relays, applying the hardware safety guards.
+/// </summary>
+/// <remarks>
+/// State is tracked by concern rather than as one combined state, so the minimum on/off duration guards in
+/// <see cref="EvaluateCall" /> only ever see the states they apply to: control ownership is a flag driven
+/// exclusively by <see cref="ControlState.Enable" /> and <see cref="ControlState.Disable" />, the fan is stateless
+/// and actuated directly, and only an <see cref="HvacCall" /> reaches the guards.
+/// </remarks>
 public class ControlService(
   ILogger<ControlService> logger,
   IControlChannel controlChannel,
   IDispatcher dispatcher,
   IRelayController relays,
+  TimeProvider time,
   IHostApplicationLifetime lifetime
 ) : BackgroundService
 {
@@ -20,8 +30,9 @@ public class ControlService(
   private const int DEFAULT_MIN_ON_DURATION_MINUTES = 3;
 
   // State tracking
-  private ControlState _currentState = ControlState.Dwell;
-  private DateTimeOffset _lastStateChangeTime = DateTimeOffset.MinValue;
+  private bool _controlEnabled;
+  private HvacCall _currentCall = HvacCall.Dwell;
+  private DateTimeOffset _lastCallChangeAt = DateTimeOffset.MinValue;
   private CancellationTokenSource? _pendingDwellCts;
   private Task? _pendingDwellTask;
 
@@ -33,37 +44,40 @@ public class ControlService(
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
+    // The read is kept outstanding across iterations. A scheduled dwell transition can come due while a message is
+    // already in flight, and cancelling the read to apply it would discard a message the channel had handed over.
+    Task<ControlMessage>? outstandingRead = null;
+
     while (!stoppingToken.IsCancellationRequested)
     {
       try
       {
-        using var readCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        var controlMessageTask = controlChannel.ReadAsync(subscriberId, readCancellation.Token);
+        outstandingRead ??= controlChannel.ReadAsync(subscriberId, stoppingToken);
 
         var gatewayResult = await dispatcher.DispatchAsync<GetGatewayRequest, GetGatewayResponse>(new(), stoppingToken);
         gatewayResult.EnsureSuccess();
 
         var gateway = gatewayResult.Value!;
 
-        if (_pendingDwellTask is not null)
+        // A scheduled dwell never delays anything else: whichever of the two completes first is dealt with in this
+        // iteration, and a message still in flight is picked up by the next one.
+        if (_pendingDwellTask is not null && await Task.WhenAny(outstandingRead, _pendingDwellTask) == _pendingDwellTask)
         {
-          var completed = await Task.WhenAny(controlMessageTask, _pendingDwellTask);
-          if (completed == _pendingDwellTask)
-          {
-            readCancellation.Cancel();
-            CancelPendingDwellTransition();
-            TransitionToState(ControlState.Dwell);
-            continue;
-          }
+          CancelPendingDwellTransition();
+          TransitionToCall(HvacCall.Dwell);
+          continue;
         }
 
-        var controlMessage = await controlMessageTask;
+        var read = outstandingRead;
+        outstandingRead = null;
+
+        var controlMessage = await read;
         if (controlMessage is null)
           continue;
 
         relays.Configure(gateway);
 
-        EvaluateAndActuate(gateway, controlMessage.State);
+        Handle(gateway, controlMessage.State);
       }
       catch (OperationCanceledException)
       {
@@ -83,118 +97,117 @@ public class ControlService(
     }
   }
 
-  private void EvaluateAndActuate(GetGatewayResponse gateway, ControlState requestedState)
+  /// <summary>Routes a requested control state to the relays, applying the hardware safety guards.</summary>
+  private void Handle(GetGatewayResponse gateway, ControlState requested)
+  {
+    // Taking control back from the legacy thermostat is the only way out of Disable, so it is handled before the
+    // guard below.
+    if (requested == ControlState.Enable)
+    {
+      EnableControl();
+      return;
+    }
+
+    // Disabling is either on demand by the user or due to a failure, so control is reverted to the legacy thermostat
+    // immediately regardless of how long the current call has been running.
+    if (requested == ControlState.Disable)
+    {
+      DisableControl(gateway, "Disable was requested");
+      return;
+    }
+
+    // While control is reverted the legacy thermostat owns the equipment, so nothing else is actuated - including the
+    // fan, whose relay is downstream of the control relay.
+    if (!_controlEnabled)
+    {
+      logger.LogInformation("Ignoring {RequestedState} request while control is reverted to the legacy thermostat.", requested);
+      return;
+    }
+
+    // The fan can be toggled independently of the current call and doesn't need to be tracked.
+    if (requested is ControlState.FanOn or ControlState.FanOff)
+    {
+      ToggleFan(requested);
+      return;
+    }
+
+    if (!TryGetCall(requested, out var call))
+    {
+      logger.LogWarning("Unhandled ControlState: {RequestedState}", requested);
+      return;
+    }
+
+    EvaluateCall(gateway, call);
+  }
+
+  /// <summary>
+  /// Applies the minimum on/off duration guards to a requested call. Control is known to be enabled here, and
+  /// <paramref name="call" /> is the only state the guards apply to.
+  /// </summary>
+  private void EvaluateCall(GetGatewayResponse gateway, HvacCall call)
   {
     // make sure to use the configured minimum durations, or fall back to defaults if not set
     var minOffDuration = TimeSpan.FromMinutes(gateway.MinimumOffDurationMinutes ?? DEFAULT_MIN_OFF_DURATION_MINUTES);
     var minOnDuration = TimeSpan.FromMinutes(gateway.MinimumOnDurationMinutes ?? DEFAULT_MIN_ON_DURATION_MINUTES);
-    var now = DateTimeOffset.UtcNow;
-    var timeInCurrentState = now - _lastStateChangeTime;
+    var timeInCurrentCall = time.GetUtcNow() - _lastCallChangeAt;
 
-    // Control belongs to the legacy thermostat while disabled, so every other request is ignored until
-    // an Enable message arrives. No minimum duration is tracked for this, Disable blocks everything.
-    if (_currentState == ControlState.Disable)
+    if (call == HvacCall.Dwell)
     {
-      logger.LogInformation("Ignoring {RequestedState} request while Disabled.", requestedState);
-      return;
-    }
+      if (_currentCall == HvacCall.Dwell)
+        return;
 
-    // disabling control is either on demand by the user or due to a failure, so control should be reverted to the legacy thermostat immediately
-    if (requestedState == ControlState.Disable)
-    {
+      // already waiting to transition to Dwell
       if (_pendingDwellTask is not null)
+        return;
+
+      // leaving an active Heating/Cooling call for Dwell is subject to the Minimum On-Time guard.
+      if (timeInCurrentCall < minOnDuration)
       {
-        logger.LogInformation("Received Disable while waiting to transition to Dwell; cancelling the wait.");
-        CancelPendingDwellTransition();
+        var remaining = minOnDuration - timeInCurrentCall;
+        logger.LogInformation(
+          "Requested Dwell, but Minimum On-Time ({RequiredMinutes}m) has not elapsed. Transitioning to Dwell in {RemainingSeconds}s unless another call for {CurrentCall} arrives first.",
+          minOnDuration.TotalMinutes,
+          remaining.TotalSeconds,
+          _currentCall
+        );
+        ScheduleDwellTransition(remaining);
+        return;
       }
 
-      if ((_currentState == ControlState.Heating || _currentState == ControlState.Cooling) && timeInCurrentState < minOnDuration)
-      {
-        logger.LogWarning("Disabling immediately even though Minimum On-Time ({RequiredMinutes}m) has not elapsed.", minOnDuration.TotalMinutes);
-      }
-
-      TransitionToState(ControlState.Disable);
+      TransitionToCall(HvacCall.Dwell);
       return;
     }
 
-    // The fan can be toggled independently of other states and doesn't need to be tracked
-    if (requestedState is ControlState.FanOn or ControlState.FanOff)
-    {
-      ToggleFan(requestedState);
-      return;
-    }
-
-    // If the requested state is Enable, it means Kelvin is taking control from the legacy thermostat.
-    if (requestedState == ControlState.Enable)
-    {
-      // this doesn't need to transition to state because if it wasn't enabled it's already in a state equivalent to Dwell
-      // just set the current state to dwell and enable the relay.
-      _currentState = ControlState.Dwell;
-      relays.EnableControl();
-      return;
-    }
-
-    if (requestedState == ControlState.Dwell)
-    {
-      if (_currentState != ControlState.Dwell)
-      {
-        // already waiting to transition to Dwell
-        if (_pendingDwellTask is not null)
-        {
-          return;
-        }
-
-        // leaving an active Heating/Cooling call for Dwell is subject to the Minimum On-Time guard.
-        if (timeInCurrentState < minOnDuration)
-        {
-          var remaining = minOnDuration - timeInCurrentState;
-          logger.LogInformation(
-            "Requested Dwell, but Minimum On-Time ({RequiredMinutes}m) has not elapsed. Transitioning to Dwell in {RemainingSeconds}s unless another call for {CurrentState} arrives first.",
-            minOnDuration.TotalMinutes,
-            remaining.TotalSeconds,
-            _currentState
-          );
-          ScheduleDwellTransition(remaining);
-          return;
-        }
-
-        TransitionToState(ControlState.Dwell);
-      }
-      return;
-    }
-
-    if (_currentState == ControlState.Dwell)
+    if (_currentCall == HvacCall.Dwell)
     {
       // Check Minimum Off-Time
-      if (timeInCurrentState < minOffDuration)
+      if (timeInCurrentCall < minOffDuration)
       {
         logger.LogInformation(
-          "Requested {RequestedState}, but Minimum Off-Time ({RequiredMinutes}m) has not elapsed. Blocked for {RemainingSeconds}s.",
-          requestedState,
+          "Requested {RequestedCall}, but Minimum Off-Time ({RequiredMinutes}m) has not elapsed. Blocked for {RemainingSeconds}s.",
+          call,
           minOffDuration.TotalMinutes,
-          (minOffDuration - timeInCurrentState).TotalSeconds
+          (minOffDuration - timeInCurrentCall).TotalSeconds
         );
 
         // block activation
         return;
       }
 
-      TransitionToState(requestedState);
+      TransitionToCall(call);
     }
-    else if (_currentState == requestedState)
+    else if (_currentCall == call)
     {
       if (_pendingDwellTask is not null)
       {
-        logger.LogInformation(
-          "Received another call for {RequestedState} while waiting to transition to Dwell; cancelling the wait.",
-          requestedState
-        );
+        logger.LogInformation("Received another call for {RequestedCall} while waiting to transition to Dwell; cancelling the wait.", call);
         CancelPendingDwellTransition();
       }
     }
     else
     {
-      // Heating and Cooling are the only two active states reachable here, so this guards against a direct Heating<->Cooling switch
+      // Heating and Cooling are the only two active calls reachable here, so this guards against a direct
+      // Heating<->Cooling switch.
       // Maybe there is some concern for this in the automatic mode, but it probably wouldn't make sense to configure it that tightly anyway.
       // There will need to be some validation against this being configured in this way.
       //
@@ -206,17 +219,58 @@ public class ControlService(
       // I wouldn't bet my furnace on it though.
       // TODO: research this topic more.
       logger.LogCritical(
-        "Attempted to switch directly from {_currentState} to {requestedState} without an intermediate idle state. Ignoring the request.",
-        _currentState,
-        requestedState
+        "Attempted to switch directly from {CurrentCall} to {RequestedCall} without an intermediate idle state. Ignoring the request.",
+        _currentCall,
+        call
       );
-      TransitionToState(ControlState.Disable);
+      DisableControl(gateway, "an unsafe call transition was requested");
     }
   }
 
-  private void ToggleFan(ControlState requestedState)
+  private void EnableControl()
   {
-    if (requestedState == ControlState.FanOn)
+    // Re-asserted on every thermostat cycle, so taking control must not disturb an active call or restart the
+    // minimum on/off clocks.
+    if (_controlEnabled)
+      return;
+
+    logger.LogInformation("Taking control from the Legacy Thermostat (Control - relay energized).");
+    _controlEnabled = true;
+    // EnableControl releases the heating, cooling and fan relays, so the system is idle after taking over. The
+    // minimum off clock is deliberately left where reverting control set it rather than restarted here.
+    _currentCall = HvacCall.Dwell;
+    relays.EnableControl();
+  }
+
+  private void DisableControl(GetGatewayResponse gateway, string reason)
+  {
+    if (_pendingDwellTask is not null)
+    {
+      logger.LogInformation("Reverting control while waiting to transition to Dwell; cancelling the wait.");
+      CancelPendingDwellTransition();
+    }
+
+    // Re-asserted on every thermostat cycle while disabled, so only the transition itself is logged and clocked.
+    if (!_controlEnabled)
+      return;
+
+    var minOnDuration = TimeSpan.FromMinutes(gateway.MinimumOnDurationMinutes ?? DEFAULT_MIN_ON_DURATION_MINUTES);
+    if (_currentCall != HvacCall.Dwell && time.GetUtcNow() - _lastCallChangeAt < minOnDuration)
+      logger.LogWarning(
+        "Reverting control immediately even though Minimum On-Time ({RequiredMinutes}m) has not elapsed.",
+        minOnDuration.TotalMinutes
+      );
+
+    logger.LogInformation("Deactivating HVAC relays, reverting control to Failsafe NC (Legacy Thermostat) because {Reason}.", reason);
+    _controlEnabled = false;
+    _currentCall = HvacCall.Dwell;
+    _lastCallChangeAt = time.GetUtcNow();
+    relays.DisableControl();
+  }
+
+  private void ToggleFan(ControlState requested)
+  {
+    if (requested == ControlState.FanOn)
     {
       logger.LogInformation("Activating Fan Relay (Fan - G).");
       relays.EnableFan();
@@ -231,7 +285,7 @@ public class ControlService(
   private void ScheduleDwellTransition(TimeSpan delay)
   {
     _pendingDwellCts = new CancellationTokenSource();
-    _pendingDwellTask = Task.Delay(delay, _pendingDwellCts.Token);
+    _pendingDwellTask = Task.Delay(delay, time, _pendingDwellCts.Token);
   }
 
   private void CancelPendingDwellTransition()
@@ -245,36 +299,44 @@ public class ControlService(
     _pendingDwellTask = null;
   }
 
-  private void TransitionToState(ControlState newState)
+  private void TransitionToCall(HvacCall call)
   {
-    _currentState = newState;
-    _lastStateChangeTime = DateTimeOffset.UtcNow;
+    _currentCall = call;
+    _lastCallChangeAt = time.GetUtcNow();
 
-    switch (newState)
+    switch (call)
     {
-      case ControlState.Enable:
-        logger.LogInformation("Taking control from the Legacy Thermostat (Control - relay energized).");
-        relays.EnableControl();
-        break;
-      case ControlState.Disable:
-        logger.LogInformation("Deactivating HVAC relays, reverting control to Failsafe NC (Legacy Thermostat).");
-        relays.DisableControl();
-        break;
-      case ControlState.Dwell:
+      case HvacCall.Dwell:
         logger.LogInformation("Deactivating HVAC relays.");
         relays.EnableDwell();
         break;
-      case ControlState.Heating:
+      case HvacCall.Heating:
         logger.LogInformation("Activating Heating Relay (Heat - W).");
         relays.EnableHeating();
         break;
-      case ControlState.Cooling:
+      case HvacCall.Cooling:
         logger.LogInformation("Activating Cooling Relay (Cool - Y).");
         relays.EnableCooling();
         break;
+    }
+  }
+
+  private static bool TryGetCall(ControlState state, out HvacCall call)
+  {
+    switch (state)
+    {
+      case ControlState.Dwell:
+        call = HvacCall.Dwell;
+        return true;
+      case ControlState.Heating:
+        call = HvacCall.Heating;
+        return true;
+      case ControlState.Cooling:
+        call = HvacCall.Cooling;
+        return true;
       default:
-        logger.LogWarning("Unhandled ControlState: {newState}", newState);
-        break;
+        call = HvacCall.Dwell;
+        return false;
     }
   }
 }

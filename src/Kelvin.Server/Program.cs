@@ -18,6 +18,7 @@ builder.Services.AddMemoryCache();
 
 // Dependency Injection
 builder.Services.AddDbContext<KelvinContext>(options => options.UseSqlite($"Data Source={databasePath}"));
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IDispatcher, Dispatcher>();
 builder.Services.AddHttpClient("OpenMeteo", client => client.BaseAddress = new Uri("https://api.open-meteo.com/v1/"));
 builder.Services.AddSingleton<IWeatherApi, OpenMeteoWeatherApi>();

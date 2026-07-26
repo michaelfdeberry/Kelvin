@@ -42,4 +42,21 @@ public enum ControlState
   FanOff,
 }
 
+/// <summary>
+/// The HVAC call the system is currently making. This is internal state, not part of the control message contract:
+/// it covers only the states the minimum on/off duration guards apply to, so control ownership
+/// (<see cref="ControlState.Enable" />/<see cref="ControlState.Disable" />) and the fan cannot reach that logic.
+/// </summary>
+public enum HvacCall
+{
+  /// <summary>No active call; the system is idle.</summary>
+  Dwell,
+
+  /// <summary>Actively calling for heat.</summary>
+  Heating,
+
+  /// <summary>Actively calling for cooling.</summary>
+  Cooling,
+}
+
 public record ControlMessage(ControlState State);
