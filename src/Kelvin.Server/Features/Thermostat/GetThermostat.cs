@@ -34,7 +34,15 @@ public class GetThermostatHandler(KelvinContext context, IMemoryCache cache) : I
     var thermostat = await context.Thermostats.Include(t => t.SetPoints).Include(t => t.Schedules).FirstOrDefaultAsync(ct);
     if (thermostat is null)
     {
-      return Result<GetThermostatResponse>.Failure(GetThermostatErrors.ThermostatNotFound);
+      thermostat = new Models.Thermostat
+      {
+        Mode = RunMode.Disabled,
+        FanEnabled = false,
+        HysteresisC = 0.6f,
+      };
+      context.Thermostats.Add(thermostat);
+      await context.SaveChangesAsync(ct);
+      //return Result<GetThermostatResponse>.Failure(GetThermostatErrors.ThermostatNotFound);
     }
 
     var response = new GetThermostatResponse(thermostat);

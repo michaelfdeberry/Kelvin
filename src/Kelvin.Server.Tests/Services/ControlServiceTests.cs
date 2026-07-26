@@ -595,11 +595,11 @@ public class ControlServiceTests
         var harness = new ControlServiceHarness();
         var scheduleId = Guid.NewGuid();
         var context = new ControlContext(
-            EnvironmentTemperatureC: 18.5,
-            HumidityPercentage: 41.0,
+            EnvironmentTemperatureC: 18.5f,
+            HumidityPercentage: 41.0f,
             TargetTemperatureC: 21f,
             HysteresisC: 0.5f,
-            ForecastTemperatureC: -3.0,
+            ForecastTemperatureC: -3.0f,
             Mode: RunMode.Heating,
             ScheduleId: scheduleId,
             Reason: "the heating conditions were met"
@@ -612,11 +612,11 @@ public class ControlServiceTests
         await harness.PushAsync(ControlState.Heating, context);
 
         var change = harness.RecordedChanges.ShouldHaveSingleItem();
-        change.EnvironmentTemperatureC.ShouldBe(18.5);
-        change.HumidityPercentage.ShouldBe(41.0);
+        change.EnvironmentTemperatureC.ShouldBe(18.5f);
+        change.HumidityPercentage.ShouldBe(41.0f);
         change.TargetTemperatureC.ShouldBe(21f);
         change.HysteresisC.ShouldBe(0.5f);
-        change.ForecastTemperatureC.ShouldBe(-3.0);
+        change.ForecastTemperatureC.ShouldBe(-3.0f);
         change.Mode.ShouldBe(RunMode.Heating);
         change.ScheduleId.ShouldBe(scheduleId);
         change.Reason.ShouldBe("the heating conditions were met");

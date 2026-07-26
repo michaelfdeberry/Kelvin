@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Integration.GeoCoding;
 using Kelvin.Server.Integration.Weather;
 using Kelvin.Server.Services;
@@ -32,6 +33,7 @@ builder.Services.AddHostedService<ControlService>();
 builder.Services.AddHostedService<GatewayService>();
 builder.Services.AddHostedService<SensingService>();
 builder.Services.AddHostedService<ThermostatService>();
+builder.Services.AddSignalR();
 builder.Services.RegisterDependencies();
 
 var app = builder.Build();
@@ -41,8 +43,6 @@ using (var scope = app.Services.CreateScope())
   var context = scope.ServiceProvider.GetRequiredService<KelvinContext>();
   context.Database.EnsureCreated();
 }
-
-builder.Services.AddSignalR();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

@@ -33,10 +33,10 @@ public class SensingService(
         // just averaging everything for now, this may change later.
         _environment ??= new();
         _environment.Timestamp = time.GetUtcNow();
+        _environment.Areas.AddOrUpdate(sensorPacket.SensorId.Value, sensorPacket, (_, _) => sensorPacket);
         _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
         _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
-        _environment.CO2LevelPpm = _environment.Areas.Values.Average(p => p.CO2LevelPpm);
-        _environment.Areas.AddOrUpdate(sensorPacket.SensorId.Value, sensorPacket, (_, _) => sensorPacket);
+        _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
 
         await environmentChannel.WriteAsync(_environment, stoppingToken);
       }

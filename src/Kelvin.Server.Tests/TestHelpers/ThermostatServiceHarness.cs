@@ -101,7 +101,7 @@ public sealed class ThermostatServiceHarness
     /// Configures a successful weather forecast response with the given current temperature. Pass null to indicate
     /// there is no forecast temperature available (matches production behavior when Current is null).
     /// </summary>
-    public void SetWeatherForecast(double? temperatureC)
+    public void SetWeatherForecast(float? temperatureC)
     {
         var current = temperatureC is null
             ? null
