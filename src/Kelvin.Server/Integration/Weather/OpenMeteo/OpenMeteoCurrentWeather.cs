@@ -10,18 +10,18 @@ public sealed partial class OpenMeteoWeatherApi
     public string Time { get; set; } = string.Empty;
 
     [JsonPropertyName("temperature_2m")]
-    public double Temperature2m { get; set; }
+    public float Temperature2m { get; set; }
 
     [JsonPropertyName("relative_humidity_2m")]
-    public double RelativeHumidity2m { get; set; }
+    public float RelativeHumidity2m { get; set; }
 
     [JsonPropertyName("apparent_temperature")]
-    public double ApparentTemperature2m { get; set; }
+    public float ApparentTemperature2m { get; set; }
 
     [JsonPropertyName("weather_code")]
     public int WeatherCode { get; set; }
 
     [JsonPropertyName("wind_speed_10m")]
-    public double WindSpeed10m { get; set; }
+    public float WindSpeed10m { get; set; }
   }
 }

@@ -4,7 +4,7 @@ using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Integration.Weather;
 
-public sealed partial class OpenMeteoWeatherApi(IHttpClientFactory httpClientFactory) : IWeatherApi
+public sealed partial class OpenMeteoWeatherApi(IHttpClientFactory httpClientFactory, TimeProvider time) : IWeatherApi
 {
   private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -27,7 +27,7 @@ public sealed partial class OpenMeteoWeatherApi(IHttpClientFactory httpClientFac
         Latitude = response.Latitude,
         Longitude = response.Longitude,
         TimeZone = response.Timezone,
-        RetrievedAt = DateTimeOffset.UtcNow,
+        RetrievedAt = time.GetUtcNow(),
         Current = response.Current is null
           ? null
           : new WeatherCurrent
@@ -72,7 +72,7 @@ public sealed partial class OpenMeteoWeatherApi(IHttpClientFactory httpClientFac
     return forecast;
   }
 
-  private static DateTimeOffset ParseDateTimeOffset(string value)
+  private DateTimeOffset ParseDateTimeOffset(string value)
   {
     if (
       DateTimeOffset.TryParse(
@@ -84,7 +84,7 @@ public sealed partial class OpenMeteoWeatherApi(IHttpClientFactory httpClientFac
     )
       return timestamp;
 
-    return DateTimeOffset.UtcNow;
+    return time.GetUtcNow();
   }
 
   private static string DescribeWeatherCode(int weatherCode) =>

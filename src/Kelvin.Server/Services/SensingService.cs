@@ -6,8 +6,12 @@ using Kelvin.Server.Channels;
 using Kelvin.Server.Models;
 using Microsoft.Extensions.Hosting;
 
-public class SensingService(ILogger<SensingService> logger, ISensorPacketChannel sensorPacketChannel, IEnvironmentChannel environmentChannel)
-  : BackgroundService
+public class SensingService(
+  ILogger<SensingService> logger,
+  ISensorPacketChannel sensorPacketChannel,
+  IEnvironmentChannel environmentChannel,
+  TimeProvider time
+) : BackgroundService
 {
   private readonly Guid subscriberId = Guid.NewGuid();
 
@@ -28,7 +32,7 @@ public class SensingService(ILogger<SensingService> logger, ISensorPacketChannel
 
         // just averaging everything for now, this may change later.
         _environment ??= new();
-        _environment.Timestamp = DateTimeOffset.UtcNow;
+        _environment.Timestamp = time.GetUtcNow();
         _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
         _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
         _environment.CO2LevelPpm = _environment.Areas.Values.Average(p => p.CO2LevelPpm);

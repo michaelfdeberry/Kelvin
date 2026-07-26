@@ -12,17 +12,17 @@ public class Environment
   /// <summary>
   /// The average temperature in the environment, in degrees Celsius
   /// </summary>
-  public double TemperatureC { get; set; }
+  public float TemperatureC { get; set; }
 
   /// <summary>
   /// The average humidity in the environment, as a percentage
   /// </summary>
-  public double HumidityPercentage { get; set; }
+  public float HumidityPercentage { get; set; }
 
   /// <summary>
   /// The average CO2 level in the environment, in parts per million (ppm)
   /// </summary>
-  public double CO2LevelPpm { get; set; }
+  public float CO2LevelPpm { get; set; }
 
   /// <summary>
   /// A dictionary of the latest sensor packets for each area in the environment, keyed by area ID

@@ -35,7 +35,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        harness.WrittenMessages.ShouldBe([new ControlMessage(ControlState.Disable)]);
+        harness.WrittenStates.ShouldBe([ControlState.Disable]);
 
         await harness.StopAsync();
     }
@@ -49,10 +49,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -66,10 +63,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -89,10 +83,7 @@ public class ThermostatServiceTests
         harness.SetThermostat(ThermostatFixtures.CreateThermostat(RunMode.Off));
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -110,10 +101,7 @@ public class ThermostatServiceTests
 
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -131,18 +119,12 @@ public class ThermostatServiceTests
 
         // 20 - 0.6 = 19.4; 19.0 <= 19.4 -> starts heating from Dwell
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         harness.WrittenMessages.Clear();
 
         // 20 + 0.6 = 20.6; 21.0 is not < 20.6 -> stops heating, returns to Dwell
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(21.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -160,18 +142,12 @@ public class ThermostatServiceTests
 
         // 24 + 0.6 = 24.6; 25.0 >= 24.6 -> starts cooling from Dwell
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Cooling),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Cooling]);
         harness.WrittenMessages.Clear();
 
         // 24 - 0.6 = 23.4; 23.0 is not > 23.4 -> stops cooling, returns to Dwell
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(23.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -202,10 +178,7 @@ public class ThermostatServiceTests
         // 20 <= 25-0.6=24.4 (calls for heating) AND 20 >= 15+0.6=15.6 (calls for cooling) at the same time.
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Disable),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Disable]);
 
         await harness.StopAsync();
     }
@@ -232,10 +205,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -262,10 +232,7 @@ public class ThermostatServiceTests
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0));
 
         // falls back to the setpoint's target of 10, which env=20 does not satisfy (needs <= 9.4)
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -290,10 +257,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -316,10 +280,7 @@ public class ThermostatServiceTests
         // env alone would call for heat (15 <= 19.4) but forecast gating blocks it
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(15.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -341,10 +302,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(15.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -367,10 +325,7 @@ public class ThermostatServiceTests
         // env alone would call for cooling (25 >= 20.6) but forecast gating blocks it
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -392,10 +347,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Cooling),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Cooling]);
 
         await harness.StopAsync();
     }
@@ -419,10 +371,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -444,10 +393,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -465,10 +411,7 @@ public class ThermostatServiceTests
         // would call for heat (19 <= 19.4) but Mode is Cooling, not Heating/Automatic
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -486,10 +429,7 @@ public class ThermostatServiceTests
         // would call for cooling (25 >= 24.6) but Mode is Heating, not Cooling/Automatic
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -512,10 +452,7 @@ public class ThermostatServiceTests
         // With the 0.6 default the threshold is 19.4, so 19.5 must NOT call for heat.
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.5));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -538,10 +475,7 @@ public class ThermostatServiceTests
         // heat. With the 0.6 default the threshold is 19.4, so asserting Heating proves the default was used.
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -565,10 +499,7 @@ public class ThermostatServiceTests
         // default the threshold would be 19.4 and 19.3 would call for heat. Dwell proves the custom value was used.
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.3));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -585,18 +516,12 @@ public class ThermostatServiceTests
         await harness.StartAsync();
 
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         harness.WrittenMessages.Clear();
 
         // still within the "keep heating" band (< target+hysteresis = 20.6), remains Heating on the second iteration
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.5));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -624,34 +549,22 @@ public class ThermostatServiceTests
 
         // 19.0 <= 20-0.6 -> heating call is honored in Automatic mode
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         harness.WrittenMessages.Clear();
 
         // 21.0 is not < 20+0.6 -> heating stops, back to Dwell
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(21.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
         harness.WrittenMessages.Clear();
 
         // 25.0 >= 24+0.6 -> cooling call is honored in Automatic mode
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Cooling),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Cooling]);
         harness.WrittenMessages.Clear();
 
         // 23.0 is not > 24-0.6 -> cooling stops, back to Dwell
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(23.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -675,18 +588,12 @@ public class ThermostatServiceTests
 
         // start threshold is inclusive: 19.5 <= 20 - 0.5
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.5));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         harness.WrittenMessages.Clear();
 
         // stop threshold is exclusive: 20.5 < 20 + 0.5 is false, so the call ends exactly at the boundary
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.5));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -708,20 +615,14 @@ public class ThermostatServiceTests
         await harness.StartAsync();
 
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         harness.WrittenMessages.Clear();
 
         // 19.5 is still inside the "keep heating" band (< 20.6), but the forecast no longer calls for heat, so the
         // active call must be dropped rather than continued.
         harness.SetWeatherForecast(10);
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.5));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -744,10 +645,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -774,10 +672,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0));
 
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -794,20 +689,14 @@ public class ThermostatServiceTests
         await harness.StartAsync();
 
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         harness.WrittenMessages.Clear();
 
         harness.SetThermostat(
             ThermostatFixtures.CreateThermostat(RunMode.Off, setPoints: [setPoint])
         );
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.5));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
         harness.WrittenMessages.Clear();
 
         // 19.5 sits inside the "keep heating" band (< 20.6) but above the start threshold (19.4); because the call
@@ -816,10 +705,7 @@ public class ThermostatServiceTests
             ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
         );
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.5));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }
@@ -836,27 +722,127 @@ public class ThermostatServiceTests
         await harness.StartAsync();
 
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Heating),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         harness.WrittenMessages.Clear();
 
         harness.SetThermostat(
             ThermostatFixtures.CreateThermostat(RunMode.Disabled, setPoints: [setPoint])
         );
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.5));
-        harness.WrittenMessages.ShouldBe([new ControlMessage(ControlState.Disable)]);
+        harness.WrittenStates.ShouldBe([ControlState.Disable]);
         harness.WrittenMessages.Clear();
 
         harness.SetThermostat(
             ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
         );
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.5));
-        harness.WrittenMessages.ShouldBe([
-            new ControlMessage(ControlState.Enable),
-            new ControlMessage(ControlState.Dwell),
-        ]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task AHeatingCall_CarriesTheConditionsThatCausedIt()
+    {
+        var harness = new ThermostatServiceHarness();
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 20f);
+        harness.SetThermostat(
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                hysteresisC: 0.5f,
+                setPoints: [setPoint]
+            )
+        );
+
+        await harness.StartAsync();
+        await harness.PushEnvironmentAsync(
+            ThermostatFixtures.CreateEnvironment(19.0, humidityPercentage: 42.0)
+        );
+
+        var heating = harness.WrittenMessages.Single(message =>
+            message.State == ControlState.Heating
+        );
+        var context = heating.Context.ShouldNotBeNull();
+        context.EnvironmentTemperatureC.ShouldBe(19.0);
+        context.HumidityPercentage.ShouldBe(42.0);
+        context.TargetTemperatureC.ShouldBe(20f);
+        context.HysteresisC.ShouldBe(0.5f);
+        context.Mode.ShouldBe(RunMode.Heating);
+        context.SetPointId.ShouldBe(setPoint.Id);
+        context.ScheduleId.ShouldBeNull();
+        context.Reason.ShouldBe("the heating conditions were met");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task ACoolingCall_AttributesTheActiveScheduleRatherThanTheSetPoint()
+    {
+        var harness = new ThermostatServiceHarness();
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Cooling, targetTemperatureC: 30f);
+        var schedule = ThermostatFixtures.CreateActiveSchedule(
+            RunType.Cooling,
+            targetTemperatureC: 24f
+        );
+        harness.SetThermostat(
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Cooling,
+                setPoints: [setPoint],
+                schedules: [schedule]
+            )
+        );
+
+        await harness.StartAsync();
+        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0));
+
+        var cooling = harness.WrittenMessages.Single(message =>
+            message.State == ControlState.Cooling
+        );
+        var context = cooling.Context.ShouldNotBeNull();
+        // The schedule outranks the set point, so it is the schedule that has to be credited for the call.
+        context.TargetTemperatureC.ShouldBe(24f);
+        context.ScheduleId.ShouldBe(schedule.Id);
+        context.SetPointId.ShouldBeNull();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task ADwellFromAnIdleThermostat_ExplainsWhyNothingIsRunning()
+    {
+        var harness = new ThermostatServiceHarness();
+        harness.SetThermostat(ThermostatFixtures.CreateThermostat(RunMode.Off));
+
+        await harness.StartAsync();
+        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
+
+        var dwell = harness.WrittenMessages.Single(message => message.State == ControlState.Dwell);
+        dwell.Context.ShouldNotBeNull().Reason.ShouldBe("the thermostat mode is Off");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task AForecastGatedCall_RecordsTheForecastItWasJudgedAgainst()
+    {
+        var harness = new ThermostatServiceHarness();
+        var setPoint = ThermostatFixtures.CreateSetPoint(
+            RunType.Heating,
+            targetTemperatureC: 20f,
+            activationTemperatureC: 5f
+        );
+        harness.SetThermostat(
+            ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
+        );
+        harness.SetWeatherForecast(3);
+
+        await harness.StartAsync();
+        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0));
+
+        var heating = harness.WrittenMessages.Single(message =>
+            message.State == ControlState.Heating
+        );
+        heating.Context.ShouldNotBeNull().ForecastTemperatureC.ShouldBe(3);
 
         await harness.StopAsync();
     }

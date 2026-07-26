@@ -1,4 +1,5 @@
 using FakeItEasy;
+using Kelvin.Server.Application;
 using Kelvin.Server.Features.Gateways;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
@@ -101,9 +102,9 @@ public class ControlServiceTests
         await harness.PushAsync(ControlState.Dwell);
 
         // The heating call is still waiting out its minimum on-time, which must not delay the fan.
-        await harness.PushAsync(ControlState.FanOff);
+        await harness.PushAsync(ControlState.FanOn);
 
-        A.CallTo(() => harness.Relays.DisableFan()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => harness.Relays.EnableFan()).MustHaveHappenedOnceExactly();
         A.CallTo(() => harness.Relays.EnableDwell()).MustNotHaveHappened();
 
         await harness.StopAsync();
@@ -127,9 +128,9 @@ public class ControlServiceTests
         // Cancelling and re-issuing the read here would drop a message the channel had already handed over.
         harness.ReadCount.ShouldBe(readsBeforeTheDwellCameDue);
 
-        await harness.PushAsync(ControlState.FanOff);
+        await harness.PushAsync(ControlState.FanOn);
 
-        A.CallTo(() => harness.Relays.DisableFan()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => harness.Relays.EnableFan()).MustHaveHappenedOnceExactly();
 
         await harness.StopAsync();
     }
@@ -400,6 +401,244 @@ public class ControlServiceTests
         await harness.PushAsync(ControlState.Dwell);
 
         A.CallTo(() => harness.Relays.EnableDwell()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Enable_RecordsAControlStateChange()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+
+        var change = harness.RecordedChanges.ShouldHaveSingleItem();
+        change.Kind.ShouldBe(ControlChangeKind.Control);
+        change.State.ShouldBe(ControlState.Enable);
+        change.PreviousState.ShouldBe(ControlState.Disable);
+        change.Reason.ShouldBe("control was requested");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Enable_WhileAlreadyEnabled_RecordsNothing()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+        harness.RecordedChanges.Clear();
+
+        // ThermostatService re-asserts Enable every cycle; a no-op must not fill the history with noise.
+        await harness.PushAsync(ControlState.Enable);
+
+        harness.RecordedChanges.ShouldBeEmpty();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Disable_RecordsTheReasonItWasReverted()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+        await harness.PushAsync(ControlState.Heating);
+        harness.Time.Advance(MinimumOn);
+        harness.RecordedChanges.Clear();
+
+        // Switching straight from heating to cooling is the unsafe transition that reverts control.
+        await harness.PushAsync(ControlState.Cooling);
+
+        var change = harness.RecordedChanges.ShouldHaveSingleItem();
+        change.Kind.ShouldBe(ControlChangeKind.Control);
+        change.State.ShouldBe(ControlState.Disable);
+        change.Reason.ShouldBe("an unsafe call transition was requested");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task ACallChange_RecordsThePreviousStateAndHowLongItRan()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+        await harness.PushAsync(ControlState.Heating);
+        harness.RecordedChanges.Clear();
+
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(ControlState.Dwell);
+
+        var change = harness.RecordedChanges.ShouldHaveSingleItem();
+        change.Kind.ShouldBe(ControlChangeKind.Call);
+        change.State.ShouldBe(ControlState.Dwell);
+        change.PreviousState.ShouldBe(ControlState.Heating);
+        change.PreviousStateDurationSeconds.ShouldBe(MinimumOn.TotalSeconds);
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task ScheduledDwell_IsRecordedWhenItIsApplied()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+        await harness.PushAsync(ControlState.Heating);
+        harness.Time.Advance(MinimumOn - TimeSpan.FromMinutes(1));
+        await harness.PushAsync(ControlState.Dwell);
+        harness.RecordedChanges.Clear();
+
+        // Nothing has been actuated yet, so nothing may have been recorded yet either.
+        harness.RecordedChanges.ShouldBeEmpty();
+
+        await harness.AdvanceAsync(TimeSpan.FromMinutes(1));
+
+        var change = harness.RecordedChanges.ShouldHaveSingleItem();
+        change.State.ShouldBe(ControlState.Dwell);
+        change.PreviousState.ShouldBe(ControlState.Heating);
+        change.Reason.ShouldBe("the minimum on-time elapsed");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task RequestsThatActuateNothing_RecordNothing()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+        await harness.PushAsync(ControlState.Heating);
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(ControlState.Dwell);
+        harness.RecordedChanges.Clear();
+
+        // Blocked by the minimum off-time.
+        await harness.PushAsync(ControlState.Heating);
+        // Already dwelling.
+        await harness.PushAsync(ControlState.Dwell);
+
+        harness.RecordedChanges.ShouldBeEmpty();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task RequestsIgnoredWhileControlIsReverted_RecordNothing()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Heating);
+        await harness.PushAsync(ControlState.FanOn);
+
+        harness.RecordedChanges.ShouldBeEmpty();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Fan_IsRecordedOnlyWhenItActuallyChanges()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+        harness.RecordedChanges.Clear();
+
+        await harness.PushAsync(ControlState.FanOn);
+        await harness.PushAsync(ControlState.FanOn);
+        await harness.PushAsync(ControlState.FanOff);
+
+        harness
+            .RecordedChanges.Select(change => change.State)
+            .ShouldBe([ControlState.FanOn, ControlState.FanOff]);
+        harness.RecordedChanges.ShouldAllBe(change => change.Kind == ControlChangeKind.Fan);
+        A.CallTo(() => harness.Relays.EnableFan()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task RevertingControl_RecordsTheFanGoingOffWithIt()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+        await harness.PushAsync(ControlState.FanOn);
+        harness.RecordedChanges.Clear();
+
+        // DisableControl releases the fan relay too, so the fan timeline must not be left showing it running.
+        await harness.PushAsync(ControlState.Disable);
+
+        harness.RecordedChanges.Count.ShouldBe(2);
+        harness.RecordedChanges[0].Kind.ShouldBe(ControlChangeKind.Control);
+        harness.RecordedChanges[0].State.ShouldBe(ControlState.Disable);
+        harness.RecordedChanges[1].Kind.ShouldBe(ControlChangeKind.Fan);
+        harness.RecordedChanges[1].State.ShouldBe(ControlState.FanOff);
+        harness.RecordedChanges[1].Reason.ShouldBe("the control relay released the fan");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task TheProducersContext_IsCopiedOntoTheRecordedChange()
+    {
+        var harness = new ControlServiceHarness();
+        var scheduleId = Guid.NewGuid();
+        var context = new ControlContext(
+            EnvironmentTemperatureC: 18.5,
+            HumidityPercentage: 41.0,
+            TargetTemperatureC: 21f,
+            HysteresisC: 0.5f,
+            ForecastTemperatureC: -3.0,
+            Mode: RunMode.Heating,
+            ScheduleId: scheduleId,
+            Reason: "the heating conditions were met"
+        );
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+        harness.RecordedChanges.Clear();
+
+        await harness.PushAsync(ControlState.Heating, context);
+
+        var change = harness.RecordedChanges.ShouldHaveSingleItem();
+        change.EnvironmentTemperatureC.ShouldBe(18.5);
+        change.HumidityPercentage.ShouldBe(41.0);
+        change.TargetTemperatureC.ShouldBe(21f);
+        change.HysteresisC.ShouldBe(0.5f);
+        change.ForecastTemperatureC.ShouldBe(-3.0);
+        change.Mode.ShouldBe(RunMode.Heating);
+        change.ScheduleId.ShouldBe(scheduleId);
+        change.Reason.ShouldBe("the heating conditions were met");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task AFailedRecording_DoesNotStopTheControlLoop()
+    {
+        var harness = new ControlServiceHarness();
+        harness.SetRecordingResult(
+            Result.Failure(new Error("Test.Failed", "The change could not be recorded."))
+        );
+
+        await harness.StartAsync();
+        await harness.PushAsync(ControlState.Enable);
+
+        // Recording is a reporting concern; losing a row must never cost control of the equipment.
+        await harness.PushAsync(ControlState.Heating);
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
 
         await harness.StopAsync();
     }

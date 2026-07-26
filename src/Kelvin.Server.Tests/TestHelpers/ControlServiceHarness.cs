@@ -1,6 +1,7 @@
 using FakeItEasy;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
+using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
@@ -41,6 +42,13 @@ public sealed class ControlServiceHarness
 
     public FakeTimeProvider Time { get; } = new();
 
+    /// <summary>
+    /// The state changes the service asked to have recorded, in the order it queued them. Only safe to assert on
+    /// once <see cref="PushAsync"/> or <see cref="AdvanceAsync"/> has returned, for the same reason the relay
+    /// calls are.
+    /// </summary>
+    public List<ControlStateChange> RecordedChanges { get; } = [];
+
     /// <summary>How many reads the service has started. A reused outstanding read does not increment this.</summary>
     public int ReadCount { get; private set; }
 
@@ -60,6 +68,8 @@ public sealed class ControlServiceHarness
 
         A.CallTo(() => _lifetime.StopApplication())
             .Invokes(() => _stopApplicationRequested.TrySetResult());
+
+        SetRecordingResult(Result.Success());
 
         SetGateway(ControlFixtures.CreateGateway());
 
@@ -86,6 +96,29 @@ public sealed class ControlServiceHarness
                 return Result<GetGatewayResponse>.Success(gateway);
             });
 
+    /// <summary>
+    /// Captures every state change the service dispatches for recording, and controls what the save reports back.
+    /// </summary>
+    /// <remarks>
+    /// This fake deliberately does NOT release <c>_iterationStarted</c>. That signal has to stay tied to the
+    /// gateway dispatch, which happens exactly once per loop iteration; recording happens a variable number of
+    /// times per message, so keying the harness off it would let assertions run mid-iteration.
+    /// </remarks>
+    public void SetRecordingResult(Result result) =>
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync(
+                    A<SaveControlStateChangeRequest>._,
+                    A<CancellationToken>._
+                )
+            )
+            .ReturnsLazily(
+                (SaveControlStateChangeRequest request, CancellationToken _) =>
+                {
+                    RecordedChanges.Add(request.Change);
+                    return result;
+                }
+            );
+
     /// <summary>Starts the service and waits until it is blocked on its first control channel read.</summary>
     public async Task StartAsync()
     {
@@ -106,10 +139,19 @@ public sealed class ControlServiceHarness
     }
 
     /// <summary>
+    /// Delivers a control message carrying producer context, then waits for the next iteration.
+    /// </summary>
+    public async Task PushAsync(ControlState state, ControlContext context)
+    {
+        Deliver(state, context);
+        await _iterationStarted.WaitAsync();
+    }
+
+    /// <summary>
     /// Delivers a control message without waiting for the next iteration, for cases where the service is not
     /// expected to loop again (an unusable GPIO stops the service).
     /// </summary>
-    public void Deliver(ControlState state)
+    public void Deliver(ControlState state, ControlContext? context = null)
     {
         var pending =
             _pendingRead
@@ -117,7 +159,7 @@ public sealed class ControlServiceHarness
                 "The service is not currently awaiting a control message."
             );
         _pendingRead = null;
-        pending.SetResult(new ControlMessage(state));
+        pending.SetResult(new ControlMessage(state, context));
     }
 
     /// <summary>

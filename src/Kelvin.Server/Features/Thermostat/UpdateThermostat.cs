@@ -25,17 +25,19 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
     thermostat.Mode = request.Mode;
     thermostat.FanEnabled = request.FanEnabled;
 
+    var controlContext = new ControlContext(Mode: thermostat.Mode, HysteresisC: thermostat.HysteresisC, Reason: "the thermostat was updated");
+
     if (thermostat.Mode == RunMode.Disabled)
     {
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable), ct);
+      await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable, controlContext), ct);
     }
     else
     {
       // any mode other than Disabled means Kelvin holds control, which is what energizes the control relay
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Enable), ct);
+      await controlChannel.WriteAsync(new ControlMessage(ControlState.Enable, controlContext), ct);
 
       if (thermostat.Mode == RunMode.Off)
-        await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), ct);
+        await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell, controlContext), ct);
     }
 
     await context.SaveChangesAsync(ct);

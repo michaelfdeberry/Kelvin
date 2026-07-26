@@ -50,3 +50,32 @@ public class Result<T> : Result
 
   public static new Result<T> Failure(Error error) => new(default, false, error);
 }
+
+public class PagedResult<T> : Result
+{
+  public int? Page { get; }
+
+  public int? PageSize { get; }
+
+  public int? TotalCount { get; }
+
+  public IEnumerable<T>? Items { get; }
+
+  public bool HasNextPage => Page.HasValue && PageSize.HasValue && TotalCount.HasValue ? Page.Value * PageSize.Value < TotalCount.Value : false;
+
+  public int TotalPages => PageSize > 0 && TotalCount is not null ? (int)Math.Ceiling(TotalCount.Value / (double)PageSize.Value) : 0;
+
+  protected PagedResult(IEnumerable<T>? items, int? page, int? pageSize, int? totalCount, bool isSuccess, Error error)
+    : base(isSuccess, error)
+  {
+    Items = items;
+    Page = page;
+    PageSize = pageSize;
+    TotalCount = totalCount;
+  }
+
+  public static PagedResult<T> Success(IEnumerable<T> items, int page, int pageSize, int totalCount) =>
+    new(items, page, pageSize, totalCount, true, Error.None);
+
+  public static new PagedResult<T> Failure(Error error) => new(null, null, null, null, false, error);
+}

@@ -17,8 +17,12 @@ builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
 
 // Dependency Injection
-builder.Services.AddDbContext<KelvinContext>(options => options.UseSqlite($"Data Source={databasePath}"));
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<EntityUpdateInterceptor>();
+builder.Services.AddDbContext<KelvinContext>(
+  (serviceProvider, options) =>
+    options.UseSqlite($"Data Source={databasePath}").AddInterceptors(serviceProvider.GetRequiredService<EntityUpdateInterceptor>())
+);
 builder.Services.AddSingleton<IDispatcher, Dispatcher>();
 builder.Services.AddHttpClient("OpenMeteo", client => client.BaseAddress = new Uri("https://api.open-meteo.com/v1/"));
 builder.Services.AddSingleton<IWeatherApi, OpenMeteoWeatherApi>();
@@ -37,6 +41,8 @@ using (var scope = app.Services.CreateScope())
   var context = scope.ServiceProvider.GetRequiredService<KelvinContext>();
   context.Database.EnsureCreated();
 }
+
+builder.Services.AddSignalR();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

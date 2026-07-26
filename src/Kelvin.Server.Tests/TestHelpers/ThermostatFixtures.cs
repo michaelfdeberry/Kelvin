@@ -7,6 +7,14 @@ namespace Kelvin.Server.Tests.TestHelpers;
 /// </summary>
 public static class ThermostatFixtures
 {
+    /// <summary>
+    /// The instant <see cref="ThermostatServiceHarness"/> pins its clock to, and that every schedule window built
+    /// here is positioned around. Fixing it keeps the schedule-window tests independent of what time of day the
+    /// suite happens to run, and it is deliberately mid-day so the +/- windows below never wrap past midnight
+    /// unless a fixture is explicitly asking for that.
+    /// </summary>
+    public static readonly DateTimeOffset Now = new(2024, 1, 1, 12, 0, 0, TimeSpan.Zero);
+
     public static Thermostat CreateThermostat(
         RunMode mode = RunMode.Automatic,
         float? hysteresisC = null,
@@ -63,7 +71,7 @@ public static class ThermostatFixtures
         };
 
     /// <summary>
-    /// Builds a schedule window that is guaranteed to be currently active, bracketing <see cref="DateTimeOffset.Now"/>.
+    /// Builds a schedule window that is guaranteed to be currently active, bracketing <see cref="Now"/>.
     /// </summary>
     public static Schedule CreateActiveSchedule(
         RunType type,
@@ -72,7 +80,7 @@ public static class ThermostatFixtures
         float? activationTemperatureC = null
     )
     {
-        var now = TimeOnly.FromDateTime(DateTimeOffset.Now.DateTime);
+        var now = TimeOnly.FromDateTime(Now.DateTime);
         return CreateSchedule(
             type,
             targetTemperatureC,
@@ -96,7 +104,7 @@ public static class ThermostatFixtures
         float? activationTemperatureC = null
     )
     {
-        var now = TimeOnly.FromDateTime(DateTimeOffset.Now.DateTime);
+        var now = TimeOnly.FromDateTime(Now.DateTime);
         return CreateSchedule(
             type,
             targetTemperatureC,
@@ -117,7 +125,7 @@ public static class ThermostatFixtures
         float? activationTemperatureC = null
     )
     {
-        var now = TimeOnly.FromDateTime(DateTimeOffset.Now.DateTime);
+        var now = TimeOnly.FromDateTime(Now.DateTime);
         return CreateSchedule(
             type,
             targetTemperatureC,
@@ -128,6 +136,14 @@ public static class ThermostatFixtures
         );
     }
 
-    public static Kelvin.Server.Models.Environment CreateEnvironment(double temperatureC) =>
-        new() { Timestamp = DateTimeOffset.UtcNow, TemperatureC = temperatureC };
+    public static Kelvin.Server.Models.Environment CreateEnvironment(
+        double temperatureC,
+        double humidityPercentage = 0
+    ) =>
+        new()
+        {
+            Timestamp = Now,
+            TemperatureC = temperatureC,
+            HumidityPercentage = humidityPercentage,
+        };
 }

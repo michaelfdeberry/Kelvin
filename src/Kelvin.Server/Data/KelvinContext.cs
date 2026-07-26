@@ -1,5 +1,6 @@
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Kelvin.Server.Data;
 
@@ -19,10 +20,16 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
 
   public DbSet<Schedule> Schedules => Set<Schedule>();
 
-  protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+  public DbSet<ControlStateChange> ControlStateChanges => Set<ControlStateChange>();
+
+  protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
   {
-    base.OnConfiguring(optionsBuilder);
-    optionsBuilder.AddInterceptors(new EntityUpdateInterceptor());
+    base.ConfigureConventions(configurationBuilder);
+
+    // SQLite has no native DateTimeOffset. The provider's default TEXT mapping cannot be ordered or range
+    // filtered in SQL, which the history and statistics queries depend on, so store the binary form instead -
+    // it is a single integer whose ordering matches the underlying instant.
+    configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();
   }
 
   protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -40,5 +47,8 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
     {
       modelBuilder.Entity(entityType);
     }
+
+    // The history is always read as a timeline for one axis over a date range.
+    modelBuilder.Entity<ControlStateChange>().HasIndex(change => new { change.Kind, change.CreatedAt });
   }
 }

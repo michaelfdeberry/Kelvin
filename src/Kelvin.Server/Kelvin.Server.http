@@ -4,3 +4,32 @@ GET {{Kelvin.Server_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+### What the equipment is doing right now.
+GET {{Kelvin.Server_HostAddress}}/api/control/state
+Accept: application/json
+
+###
+
+### The recorded state changes, most recent first.
+GET {{Kelvin.Server_HostAddress}}/api/control/history?page=1&pageSize=50
+Accept: application/json
+
+###
+
+### Just the heating/cooling/dwell timeline for a given day.
+GET {{Kelvin.Server_HostAddress}}/api/control/history?kind=Call&from=2026-07-24T00:00:00Z&to=2026-07-25T00:00:00Z
+Accept: application/json
+
+###
+
+### Run times and cycle counts. Defaults to the last 24 hours when no range is given.
+GET {{Kelvin.Server_HostAddress}}/api/control/stats
+Accept: application/json
+
+###
+
+GET {{Kelvin.Server_HostAddress}}/api/control/stats?from=2026-07-18T00:00:00Z&to=2026-07-25T00:00:00Z
+Accept: application/json
+
+###

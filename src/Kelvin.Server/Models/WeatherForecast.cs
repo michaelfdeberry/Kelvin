@@ -19,13 +19,13 @@ public class WeatherCurrent
 {
   public DateTimeOffset Timestamp { get; set; }
 
-  public double TemperatureC { get; set; }
+  public float TemperatureC { get; set; }
 
-  public double ApparentTemperatureC { get; set; }
+  public float ApparentTemperatureC { get; set; }
 
-  public double Humidity { get; set; }
+  public float Humidity { get; set; }
 
-  public double WindSpeedKph { get; set; }
+  public float WindSpeedKph { get; set; }
 
   public int WeatherCode { get; set; }
 
@@ -36,9 +36,9 @@ public class WeatherForecastDay
 {
   public DateOnly Date { get; set; }
 
-  public double TemperatureMinC { get; set; }
+  public float TemperatureMinC { get; set; }
 
-  public double TemperatureMaxC { get; set; }
+  public float TemperatureMaxC { get; set; }
 
   public int WeatherCode { get; set; }
 

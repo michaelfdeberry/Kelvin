@@ -7,6 +7,7 @@ using Kelvin.Server.Features.Weather;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Kelvin.Server.Tests.TestHelpers;
 
@@ -38,6 +39,19 @@ public sealed class ThermostatServiceHarness
 
     public List<ControlMessage> WrittenMessages { get; } = [];
 
+    /// <summary>
+    /// The states of the messages that were written. Most assertions only care about the sequence of states;
+    /// assert on <see cref="WrittenMessages"/> itself when the attached <see cref="ControlContext"/> matters.
+    /// </summary>
+    public IReadOnlyList<ControlState> WrittenStates =>
+        WrittenMessages.Select(message => message.State).ToList();
+
+    /// <summary>
+    /// The service's clock, pinned to <see cref="ThermostatFixtures.Now"/> so the schedule windows built by
+    /// <see cref="ThermostatFixtures"/> are deterministically active or inactive.
+    /// </summary>
+    public FakeTimeProvider Time { get; } = new(ThermostatFixtures.Now);
+
     public ThermostatServiceHarness()
     {
         A.CallTo(() => _environmentChannel.ReadAsync(A<Guid>._, A<CancellationToken>._))
@@ -60,6 +74,7 @@ public sealed class ThermostatServiceHarness
             _controlChannel,
             _environmentChannel,
             _dispatcher,
+            Time,
             NullLogger<ThermostatService>.Instance
         );
     }
@@ -91,14 +106,7 @@ public sealed class ThermostatServiceHarness
         var current = temperatureC is null
             ? null
             : new WeatherCurrent { TemperatureC = temperatureC.Value };
-        var response = new GetWeatherForecastResponse(
-            0,
-            0,
-            "UTC",
-            DateTimeOffset.UtcNow,
-            current,
-            []
-        );
+        var response = new GetWeatherForecastResponse(0, 0, "UTC", Time.GetUtcNow(), current, []);
         A.CallTo(() =>
                 _dispatcher.DispatchAsync<GetWeatherForecastRequest, GetWeatherForecastResponse>(
                     A<GetWeatherForecastRequest>._,

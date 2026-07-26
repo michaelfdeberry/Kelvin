@@ -11,6 +11,7 @@ public class ThermostatService(
   IControlChannel controlChannel,
   IEnvironmentChannel environmentChannel,
   IDispatcher dispatcher,
+  TimeProvider time,
   ILogger<ThermostatService> logger
 ) : BackgroundService
 {
@@ -37,23 +38,42 @@ public class ThermostatService(
         thermostatResult.EnsureSuccess();
 
         var thermostat = thermostatResult.Value!.Thermostat;
+
+        // What the loop knew when it made its decision, carried along so a recorded state change can explain itself.
+        var context = new ControlContext(
+          EnvironmentTemperatureC: environment.TemperatureC,
+          HumidityPercentage: environment.HumidityPercentage,
+          CO2LevelPpm: environment.CO2LevelPpm,
+          HysteresisC: GetHysteresis(thermostat.HysteresisC),
+          Mode: thermostat.Mode
+        );
+
         if (thermostat.Mode == RunMode.Disabled)
         {
           logger.LogInformation("Thermostat is Disabled, skipping environment processing.");
           _activeCall = ControlState.Dwell;
           // the updating of the state will dispatch the control message, but do it here just in case.
-          await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable), stoppingToken);
+          await controlChannel.WriteAsync(
+            new ControlMessage(ControlState.Disable, context with { Reason = "the thermostat mode is Disabled" }),
+            stoppingToken
+          );
           continue;
         }
 
         // re-assert control every cycle so a restart re-energizes the control relay, noop if already energized.
-        await controlChannel.WriteAsync(new ControlMessage(ControlState.Enable), stoppingToken);
+        await controlChannel.WriteAsync(
+          new ControlMessage(ControlState.Enable, context with { Reason = "the thermostat is enabled" }),
+          stoppingToken
+        );
 
         if (thermostat.Mode == RunMode.Off)
         {
           logger.LogInformation("Thermostat is Off, skipping environment processing.");
           _activeCall = ControlState.Dwell;
-          await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), stoppingToken);
+          await controlChannel.WriteAsync(
+            new ControlMessage(ControlState.Dwell, context with { Reason = "the thermostat mode is Off" }),
+            stoppingToken
+          );
           continue;
         }
 
@@ -69,7 +89,7 @@ public class ThermostatService(
         // this returns the run mode for future use.
         // E.g. when humidifier support is added it would only run in heating mode
         // if a dehumidifier is added it might make sense to only run that when in cooling mode but the cooling mode is not active, etc.
-        var runMode = await ProcessTemperature(environment, thermostat, forecastTemperatureC, stoppingToken);
+        var runMode = await ProcessTemperature(environment, thermostat, forecastTemperatureC, context, stoppingToken);
         continue;
       }
       catch (OperationCanceledException)
@@ -86,14 +106,18 @@ public class ThermostatService(
   private async Task<RunMode> ProcessTemperature(
     Models.Environment environment,
     Thermostat thermostat,
-    double? forecastTemperatureC,
+    float? forecastTemperatureC,
+    ControlContext context,
     CancellationToken cancellationToken
   )
   {
     var environmentTemperatureC = environment.TemperatureC;
     var previousActiveCall = _activeCall;
 
-    var currentTimeOnly = TimeOnly.FromDateTime(DateTimeOffset.Now.DateTime);
+    context = context with { ForecastTemperatureC = forecastTemperatureC };
+
+    // Schedule windows are wall-clock TimeOnly values, so the local time is what they have to be compared against.
+    var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
     var activeSchedules = thermostat.Schedules.Where(s => s.Enabled && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
 
     // overlapping schedules won't be allowed, so there will never be more than one heating or cooling schedule active at a time.
@@ -113,7 +137,10 @@ public class ThermostatService(
     {
       logger.LogInformation("No active heating or cooling schedules or set points found.");
       _activeCall = ControlState.Dwell;
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), cancellationToken);
+      await controlChannel.WriteAsync(
+        new ControlMessage(ControlState.Dwell, context with { Reason = "no heating or cooling schedule or set point is active" }),
+        cancellationToken
+      );
       return RunMode.Off;
     }
 
@@ -170,7 +197,10 @@ public class ThermostatService(
         callForHeating ? RunType.Heating : RunType.Cooling
       );
       _activeCall = ControlState.Dwell;
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), cancellationToken);
+      await controlChannel.WriteAsync(
+        new ControlMessage(ControlState.Dwell, context with { Reason = "an unsafe call transition was requested" }),
+        cancellationToken
+      );
       return RunMode.Off;
     }
 
@@ -179,7 +209,10 @@ public class ThermostatService(
       // turn off the system, revert control to the dumb thermostat, and log the error.
       logger.LogCritical("Both heating and cooling conditions are met. This is an unexpected state.");
       _activeCall = ControlState.Dwell;
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable), cancellationToken);
+      await controlChannel.WriteAsync(
+        new ControlMessage(ControlState.Disable, context with { Reason = "the heating and cooling conditions were both met" }),
+        cancellationToken
+      );
       return RunMode.Off;
     }
 
@@ -187,7 +220,19 @@ public class ThermostatService(
     {
       logger.LogInformation("Thermostat is in heating mode and conditions are met for heating.");
       _activeCall = ControlState.Heating;
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Heating), cancellationToken);
+      await controlChannel.WriteAsync(
+        new ControlMessage(
+          ControlState.Heating,
+          context with
+          {
+            TargetTemperatureC = heatingTargetTemp,
+            ScheduleId = heatingSchedule?.Id,
+            SetPointId = heatingSchedule is null ? heatingSetPoint?.Id : null,
+            Reason = "the heating conditions were met",
+          }
+        ),
+        cancellationToken
+      );
       return RunMode.Heating;
     }
 
@@ -195,14 +240,29 @@ public class ThermostatService(
     {
       logger.LogInformation("Thermostat is in cooling mode and conditions are met for cooling.");
       _activeCall = ControlState.Cooling;
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Cooling), cancellationToken);
+      await controlChannel.WriteAsync(
+        new ControlMessage(
+          ControlState.Cooling,
+          context with
+          {
+            TargetTemperatureC = coolingTargetTemp,
+            ScheduleId = coolingSchedule?.Id,
+            SetPointId = coolingSchedule is null ? coolingSetPoint?.Id : null,
+            Reason = "the cooling conditions were met",
+          }
+        ),
+        cancellationToken
+      );
       return RunMode.Cooling;
     }
 
     // no conditions are met for heating or cooling, so we will turn off the system
     logger.LogInformation("No conditions are met for heating or cooling, turning off the system.");
     _activeCall = ControlState.Dwell;
-    await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell), cancellationToken);
+    await controlChannel.WriteAsync(
+      new ControlMessage(ControlState.Dwell, context with { Reason = "no heating or cooling conditions were met" }),
+      cancellationToken
+    );
 
     return RunMode.Off;
   }

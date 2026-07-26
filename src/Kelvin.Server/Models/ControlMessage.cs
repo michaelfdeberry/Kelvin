@@ -59,4 +59,25 @@ public enum HvacCall
   Cooling,
 }
 
-public record ControlMessage(ControlState State);
+/// <summary>
+/// The conditions that led a producer to request a control state. Purely informational: it never influences what
+/// the control service actuates, it is only carried through so a recorded state change can explain itself.
+/// </summary>
+/// <remarks>
+/// Everything is nullable because a producer only fills in what it actually knows. A control message raised by an
+/// API call has little more than the run mode, while one raised by the thermostat loop carries the full picture.
+/// </remarks>
+public record ControlContext(
+  float? EnvironmentTemperatureC = null,
+  float? HumidityPercentage = null,
+  float? TargetTemperatureC = null,
+  float? HysteresisC = null,
+  float? ForecastTemperatureC = null,
+  float? CO2LevelPpm = null,
+  RunMode? Mode = null,
+  Guid? ScheduleId = null,
+  Guid? SetPointId = null,
+  string? Reason = null
+);
+
+public record ControlMessage(ControlState State, ControlContext? Context = null);

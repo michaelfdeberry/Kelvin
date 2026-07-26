@@ -20,3 +20,9 @@ public interface IHandler<in TRequest, TResponse>
 {
   Task<Result<TResponse>> HandleAsync(TRequest request, CancellationToken cancellationToken = default);
 }
+
+public interface IPagedHandler<TRequest, TResponse>
+  where TRequest : IRequest<PagedResult<TResponse>>
+{
+  Task<PagedResult<TResponse>> HandleAsync(TRequest request, CancellationToken cancellationToken = default);
+}
