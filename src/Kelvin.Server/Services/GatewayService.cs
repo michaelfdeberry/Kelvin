@@ -8,6 +8,7 @@ namespace Kelvin.Server.Services;
 
 public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatcher) : BackgroundService
 {
+  const int BAUD_RATE = 9600;
   const int DEFAULT_READ_DELAY = 1000;
   const int GATEWAY_INFO_READ_TIMEOUT = 2000;
   const int MAX_RETRIES = 5;
@@ -38,7 +39,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
         if (port is null)
         {
           var portName = await FindGateway(stoppingToken);
-          port ??= new SerialPort(portName);
+          port ??= new SerialPort(portName, BAUD_RATE, Parity.None, 8, StopBits.One) { ReadTimeout = DEFAULT_READ_DELAY };
         }
 
         if (!port.IsOpen)
@@ -139,7 +140,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
       }
       catch (Exception ex)
       {
-        logger.LogError(ex, "An occurred when attempting to connect to {portName}", portName);
+        logger.LogError(ex, "An error occurred when attempting to connect to {portName}", portName);
       }
       finally
       {

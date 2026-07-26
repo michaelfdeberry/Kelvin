@@ -7,7 +7,7 @@ const float referenceVoltage = BATTERY_REFERENCE_VOLTAGE;
 const int adcResolution = BATTERY_ADC_RESOLUTION;
 const int multiplicationFactor = BATTERY_MULTIPLICATION_FACTOR;
 const float deadVoltage = BATTERY_DEAD_VOLTAGE;
-const fload chargedVoltage = BATTERY_CHARGED_VOLTAGE;
+const float chargedVoltage = BATTERY_CHARGED_VOLTAGE;
 
 void BatteryMonitor::begin()
 {
