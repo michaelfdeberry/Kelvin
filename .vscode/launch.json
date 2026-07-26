@@ -1,0 +1,15 @@
+{
+  "configurations": [
+    {
+      "name": "C#: Kelvin.Server Debug",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build",
+      "program": "${workspaceFolder}/src/Kelvin.Server/bin/Debug/net10.0/Kelvin.Server.exe",
+      "cwd": "${workspaceFolder}/src/Kelvin.Server",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  ]
+}
