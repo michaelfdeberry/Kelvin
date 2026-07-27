@@ -1,5 +1,6 @@
 using FakeItEasy;
 using Kelvin.Server.Application;
+using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
@@ -34,6 +35,42 @@ public class ControlServiceTests
         await harness.StartAsync();
 
         A.CallTo(() => harness.Relays.Initialize()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task StartAsync_RecordsAStartupLifecycleEvent()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync(clearRecordedChanges: false);
+
+        var change = harness.RecordedChanges.ShouldHaveSingleItem();
+        change.Kind.ShouldBe(ControlChangeKind.Lifecycle);
+        change.State.ShouldBe(ControlState.Startup);
+        change.PreviousState.ShouldBeNull();
+        change.Reason.ShouldBe("control service started");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task StartAsync_AfterAFault_RecordsFaultAsThePreviousStartupState()
+    {
+        var harness = new ControlServiceHarness();
+        var previousFaultAt = harness.Time.GetUtcNow().AddMinutes(-10);
+        harness.SetLatestLifecycleState(
+            new GetLatestControlStateChangeResponse(ControlState.Fault, previousFaultAt)
+        );
+
+        await harness.StartAsync(clearRecordedChanges: false);
+
+        var change = harness.RecordedChanges.ShouldHaveSingleItem();
+        change.Kind.ShouldBe(ControlChangeKind.Lifecycle);
+        change.State.ShouldBe(ControlState.Startup);
+        change.PreviousState.ShouldBe(ControlState.Fault);
+        change.PreviousStateDurationSeconds.ShouldNotBeNull();
 
         await harness.StopAsync();
     }
@@ -148,6 +185,9 @@ public class ControlServiceTests
         await harness.StopApplicationRequested.WaitAsync(TimeSpan.FromSeconds(5));
 
         A.CallTo(() => harness.Relays.EnableControl()).MustNotHaveHappened();
+        harness.RecordedChanges.ShouldContain(change =>
+            change.Kind == ControlChangeKind.Lifecycle && change.State == ControlState.Fault
+        );
 
         await harness.StopAsync();
     }

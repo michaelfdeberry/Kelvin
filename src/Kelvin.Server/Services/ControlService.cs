@@ -45,10 +45,12 @@ public class ControlService(
   private readonly List<ControlStateChange> _pendingChanges = [];
   private ControlContext? _currentContext;
 
-  public override Task StartAsync(CancellationToken cancellationToken)
+  public override async Task StartAsync(CancellationToken cancellationToken)
   {
     relays.Initialize();
-    return base.StartAsync(cancellationToken);
+
+    await RecordStartupEventAsync(cancellationToken);
+    await base.StartAsync(cancellationToken);
   }
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -99,6 +101,7 @@ public class ControlService(
       }
       catch (GpioUnavailableException ex)
       {
+        await RecordFaultEventAsync("GPIO became unusable", stoppingToken);
         // never continue the state machine on unusable hardware; fail loudly instead of pretending to actuate
         logger.LogCritical(ex, "GPIO became unusable. Stopping the application so the failure is not silently ignored.");
         lifetime.StopApplication();
@@ -454,5 +457,50 @@ public class ControlService(
         call = HvacCall.Dwell;
         return false;
     }
+  }
+
+  private async Task RecordStartupEventAsync(CancellationToken cancellationToken)
+  {
+    try
+    {
+      var previous = await GetLatestLifecycleStateAsync(cancellationToken);
+      ControlState? previousState = previous?.State == ControlState.Fault ? ControlState.Fault : null;
+      var previousSince = previousState is null ? null : previous?.ChangedAt;
+
+      RecordChange(ControlChangeKind.Lifecycle, ControlState.Startup, previousState, previousSince, "control service started");
+      await FlushChangesAsync(cancellationToken);
+    }
+    catch (Exception ex)
+    {
+      logger.LogError(ex, "An error occurred while recording the control service startup event.");
+    }
+  }
+
+  private async Task RecordFaultEventAsync(string reason, CancellationToken cancellationToken)
+  {
+    try
+    {
+      var previous = await GetLatestLifecycleStateAsync(cancellationToken);
+      ControlState? previousState = previous?.State is ControlState.Startup or ControlState.Fault ? previous.State : null;
+      var previousSince = previousState is null ? null : previous?.ChangedAt;
+
+      RecordChange(ControlChangeKind.Lifecycle, ControlState.Fault, previousState, previousSince, reason);
+      await FlushChangesAsync(cancellationToken);
+    }
+    catch (Exception ex)
+    {
+      logger.LogError(ex, "An error occurred while recording the control service fault event.");
+    }
+  }
+
+  private async Task<GetLatestControlStateChangeResponse?> GetLatestLifecycleStateAsync(CancellationToken cancellationToken)
+  {
+    var result = await dispatcher.DispatchAsync<GetLatestControlStateChangeRequest, GetLatestControlStateChangeResponse?>(
+      new(ControlChangeKind.Lifecycle),
+      cancellationToken
+    );
+
+    result.EnsureSuccess();
+    return result.Value;
   }
 }

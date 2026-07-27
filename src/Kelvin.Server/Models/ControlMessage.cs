@@ -40,6 +40,16 @@ public enum ControlState
   /// The system is not running the fan.
   /// </summary>
   FanOff,
+
+  /// <summary>
+  /// The control service started.
+  /// </summary>
+  Startup,
+
+  /// <summary>
+  /// The control service encountered an unrecoverable fault and stopped.
+  /// </summary>
+  Fault,
 }
 
 /// <summary>

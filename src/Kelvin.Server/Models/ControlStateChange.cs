@@ -17,16 +17,19 @@ public enum ControlChangeKind
 
   /// <summary>The fan, which is actuated independently of the current call.</summary>
   Fan,
+
+  /// <summary>Service lifecycle events, such as startup and unrecoverable faults.</summary>
+  Lifecycle,
 }
 
 /// <summary>
-/// A record of the control service actuating a relay, forming the history the statistics and live status are
-/// derived from.
+/// A record of a control service event, forming the history the statistics and live status are derived from.
 /// </summary>
 /// <remarks>
-/// Only changes that actually moved a relay are recorded. Requests that were blocked by the minimum on/off
-/// duration guards, ignored while control was reverted, or coalesced into an already pending transition are
-/// logged but produce no row - the history is a record of what the equipment did, not of what was asked for.
+/// Control, call and fan rows are only recorded when a relay actually moved. Requests that were blocked by the
+/// minimum on/off duration guards, ignored while control was reverted, or coalesced into an already pending
+/// transition are logged but produce no row - the history is a record of what the equipment did, not of what was
+/// asked for. The lifecycle axis records service startup/fault markers for observability.
 /// <para>
 /// There is no dedicated timestamp: <see cref="Entity.CreatedAt" /> is the moment of the change, stamped from the
 /// shared <see cref="TimeProvider" /> when the row is saved. <see cref="PreviousStateDurationSeconds" /> is

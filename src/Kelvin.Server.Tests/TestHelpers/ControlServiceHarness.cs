@@ -37,6 +37,7 @@ public sealed class ControlServiceHarness
     private readonly SemaphoreSlim _iterationStarted = new(0);
     private readonly TaskCompletionSource _stopApplicationRequested = new();
     private TaskCompletionSource<ControlMessage>? _pendingRead;
+    private GetLatestControlStateChangeResponse? _latestLifecycle;
 
     public IRelayController Relays { get; } = A.Fake<IRelayController>();
 
@@ -70,6 +71,7 @@ public sealed class ControlServiceHarness
             .Invokes(() => _stopApplicationRequested.TrySetResult());
 
         SetRecordingResult(Result.Success());
+        SetLatestLifecycleState(null);
 
         SetGateway(ControlFixtures.CreateGateway());
 
@@ -96,6 +98,21 @@ public sealed class ControlServiceHarness
                 return Result<GetGatewayResponse>.Success(gateway);
             });
 
+    public void SetLatestLifecycleState(GetLatestControlStateChangeResponse? latestLifecycle)
+    {
+        _latestLifecycle = latestLifecycle;
+
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync<
+                    GetLatestControlStateChangeRequest,
+                    GetLatestControlStateChangeResponse?
+                >(A<GetLatestControlStateChangeRequest>._, A<CancellationToken>._)
+            )
+            .ReturnsLazily(() =>
+                Result<GetLatestControlStateChangeResponse?>.Success(_latestLifecycle)
+            );
+    }
+
     /// <summary>
     /// Captures every state change the service dispatches for recording, and controls what the save reports back.
     /// </summary>
@@ -120,10 +137,13 @@ public sealed class ControlServiceHarness
             );
 
     /// <summary>Starts the service and waits until it is blocked on its first control channel read.</summary>
-    public async Task StartAsync()
+    public async Task StartAsync(bool clearRecordedChanges = true)
     {
         await _service.StartAsync(CancellationToken.None);
         await _iterationStarted.WaitAsync();
+
+        if (clearRecordedChanges)
+            RecordedChanges.Clear();
     }
 
     public Task StopAsync() => _service.StopAsync(new CancellationToken(canceled: true));
