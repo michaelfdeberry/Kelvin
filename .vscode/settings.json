@@ -3,7 +3,8 @@
     "Adafruit",
     "Hvac",
     "Meteo",
-    "Sensirion"
+    "Sensirion",
+    "urlpattern"
   ],
   "editor.formatOnSave": true,
   "editor.formatOnPaste": true,

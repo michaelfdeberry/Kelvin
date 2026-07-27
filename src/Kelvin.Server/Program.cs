@@ -52,6 +52,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapEndpoints();
+app.MapFallbackToFile("index.html");
 
 app.Run();
