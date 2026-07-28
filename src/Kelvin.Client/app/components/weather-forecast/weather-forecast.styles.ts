@@ -12,7 +12,6 @@ const weatherForecastStyles = css`
     display: flex;
     width: 100%;
     max-width: 600px;
-    margin-bottom: 1rem;
     padding: 0.8rem;
     box-sizing: border-box;
     background: var(--bg-panel);

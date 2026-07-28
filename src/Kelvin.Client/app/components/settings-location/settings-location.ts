@@ -7,9 +7,9 @@ import { when } from 'lit/directives/when.js';
 import { CurrentLocationResponse } from '../../models/current-location-response.js';
 import { SearchLocationsResponse } from '../../models/search-locations-response.js';
 import sharedStyles from '../../shared.styles.js';
-import settingsLocationTabStyles from './settings-location-tab.styles.js';
+import settingsLocationTabStyles from './settings-location.styles.js';
 
-@customElement('app-settings-location-tab')
+@customElement('app-settings-location')
 export class SettingsLocationTab extends LitElement {
   static override styles = [sharedStyles, settingsLocationTabStyles];
 

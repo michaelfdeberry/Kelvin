@@ -26,11 +26,11 @@ public class GetSetPointsEndpoint : IEndpointMapper
 {
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
-    app.MapPost(
+    app.MapGet(
         "/api/thermostat/set-points",
-        async (GetSetPointsRequest request, IHandler<GetSetPointsRequest, GetSetPointsResponse> handler, CancellationToken ct) =>
+        async (IHandler<GetSetPointsRequest, GetSetPointsResponse> handler, CancellationToken ct) =>
         {
-          var result = await handler.HandleAsync(request, ct);
+          var result = await handler.HandleAsync(new GetSetPointsRequest(), ct);
           if (result.IsFailure)
           {
             return Results.InternalServerError(result.Error);

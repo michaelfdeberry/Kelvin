@@ -44,11 +44,11 @@ public class GetSchedulesEndpoint : IEndpointMapper
 {
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
-    app.MapPost(
+    app.MapGet(
         "/api/thermostat/schedules",
-        async (GetSchedulesRequest request, IHandler<GetSchedulesRequest, GetSchedulesResponse> handler, CancellationToken ct) =>
+        async (IHandler<GetSchedulesRequest, GetSchedulesResponse> handler, CancellationToken ct) =>
         {
-          var result = await handler.HandleAsync(request, ct);
+          var result = await handler.HandleAsync(new GetSchedulesRequest(), ct);
 
           if (result.IsFailure)
           {

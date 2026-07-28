@@ -1,6 +1,16 @@
+export enum TemperatureUnit {
+  Celsius,
+  Fahrenheit,
+}
+
+export enum TimeFormat {
+  Hour24,
+  Hour12,
+}
+
 export type PreferencesResponse = {
-  temperatureUnit: 'celsius' | 'fahrenheit';
-  timeFormat: 'hour12' | 'hour24';
+  temperatureUnit: TemperatureUnit;
+  timeFormat: TimeFormat;
   locationId: number | null;
   locationName: string | null;
 };

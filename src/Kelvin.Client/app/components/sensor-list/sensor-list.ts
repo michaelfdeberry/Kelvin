@@ -24,11 +24,11 @@ export class SensorList extends LitElement {
       >
         ${sensorReadings.map(
           reading => html`
-            <sensor-card
+            <app-sensor-card
               .title=${reading.title}
               .value=${reading.value}
               .subtitle=${reading.subtitle}
-            ></sensor-card>
+            ></app-sensor-card>
           `,
         )}
       </div>

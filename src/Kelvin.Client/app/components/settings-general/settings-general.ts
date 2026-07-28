@@ -4,10 +4,10 @@ import { customElement } from 'lit/decorators.js';
 
 import { PreferencesResponse } from '../../models/preferences-response.js';
 import sharedStyles from '../../shared.styles.js';
-import settingsGeneralTabStyles from './settings-general-tab.styles.js';
+import settingsGeneralTabStyles from './settings-general.styles.js';
 
-@customElement('app-settings-general-tab')
-export class SettingsGeneralTab extends LitElement {
+@customElement('app-settings-general')
+export class SettingsGeneral extends LitElement {
   static override styles = [sharedStyles, settingsGeneralTabStyles];
 
   private preferencesTask = new Task(this, {
@@ -77,6 +77,6 @@ export class SettingsGeneralTab extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'app-settings-general-tab': SettingsGeneralTab;
+    'app-settings-general-tab': SettingsGeneral;
   }
 }
