@@ -30,16 +30,16 @@ public class GetPreferencesEndpoint : IEndpointMapper
 {
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
-    app.MapPost(
+    app.MapGet(
         "/api/preferences",
-        async (GetPreferencesRequest request, IHandler<GetPreferencesRequest, GetPreferencesResponse> handler, CancellationToken ct) =>
+        async (IHandler<GetPreferencesRequest, GetPreferencesResponse> handler, CancellationToken ct) =>
         {
-          var result = await handler.HandleAsync(request, ct);
+          var result = await handler.HandleAsync(new GetPreferencesRequest(), ct);
 
           return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         }
       )
-      .WithName("GetPreferences")
+      .WithName("GetPreferencesGet")
       .WithTags("Preferences");
   }
 }

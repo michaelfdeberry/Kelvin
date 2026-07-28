@@ -8,40 +8,36 @@ export type Route = {
   render: (params?: RouteParams, query?: Record<string, string | undefined>) => HTMLTemplateResult | Promise<HTMLTemplateResult>;
   guard?: () => boolean | Promise<boolean>;
   redirectTo?: string;
-}
+};
 
 export const routes: Route[] = [
   {
     name: 'home',
     pattern: new URLPattern({ pathname: '/' }),
-    render: () => html`<home-view></home-view>`,
+    render: async () => {
+      await import('./views/dashboard/dashboard-view.js');
+      return html`<app-dashboard-view></app-dashboard-view>`;
+    },
   },
   {
-    name: 'user-profile',
-    pattern: new URLPattern({ pathname: '/user/:id' }),
-    render: (params?: RouteParams) => html`<user-view .userId=${params?.id}></user-view>`,
+    name: 'analytics',
+    pattern: new URLPattern({ pathname: '/analytics' }),
+    render: async () => {
+      await import('./views/analytics/analytics-view.js');
+      return html`<app-analytics-view></app-analytics-view>`;
+    },
+  },
+  {
+    name: 'settings',
+    pattern: new URLPattern({ pathname: '/settings' }),
+    render: async () => {
+      await import('./views/settings/settings-view.js');
+      return html`<app-settings-view></app-settings-view>`;
+    },
   },
   {
     name: 'not-found',
     pattern: new URLPattern({ pathname: '*' }),
-    render: () => html`<not-found-view></not-found-view>`,
+    render: () => html`<app-not-found-view></app-not-found-view>`,
   },
-  {
-    name: 'dashboard',
-    pattern: new URLPattern({ pathname: '/dashboard' }),
-    render: async () => {
-      // Trigger the lazy network download
-      await import('./pages/dashboard-view.js');
-      // Return the element; it will display automatically as soon as it upgrades
-      return html`<dashboard-view></dashboard-view>`;
-    },
-  },
-  // {
-  //   name: 'dashboard',
-  //   pattern: new URLPattern({ pathname: '/dashboard', search: '*' }),
-  //   // Guard blocks unauthorized navigation
-  //   guard: () => isAuthenticated(), 
-  //   redirectTo: '/login',
-  //   render: () => html`<dashboard-view></dashboard-view>`
-  // },
 ];

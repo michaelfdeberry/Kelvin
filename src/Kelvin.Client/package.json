@@ -25,6 +25,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@lit/task": "^1.0.3",
     "lit": "^3.3.3",
     "urlpattern-polyfill": "^10.1.0"
   },

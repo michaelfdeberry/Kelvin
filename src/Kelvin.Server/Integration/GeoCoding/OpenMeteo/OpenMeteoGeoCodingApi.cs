@@ -8,7 +8,7 @@ public sealed partial class OpenMeteoGeoCodingApi(IHttpClientFactory httpClientF
 {
   private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-  private const string CLIENT_NAME = "OpenMeteo";
+  private const string CLIENT_NAME = "OpenMeteoGeoCoding";
 
   public async Task<IReadOnlyList<GeoCodingLocation>> SearchAsync(string name, int count = 10, CancellationToken cancellationToken = default)
   {

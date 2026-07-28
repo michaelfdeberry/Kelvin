@@ -78,17 +78,15 @@ public class GetWeatherForecastEndpoint : IEndpointMapper
 {
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
-    app.MapPost(
+    app.MapGet(
         "/api/weather/forecast",
-        async (GetWeatherForecastRequest request, IHandler<GetWeatherForecastRequest, GetWeatherForecastResponse> handler, CancellationToken ct) =>
+        async (IHandler<GetWeatherForecastRequest, GetWeatherForecastResponse> handler, CancellationToken ct) =>
         {
-          var result = await handler.HandleAsync(request, ct);
+          var result = await handler.HandleAsync(new GetWeatherForecastRequest(), ct);
           if (result.IsFailure)
           {
             if (result.Error == GetWeatherForecastErrors.ForecastNotFound)
-            {
               return Results.NotFound(result.Error);
-            }
 
             return Results.InternalServerError(result.Error);
           }

@@ -16,6 +16,16 @@ Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
+if (builder.Environment.IsDevelopment())
+{
+  builder.Services.AddCors(options =>
+  {
+    options.AddDefaultPolicy(builder =>
+    {
+      builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+    });
+  });
+}
 
 // Dependency Injection
 builder.Services.AddSingleton(TimeProvider.System);
@@ -25,7 +35,8 @@ builder.Services.AddDbContext<KelvinContext>(
     options.UseSqlite($"Data Source={databasePath}").AddInterceptors(serviceProvider.GetRequiredService<EntityUpdateInterceptor>())
 );
 builder.Services.AddSingleton<IDispatcher, Dispatcher>();
-builder.Services.AddHttpClient("OpenMeteo", client => client.BaseAddress = new Uri("https://api.open-meteo.com/v1/"));
+builder.Services.AddHttpClient("OpenMeteoGeoCoding", client => client.BaseAddress = new Uri("https://geocoding-api.open-meteo.com/v1/"));
+builder.Services.AddHttpClient("OpenMeteoWeather", client => client.BaseAddress = new Uri("https://api.open-meteo.com/v1/"));
 builder.Services.AddSingleton<IWeatherApi, OpenMeteoWeatherApi>();
 builder.Services.AddSingleton<IGeoCodingApi, OpenMeteoGeoCodingApi>();
 builder.Services.AddSingleton<IRelayController, RelayController>();
@@ -48,6 +59,7 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
   app.MapOpenApi();
+  app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 }
 
 app.UseHttpsRedirection();

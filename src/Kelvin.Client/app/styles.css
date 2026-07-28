@@ -1,0 +1,69 @@
+:root {
+  --bg-dark: #0f172a;
+  --bg-panel: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent-heat: #f97316;
+  --accent-cool: #3b82f6;
+  --accent-idle: #475569;
+  --border-radius: 16px;
+
+  /* Borders / translucent surfaces */
+  --border-subtle: #334155;
+  --surface-overlay: rgb(15 23 42 / 35%);
+  --surface-overlay-strong: rgb(15 23 42 / 55%);
+  --surface-overlay-panel: rgb(30 41 59 / 45%);
+  --shadow-color: rgb(2 6 23 / 28%);
+
+  /* Accents */
+  --accent-primary: #2563eb;
+  --accent-primary-strong: #1d4ed8;
+  --accent-success: #22c55e;
+  --accent-danger: #fca5a5;
+  --accent-info: #93c5fd;
+  --accent-heat-shadow: rgb(249 115 22 / 10%);
+  --accent-heat-overlay: rgb(249 115 22 / 20%);
+
+  /* Text on colored/accent backgrounds */
+  --text-on-primary: #dbeafe;
+  --text-on-primary-strong: #eff6ff;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg-dark);
+  color: var(--text-main);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+::view-transition-old(main-content) {
+  animation: 250ms ease-out both fade-out;
+}
+
+::view-transition-new(main-content) {
+  animation: 300ms ease-in both fade-in;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}

@@ -1,6 +1,10 @@
-import { css, html, LitElement, TemplateResult } from 'lit';
+import { html, LitElement, TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
+import appShellStyles from './app.styles.js';
+import './components/app-sidebar/app-sidebar.js';
 import { routes } from './routes.js';
+import sharedStyles from './shared.styles.js';
 
 // Polyfill check for older browsers / Firefox
 if (!('URLPattern' in window)) {
@@ -9,30 +13,16 @@ if (!('URLPattern' in window)) {
 
 @customElement('app-shell')
 export class AppShell extends LitElement {
-  @state() private currentTemplate: TemplateResult = html`<home-view></home-view>`;
+  @state() private currentTemplate: TemplateResult = html`<dashboard-view></dashboard-view>`;
   @state() private isResolvingRoute = false;
 
-  static override styles = css`
-    :host {
-      display: block;
-      font-family: system-ui, sans-serif;
-    }
-    main {
-      padding: 1rem;
-      /* Opt-in this specific container into modern View Transitions */
-      view-transition-name: main-content; 
-    }
-    .loading-overlay {
-      opacity: 0.5;
-      pointer-events: none;
-    }
-  `;
+  static override styles = [sharedStyles, appShellStyles];
 
   override connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener('popstate', this.onLocationChange);
     this.addEventListener('click', this.onLinkClick);
-    
+
     // Resolve initial page load route path
     this.resolveRoute(new URL(window.location.href));
   }
@@ -64,9 +54,7 @@ export class AppShell extends LitElement {
     this.isResolvingRoute = true;
 
     // 1. Locate the route configuration mapping block
-    const matchedRoute = routes.find(route => 
-      route.pattern.test({ pathname: url.pathname })
-    );
+    const matchedRoute = routes.find(route => route.pattern.test({ pathname: url.pathname }));
 
     // Fallback error routing if no pattern maps cleanly
     if (!matchedRoute) {
@@ -92,15 +80,15 @@ export class AppShell extends LitElement {
         return;
       }
     }
-  
+
     // 3. Parse runtime params and query state strings
     const matchResult = matchedRoute.pattern.exec({ pathname: url.pathname });
     const routeParams = matchResult?.pathname.groups || {};
     const queryParams = Object.fromEntries(new URLSearchParams(url.search));
 
-    const nextTemplate = await matchedRoute.render(routeParams, queryParams);    
+    const nextTemplate = await matchedRoute.render(routeParams, queryParams);
     this.isResolvingRoute = false;
-    
+
     // 4. Update display view inside native transition boundaries
     this.updateRenderedView(nextTemplate, url, updateHistory);
   }
@@ -122,17 +110,10 @@ export class AppShell extends LitElement {
 
   override render(): TemplateResult {
     return html`
-      <header>
-        <nav>
-          <a href="/">Home</a> | 
-          <a href="/dashboard">Dashboard (Protected Check)</a>
-        </nav>
-      </header>
-
-      <!-- Toggle style overlays cleanly when resolving background network tasks -->
-      <main class="${this.isResolvingRoute ? 'loading-overlay' : ''}">
-        ${this.currentTemplate}
-      </main>
+      <div class="app-shell__shell">
+        <app-sidebar></app-sidebar>
+        <main class="${classMap({ 'app-shell__main': true, 'app-shell__main--loading': this.isResolvingRoute })}">${this.currentTemplate}</main>
+      </div>
     `;
   }
 }
