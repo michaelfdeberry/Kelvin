@@ -39,7 +39,8 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
         if (port is null)
         {
           var portName = await FindGateway(stoppingToken);
-          port ??= new SerialPort(portName, BAUD_RATE, Parity.None, 8, StopBits.One) { ReadTimeout = DEFAULT_READ_DELAY };
+          //port ??= new SerialPort(portName, BAUD_RATE, Parity.None, 8, StopBits.One) { ReadTimeout = DEFAULT_READ_DELAY };
+          port ??= new SerialPort(portName, BAUD_RATE);
         }
 
         if (!port.IsOpen)

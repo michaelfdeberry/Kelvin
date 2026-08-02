@@ -16,7 +16,7 @@ public sealed partial class OpenMeteoWeatherApi(IHttpClientFactory httpClientFac
     {
       var httpClient = httpClientFactory.CreateClient(CLIENT_NAME);
       var requestUri =
-        $"forecast?latitude={latitude.ToString(CultureInfo.InvariantCulture)}&longitude={longitude.ToString(CultureInfo.InvariantCulture)}&timezone=auto&forecast_days=5&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min";
+        $"forecast?latitude={latitude.ToString(CultureInfo.InvariantCulture)}&longitude={longitude.ToString(CultureInfo.InvariantCulture)}&timezone=auto&forecast_days=3&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min";
 
       var response = await httpClient.GetFromJsonAsync<OpenMeteoForecastResponse>(requestUri, JsonOptions, cancellationToken);
       if (response is null)

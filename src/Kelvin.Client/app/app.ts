@@ -1,125 +1,176 @@
-import { html, LitElement, TemplateResult } from 'lit';
+import './components/shared/alert/alert.js';
+import './components/shared/toaster/toaster.js';
+import './signalr/control-hub.js';
+import './signalr/readings-hub.js';
+import './signalr/signalr-context.js';
+
+import { ContextProvider } from '@lit/context';
+import { html, LitElement, nothing, TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { classMap } from 'lit/directives/class-map.js';
+
 import appShellStyles from './app.styles.js';
-import './components/app-sidebar/app-sidebar.js';
-import { routes } from './routes.js';
+import './components/layout/app-sidebar/app-sidebar.js';
+import { defaultPreferences, preferencesContext } from './contexts/preferences-context.js';
+import { defaultSensors, sensorsContext } from './contexts/sensors-context.js';
+import { thermostatContext, defaultThermostat } from './contexts/thermostat-context.js';
+import { events } from './events.js';
+import { Sensors as SensorsResponse } from './models/sensors.js';
+import './router.js';
+import { Thermostat } from './models/thermostat.js';
+import { apiFetch } from './services/api.js';
+import { dispatchToast } from './services/utilities.js';
 import sharedStyles from './shared.styles.js';
 
-// Polyfill check for older browsers / Firefox
-if (!('URLPattern' in window)) {
-  await import('urlpattern-polyfill');
-}
+import type { Preferences } from './models/preferences.js';
 
-@customElement('app-shell')
-export class AppShell extends LitElement {
-  @state() private currentTemplate: TemplateResult = html`<dashboard-view></dashboard-view>`;
-  @state() private isResolvingRoute = false;
-
+@customElement('kelvin-app')
+export class KelvinApp extends LitElement {
   static override styles = [sharedStyles, appShellStyles];
+
+  private preferencesProvider = new ContextProvider(this, {
+    context: preferencesContext,
+    initialValue: defaultPreferences,
+  });
+
+  private sensorsProvider = new ContextProvider(this, {
+    context: sensorsContext,
+    initialValue: defaultSensors,
+  });
+
+  private thermostatProvider = new ContextProvider(this, {
+    context: thermostatContext,
+    initialValue: defaultThermostat,
+  });
+
+  @state()
+  private isThermostatDisabled: boolean | undefined = undefined;
 
   override connectedCallback(): void {
     super.connectedCallback();
-    window.addEventListener('popstate', this.onLocationChange);
-    this.addEventListener('click', this.onLinkClick);
 
-    // Resolve initial page load route path
-    this.resolveRoute(new URL(window.location.href));
+    this.loadThermostat();
+    this.loadSensors();
+    this.loadPreferences();
+
+    this.handlePreferencesSaved = this.handlePreferencesSaved.bind(this);
+    this.handleSensorsUpdated = this.handleSensorsUpdated.bind(this);
+    this.handleThermostatUpdated = this.handleThermostatUpdated.bind(this);
+
+    this.addEventListener(events.preferencesSaved, this.handlePreferencesSaved);
+    this.addEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
+    this.addEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    window.removeEventListener('popstate', this.onLocationChange);
-    this.removeEventListener('click', this.onLinkClick);
+
+    this.removeEventListener(events.preferencesSaved, this.handlePreferencesSaved);
+    this.removeEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
+    this.removeEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
   }
 
-  private onLocationChange = (): void => {
-    this.resolveRoute(new URL(window.location.href));
-  };
+  handlePreferencesSaved(event: Event): void {
+    event.stopPropagation();
 
-  private onLinkClick = (e: MouseEvent): void => {
-    const anchor = e.composedPath().find(el => (el as HTMLElement).tagName === 'A') as HTMLAnchorElement | undefined;
-    if (anchor && anchor.href && new URL(anchor.href).origin === window.location.origin) {
-      e.preventDefault();
-      this.navigate(anchor.pathname + anchor.search);
-    }
-  };
-
-  public navigate(path: string): void {
-    const targetUrl = new URL(path, window.location.origin);
-    this.resolveRoute(targetUrl, true);
+    const customEvent = event as CustomEvent<Preferences>;
+    this.preferencesProvider.setValue(customEvent.detail);
   }
 
-  private async resolveRoute(url: URL, updateHistory = false): Promise<void> {
-    this.isResolvingRoute = true;
-
-    // 1. Locate the route configuration mapping block
-    const matchedRoute = routes.find(route => route.pattern.test({ pathname: url.pathname }));
-
-    // Fallback error routing if no pattern maps cleanly
-    if (!matchedRoute) {
-      this.isResolvingRoute = false;
-      this.updateRenderedView(html`<not-found-view></not-found-view>`, url, updateHistory);
-      return;
-    }
-
-    // 2. Resolve asynchronous route authentication guards
-    if (matchedRoute.guard) {
-      try {
-        const passedGuard = await matchedRoute.guard();
-        if (!passedGuard) {
-          // Re-route processing stack to fallback address
-          const fallbackPath = matchedRoute.redirectTo || '/';
-          const fallbackUrl = new URL(fallbackPath, window.location.origin);
-          this.resolveRoute(fallbackUrl, true);
-          return;
-        }
-      } catch (err) {
-        console.error('Guard evaluation error:', err);
-        this.isResolvingRoute = false;
-        return;
-      }
-    }
-
-    // 3. Parse runtime params and query state strings
-    const matchResult = matchedRoute.pattern.exec({ pathname: url.pathname });
-    const routeParams = matchResult?.pathname.groups || {};
-    const queryParams = Object.fromEntries(new URLSearchParams(url.search));
-
-    const nextTemplate = await matchedRoute.render(routeParams, queryParams);
-    this.isResolvingRoute = false;
-
-    // 4. Update display view inside native transition boundaries
-    this.updateRenderedView(nextTemplate, url, updateHistory);
+  handleSensorsUpdated(event: Event): void {
+    event.stopPropagation();
+    this.loadSensors();
   }
 
-  private updateRenderedView(template: TemplateResult, url: URL, updateHistory: boolean): void {
-    // Check if the running browser environment natively supports view transitions
-    if (!document.startViewTransition) {
-      if (updateHistory) window.history.pushState(null, '', url.href);
-      this.currentTemplate = template;
-      return;
-    }
-
-    // Animate DOM switch seamlessly using native microtask schedules
-    document.startViewTransition(() => {
-      if (updateHistory) window.history.pushState(null, '', url.href);
-      this.currentTemplate = template;
-    });
+  handleThermostatUpdated(event: Event): void {
+    event.stopPropagation();
+    this.loadThermostat();
   }
 
-  override render(): TemplateResult {
+  private async loadPreferences(): Promise<void> {
+    try {
+      const preferences = await apiFetch<Preferences>('preferences');
+      this.preferencesProvider.setValue(preferences);
+    } catch (err) {
+      dispatchToast(this, 'error', 'Failed to load preferences.');
+      console.error('Failed to load preferences:', err);
+    }
+  }
+
+  private async loadSensors(): Promise<void> {
+    try {
+      const response = await apiFetch<SensorsResponse>('sensors');
+      this.sensorsProvider.setValue(response.sensors);
+    } catch (err) {
+      dispatchToast(this, 'error', 'Failed to load sensors.');
+      console.error('Failed to load sensors:', err);
+    }
+  }
+
+  private async loadThermostat(): Promise<void> {
+    try {
+      const thermostat = await apiFetch<Thermostat>('thermostat');
+      this.isThermostatDisabled = thermostat.mode === 'Disabled';
+      this.thermostatProvider.setValue(thermostat);
+    } catch (err) {
+      dispatchToast(this, 'error', 'Failed to load thermostat.');
+      console.error('Failed to load thermostat:', err);
+    }
+  }
+
+  private async handleTakeControlClick(): Promise<void> {
+    try {
+      console.log('Current thermostat mode:', this.thermostatProvider.value.mode);
+      await apiFetch('thermostat', { method: 'PUT', body: JSON.stringify({ ...this.thermostatProvider.value, mode: 'Off' }) });
+    } catch (error) {
+      dispatchToast(this, 'error', 'Failed to take control of the thermostat.');
+      console.error('Failed to take control of the thermostat:', error);
+    }
+  }
+
+  private renderBanner(): TemplateResult | typeof nothing {
+    if (this.isThermostatDisabled === undefined) return nothing;
+    if (this.thermostatProvider.value.mode !== 'Disabled') return nothing;
+
     return html`
-      <div class="app-shell__shell">
-        <app-sidebar></app-sidebar>
-        <main class="${classMap({ 'app-shell__main': true, 'app-shell__main--loading': this.isResolvingRoute })}">${this.currentTemplate}</main>
+      <div class="app-shell__banner">
+        <app-alert
+          banner
+          type="warning"
+          heading="Kelvin is Disabled"
+        >
+          <p>The HVAC system is being controlled by the failsafe thermostat.</p>
+          <button
+            slot="actions"
+            class="button button--warning button--small"
+            @click=${this.handleTakeControlClick}
+          >
+            Take Control
+          </button>
+        </app-alert>
       </div>
+    `;
+  }
+
+  override render() {
+    return html`
+      <signalr-context>
+        ${this.renderBanner()}
+        <div class="app-shell__shell">
+          <app-sidebar></app-sidebar>
+          <main class="app-shell__main">
+            <app-router></app-router>
+          </main>
+          <app-toaster></app-toaster>
+          <signalr-control-hub></signalr-control-hub>
+          <signalr-readings-hub></signalr-readings-hub>
+        </div>
+      </signalr-context>
     `;
   }
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    'app-shell': AppShell;
+    'kelvin-app': KelvinApp;
   }
 }

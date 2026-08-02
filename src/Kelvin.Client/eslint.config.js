@@ -1,8 +1,23 @@
 import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import lit from 'eslint-plugin-lit';
+import { SourceCode } from 'eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
+import importPlugin from 'eslint-plugin-import';
+import lit from 'eslint-plugin-lit';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
+
+// eslint-plugin-import still expects APIs removed in ESLint 10.
+if (typeof SourceCode.prototype.getTokenOrCommentAfter !== 'function') {
+  SourceCode.prototype.getTokenOrCommentAfter = function (token) {
+    return this.getTokenAfter(token, { includeComments: true });
+  };
+}
+
+if (typeof SourceCode.prototype.getTokenOrCommentBefore !== 'function') {
+  SourceCode.prototype.getTokenOrCommentBefore = function (token) {
+    return this.getTokenBefore(token, { includeComments: true });
+  };
+}
 
 export default tseslint.config(
   {
@@ -17,8 +32,29 @@ export default tseslint.config(
         ...globals.browser,
       },
     },
+    plugins: {
+      import: importPlugin,
+    },
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'import/order': [
+        'error',
+        {
+          groups: [
+            'builtin',
+            'external',
+            'internal',
+            ['parent', 'sibling', 'index'],
+            'object',
+            'type',
+          ],
+          'newlines-between': 'always',
+          alphabetize: {
+            order: 'asc',
+            caseInsensitive: true,
+          },
+        },
+      ],
     },
   },
   eslintConfigPrettier,

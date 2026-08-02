@@ -6,7 +6,7 @@ export type WeatherCurrent = {
   windSpeedKph: number;
   weatherCode: number;
   summary: string;
-}
+};
 
 export type WeatherForecastResponse = {
   latitude: number;
@@ -15,13 +15,13 @@ export type WeatherForecastResponse = {
   retrievedAt: string;
   current: WeatherCurrent;
   daily: WeatherForecastDay[];
-}
+};
 
 export type WeatherForecastDay = {
   date: string;
   icon: string;
-  temperatureMinC: string;
-  temperatureMaxC: string;
+  temperatureMinC: number;
+  temperatureMaxC: number;
   weatherCode: number;
   summary: string;
 };

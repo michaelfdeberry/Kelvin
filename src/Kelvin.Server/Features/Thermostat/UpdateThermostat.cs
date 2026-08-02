@@ -22,8 +22,10 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
     if (thermostat is null)
       return Result.Failure(UpdateThermostatErrors.ThermostatNotFound);
 
+    var currentFanState = thermostat.FanEnabled;
     thermostat.Mode = request.Mode;
     thermostat.FanEnabled = request.FanEnabled;
+    await context.SaveChangesAsync(ct);
 
     var controlContext = new ControlContext(Mode: thermostat.Mode, HysteresisC: thermostat.HysteresisC, Reason: "the thermostat was updated");
 
@@ -37,10 +39,16 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
       await controlChannel.WriteAsync(new ControlMessage(ControlState.Enable, controlContext), ct);
 
       if (thermostat.Mode == RunMode.Off)
+      {
         await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell, controlContext), ct);
+      }
+
+      if (thermostat.FanEnabled != currentFanState)
+      {
+        await controlChannel.WriteAsync(new ControlMessage(thermostat.FanEnabled ? ControlState.FanOn : ControlState.FanOff, controlContext), ct);
+      }
     }
 
-    await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
 
     return Result.Success();

@@ -19,14 +19,34 @@
   --accent-primary: #2563eb;
   --accent-primary-strong: #1d4ed8;
   --accent-success: #22c55e;
-  --accent-danger: #fca5a5;
+  --accent-success-shadow: rgb(34 197 94 / 40%);
+  --accent-danger: #ef4444;
+  --accent-danger-strong: #b91c1c;
+  --accent-danger-overlay: rgb(239 68 68 / 15%);
+  --accent-warning: #facc15;
+  --accent-cyan: #38bdf8;
   --accent-info: #93c5fd;
+  --accent-cyan-overlay: rgb(56 189 248 / 10%);
+  --accent-cyan-overlay-strong: rgb(56 189 248 / 20%);
+  --surface-overlay-light: rgb(255 255 255 / 10%);
+  --text-soft: #e2e8f0;
   --accent-heat-shadow: rgb(249 115 22 / 10%);
   --accent-heat-overlay: rgb(249 115 22 / 20%);
+  --accent-cool-shadow: rgb(59 130 246 / 12%);
+  --accent-cool-overlay: rgb(59 130 246 / 20%);
+  --accent-idle-shadow: rgb(71 85 105 / 16%);
+  --accent-idle-overlay: rgb(71 85 105 / 24%);
+  --accent-danger-shadow: rgb(239 68 68 / 14%);
+  --accent-heat-pulse: rgb(249 115 22 / 40%);
+  --accent-heat-strong: #ea580c;
+  --accent-heat-pulse-fade: rgb(249 115 22 / 0%);
+  --accent-danger-pulse: rgb(239 68 68 / 40%);
+  --accent-danger-pulse-fade: rgb(239 68 68 / 0%);
 
   /* Text on colored/accent backgrounds */
   --text-on-primary: #dbeafe;
   --text-on-primary-strong: #eff6ff;
+  --text-on-danger: #eff6ff;
 }
 
 html,

@@ -9,7 +9,7 @@ namespace Kelvin.Server.Services;
 
 public class ThermostatService(
   IControlChannel controlChannel,
-  IEnvironmentChannel environmentChannel,
+  IEnvironmentReadingsChannel environmentChannel,
   IDispatcher dispatcher,
   TimeProvider time,
   ILogger<ThermostatService> logger
@@ -104,7 +104,7 @@ public class ThermostatService(
   }
 
   private async Task<RunMode> ProcessTemperature(
-    Models.Environment environment,
+    Models.EnvironmentReading environment,
     Thermostat thermostat,
     float? forecastTemperatureC,
     ControlContext context,
@@ -161,8 +161,14 @@ public class ThermostatService(
     bool callForCooling = false;
     var hysteresis = GetHysteresis(thermostat.HysteresisC);
 
+    // these conditions are true if the system reaches a state where it should call for heating or cooling,
+    // either because the forecast calls for it or because the environment temperature is outside the target range
+    // but before the hysteresis is applied.
+    var shouldCallForHeating = (useForecastForHeating && forecastCallsForHeating) || !useForecastForHeating;
+    var shouldCallForCooling = (useForecastForCooling && forecastCallsForCooling) || !useForecastForCooling;
+
     // determine if the environment temperature is below the heating target temp or above the cooling target temp, taking into account hysteresis
-    if ((useForecastForHeating && forecastCallsForHeating) || !useForecastForHeating)
+    if (shouldCallForHeating)
     {
       if (_activeCall == ControlState.Dwell && environmentTemperatureC <= (heatingTargetTemp - hysteresis))
       {
@@ -174,7 +180,7 @@ public class ThermostatService(
       }
     }
 
-    if ((useForecastForCooling && forecastCallsForCooling) || !useForecastForCooling)
+    if (shouldCallForCooling)
     {
       if (_activeCall == ControlState.Dwell && environmentTemperatureC >= (coolingTargetTemp + hysteresis))
       {
@@ -256,11 +262,24 @@ public class ThermostatService(
       return RunMode.Cooling;
     }
 
+    var setpointId = shouldCallForHeating ? (heatingSetPoint?.Id ?? coolingSetPoint?.Id) ?? null : null;
+    var scheduleId = shouldCallForHeating ? (heatingSchedule?.Id ?? coolingSchedule?.Id) ?? null : null;
+    var targetTemperatureC = shouldCallForHeating ? (heatingTargetTemp ?? coolingTargetTemp) ?? null : null;
+
     // no conditions are met for heating or cooling, so we will turn off the system
     logger.LogInformation("No conditions are met for heating or cooling, turning off the system.");
     _activeCall = ControlState.Dwell;
     await controlChannel.WriteAsync(
-      new ControlMessage(ControlState.Dwell, context with { Reason = "no heating or cooling conditions were met" }),
+      new ControlMessage(
+        ControlState.Dwell,
+        context with
+        {
+          TargetTemperatureC = targetTemperatureC,
+          ScheduleId = scheduleId,
+          SetPointId = setpointId,
+          Reason = "no heating or cooling conditions were met",
+        }
+      ),
       cancellationToken
     );
 

@@ -86,6 +86,7 @@ public class GetControlStatsHandler(KelvinContext context, TimeProvider time) : 
   {
     var query = context.ControlStateChanges.AsNoTracking().Where(change => change.Kind == kind && change.DeletedAt == null);
 
+    // TODO: this throws an exception if there are no changes at all in the database.
     // Whatever was already running when the window opened; without it the leading span would be lost.
     var openingState =
       await query

@@ -15,7 +15,7 @@ export const routes: Route[] = [
     name: 'home',
     pattern: new URLPattern({ pathname: '/' }),
     render: async () => {
-      await import('./views/dashboard/dashboard-view.js');
+      await import('./components/views/dashboard/dashboard-view.js');
       return html`<app-dashboard-view></app-dashboard-view>`;
     },
   },
@@ -23,7 +23,7 @@ export const routes: Route[] = [
     name: 'analytics',
     pattern: new URLPattern({ pathname: '/analytics' }),
     render: async () => {
-      await import('./views/analytics/analytics-view.js');
+      await import('./components/views/analytics/analytics-view.js');
       return html`<app-analytics-view></app-analytics-view>`;
     },
   },
@@ -31,7 +31,7 @@ export const routes: Route[] = [
     name: 'settings',
     pattern: new URLPattern({ pathname: '/settings' }),
     render: async () => {
-      await import('./views/settings/settings-view.js');
+      await import('./components/views/settings/settings-view.js');
       return html`<app-settings-view></app-settings-view>`;
     },
   },

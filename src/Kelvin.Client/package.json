@@ -25,19 +25,22 @@
   },
   "type": "module",
   "dependencies": {
+    "@lit/context": "^1.1.6",
     "@lit/task": "^1.0.3",
+    "@microsoft/signalr": "^10.0.0",
     "lit": "^3.3.3",
     "urlpattern-polyfill": "^10.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-lit": "^2.3.1",
+    "eslint": "^10.8.0",
     "globals": "^17.7.0",
     "prettier": "^3.9.6",
-    "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
+    "typescript": "^6.0.3",
     "vite": "^7.1.6"
   }
 }

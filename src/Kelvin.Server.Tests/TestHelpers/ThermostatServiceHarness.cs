@@ -31,11 +31,12 @@ namespace Kelvin.Server.Tests.TestHelpers;
 public sealed class ThermostatServiceHarness
 {
     private readonly IControlChannel _controlChannel = A.Fake<IControlChannel>();
-    private readonly IEnvironmentChannel _environmentChannel = A.Fake<IEnvironmentChannel>();
+    private readonly IEnvironmentReadingsChannel _environmentChannel =
+        A.Fake<IEnvironmentReadingsChannel>();
     private readonly IDispatcher _dispatcher = A.Fake<IDispatcher>();
     private readonly ThermostatService _service;
     private readonly SemaphoreSlim _environmentReadRequested = new(0);
-    private TaskCompletionSource<Kelvin.Server.Models.Environment>? _pendingEnvironmentRead;
+    private TaskCompletionSource<Kelvin.Server.Models.EnvironmentReading>? _pendingEnvironmentRead;
 
     public List<ControlMessage> WrittenMessages { get; } = [];
 
@@ -57,7 +58,7 @@ public sealed class ThermostatServiceHarness
         A.CallTo(() => _environmentChannel.ReadAsync(A<Guid>._, A<CancellationToken>._))
             .ReturnsLazily(() =>
             {
-                var tcs = new TaskCompletionSource<Kelvin.Server.Models.Environment>();
+                var tcs = new TaskCompletionSource<Kelvin.Server.Models.EnvironmentReading>();
                 _pendingEnvironmentRead = tcs;
                 _environmentReadRequested.Release();
                 return tcs.Task;
@@ -141,7 +142,7 @@ public sealed class ThermostatServiceHarness
     /// request another reading - guaranteeing that every dispatcher call and control channel write belonging to
     /// that loop iteration has already happened by the time this method returns.
     /// </summary>
-    public async Task PushEnvironmentAsync(Kelvin.Server.Models.Environment environment)
+    public async Task PushEnvironmentAsync(Kelvin.Server.Models.EnvironmentReading environment)
     {
         var pending =
             _pendingEnvironmentRead

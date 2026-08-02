@@ -3,7 +3,7 @@ namespace Kelvin.Server.Models;
 // Phase one, control will be pretty basic, automatic mode will be the only thing that can't be done with a basic thermostat.
 // Phase two, I plan to add more programmable features with things like after heating, after cooling, etc. along with support for controlling humidifiers and dehumidifiers.
 // Phase three will be multiple thermostats/zones, If the mini split in my garage can support it.
-// Phase four, if I ever get will be support for automated venting based on C02 levels, and possibly other air quality metrics.
+// Phase four, if I ever get there, will be support for automated venting based on C02 levels, and possibly other air quality metrics.
 public enum RunMode
 {
   /// <summary>

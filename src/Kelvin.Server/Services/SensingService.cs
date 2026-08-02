@@ -3,19 +3,22 @@ namespace Kelvin.Server.Services;
 using System.Threading;
 using System.Threading.Tasks;
 using Kelvin.Server.Channels;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 
 public class SensingService(
   ILogger<SensingService> logger,
   ISensorPacketChannel sensorPacketChannel,
-  IEnvironmentChannel environmentChannel,
+  IEnvironmentReadingsChannel environmentReadingChannel,
+  IHubContext<EnvironmentReadingsHub, IEnvironmentReadingsClient> environmentReadingsHub,
   TimeProvider time
 ) : BackgroundService
 {
   private readonly Guid subscriberId = Guid.NewGuid();
 
-  private Environment? _environment;
+  private EnvironmentReading? _environment;
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
@@ -38,7 +41,8 @@ public class SensingService(
         _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
         _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
 
-        await environmentChannel.WriteAsync(_environment, stoppingToken);
+        await environmentReadingChannel.WriteAsync(_environment, stoppingToken);
+        await environmentReadingsHub.Clients.All.ReadingsUpdated(_environment);
       }
       catch (OperationCanceledException)
       {

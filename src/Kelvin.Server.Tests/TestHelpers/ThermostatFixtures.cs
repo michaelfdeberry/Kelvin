@@ -136,7 +136,7 @@ public static class ThermostatFixtures
         );
     }
 
-    public static Kelvin.Server.Models.Environment CreateEnvironment(
+    public static Kelvin.Server.Models.EnvironmentReading CreateEnvironment(
         float temperatureC,
         float humidityPercentage = 0f
     ) =>
