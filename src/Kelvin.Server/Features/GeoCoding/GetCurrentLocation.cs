@@ -119,7 +119,7 @@ public class GetCurrentLocationEndpoint : IEndpointMapper
           return Results.Ok(result.Value);
         }
       )
-      .WithName("GetCurrentLocationGet")
+      .WithName("GetCurrentLocation")
       .WithTags("Locations");
   }
 }

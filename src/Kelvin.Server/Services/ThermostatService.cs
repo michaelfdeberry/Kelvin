@@ -104,7 +104,7 @@ public class ThermostatService(
   }
 
   private async Task<RunMode> ProcessTemperature(
-    Models.EnvironmentReading environment,
+    EnvironmentReading environment,
     Thermostat thermostat,
     float? forecastTemperatureC,
     ControlContext context,

@@ -39,7 +39,7 @@ public class GetPreferencesEndpoint : IEndpointMapper
           return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         }
       )
-      .WithName("GetPreferencesGet")
+      .WithName("GetPreferences")
       .WithTags("Preferences");
   }
 }

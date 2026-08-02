@@ -23,7 +23,7 @@ public class GetPreferencesTests
 
         var preferences = result.Value.ShouldNotBeNull();
         preferences.TemperatureUnit.ShouldBe(TemperatureUnit.Celsius);
-        preferences.TimeFormat.ShouldBe(TimeFormat.Hour12);
+        preferences.TimeFormat.ShouldBe(TimeFormat.Hour24);
         preferences.LocationId.ShouldBeNull();
         preferences.LocationName.ShouldBeNull();
 

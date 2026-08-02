@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace Kelvin.Server.Models;
 
 public enum TemperatureUnit

@@ -51,6 +51,8 @@ public class ControlService(
 
     await RecordStartupEventAsync(cancellationToken);
     await base.StartAsync(cancellationToken);
+
+    // TODO: this needs to check the thermostat state and restore the relays to the correct state.
   }
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
