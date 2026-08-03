@@ -45,7 +45,7 @@ public class GetLatestReadingsEndpoint : IEndpointMapper
   }
 }
 
-public class GetLatestReadingsFeatureRegistration : IRegistration
+public class GetLatestReadingsRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

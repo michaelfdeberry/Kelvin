@@ -7,15 +7,32 @@ const inputStyles = css`
     min-width: 0;
     max-width: 100%;
     border: 1px solid var(--accent-idle);
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     background: var(--bg-dark);
     color: var(--text-main);
     font: inherit;
-    padding: 0.55rem 0.75rem;
+    padding: 0 1rem;
+    height: 2.5rem;
     transition:
       border-color 140ms ease,
       box-shadow 140ms ease,
       background-color 140ms ease;
+  }
+
+  .input[type='number'] {
+    text-align: right;
+  }
+
+  .input[type='number']::-webkit-outer-spin-button,
+  .input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Firefox */
+  .input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield; /* Standard property */
   }
 
   .input:hover:not(:disabled),

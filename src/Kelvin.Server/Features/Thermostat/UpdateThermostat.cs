@@ -80,7 +80,7 @@ public class UpdateThermostatEndpoint : IEndpointMapper
   }
 }
 
-public class UpdateThermostatFeatureRegistration : IRegistration
+public class UpdateThermostatRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

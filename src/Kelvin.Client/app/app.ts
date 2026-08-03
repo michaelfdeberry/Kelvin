@@ -121,6 +121,7 @@ export class KelvinApp extends LitElement {
     try {
       console.log('Current thermostat mode:', this.thermostatProvider.value.mode);
       await apiFetch('thermostat', { method: 'PUT', body: JSON.stringify({ ...this.thermostatProvider.value, mode: 'Off' }) });
+      this.loadThermostat();
     } catch (error) {
       dispatchToast(this, 'error', 'Failed to take control of the thermostat.');
       console.error('Failed to take control of the thermostat:', error);

@@ -124,7 +124,7 @@ public class GetCurrentLocationEndpoint : IEndpointMapper
   }
 }
 
-public class GetCurrentLocationFeatureRegistration : IRegistration
+public class GetCurrentLocationRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

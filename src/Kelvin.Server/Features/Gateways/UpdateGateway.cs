@@ -66,7 +66,7 @@ public class UpdateGatewayEndpoint : IEndpointMapper
   }
 }
 
-public class UpdateGatewayFeatureRegistration : IRegistration
+public class UpdateGatewayRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

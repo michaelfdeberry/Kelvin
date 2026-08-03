@@ -99,7 +99,7 @@ public class GetWeatherForecastEndpoint : IEndpointMapper
   }
 }
 
-public class GetWeatherForecastFeatureRegistration : IRegistration
+public class GetWeatherForecastRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

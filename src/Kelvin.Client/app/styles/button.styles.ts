@@ -3,12 +3,13 @@ import { css } from 'lit';
 const buttonStyles = css`
   .button {
     border: 1px solid var(--accent-idle);
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     background: var(--bg-panel);
     color: var(--text-main);
     font: inherit;
     font-weight: 600;
-    padding: 0.55rem 0.85rem;
+    padding: 0 1rem;
+    height: 2.5rem;
     cursor: pointer;
     line-height: 1;
     transition:
@@ -98,16 +99,24 @@ const buttonStyles = css`
     padding: 0.35rem 0.65rem;
   }
 
+  .button--pill {
+    padding: 0 1.5rem;
+    border-radius: 30px;
+    color: var(--text-main);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
   .button--icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.5rem;
-    border-radius: 6px;
     border: none;
     background: transparent;
     color: var(--text-muted);
     line-height: 1;
+    padding: 0;
+    width: 2.5rem;
   }
 
   .button--icon:hover:not(:disabled) {

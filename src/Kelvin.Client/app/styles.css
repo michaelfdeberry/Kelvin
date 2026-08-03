@@ -6,7 +6,7 @@
   --accent-heat: #f97316;
   --accent-cool: #3b82f6;
   --accent-idle: #475569;
-  --border-radius: 16px;
+  --border-radius: 6px;
 
   /* Borders / translucent surfaces */
   --border-subtle: #334155;
@@ -56,34 +56,12 @@ body {
   background: var(--bg-dark);
   color: var(--text-main);
   font-family: 'Segoe UI', system-ui, sans-serif;
-  overflow: hidden;
 }
 
-::view-transition-old(main-content) {
-  animation: 250ms ease-out both fade-out;
-}
-
-::view-transition-new(main-content) {
-  animation: 300ms ease-in both fade-in;
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fade-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
+*,
+:host,
+:host *,
+:host *::before,
+:host *::after {
+  box-sizing: border-box;
 }

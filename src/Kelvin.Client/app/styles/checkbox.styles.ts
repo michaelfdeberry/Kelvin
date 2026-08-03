@@ -6,7 +6,7 @@ const checkboxStyles = css`
     align-items: center;
     gap: 0.75rem;
     padding: 0.5rem 0.85rem;
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     background: var(--bg-panel);
     color: var(--text-main);
     font: inherit;

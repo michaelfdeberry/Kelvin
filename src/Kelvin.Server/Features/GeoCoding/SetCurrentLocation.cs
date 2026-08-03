@@ -87,7 +87,7 @@ public class SetCurrentLocationEndpoint : IEndpointMapper
   }
 }
 
-public class SetCurrentLocationFeatureRegistration : IRegistration
+public class SetCurrentLocationRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

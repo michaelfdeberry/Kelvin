@@ -54,7 +54,7 @@ public class SaveControlStateChangeHandler(
   }
 }
 
-public class SaveControlStateChangeFeatureRegistration : IRegistration
+public class SaveControlStateChangeRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

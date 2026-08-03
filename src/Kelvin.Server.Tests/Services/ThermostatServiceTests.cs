@@ -211,14 +211,13 @@ public class ThermostatServiceTests
     }
 
     [Fact]
-    public async Task DisabledSchedule_IsIgnoredEvenWhenInWindow_FallsBackToSetPoint()
+    public async Task ScheduleInWindow_IsAlwaysApplied()
     {
         var harness = new ThermostatServiceHarness();
         var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 10f);
         var schedule = ThermostatFixtures.CreateActiveSchedule(
             RunType.Heating,
-            targetTemperatureC: 25f,
-            enabled: false
+            targetTemperatureC: 25f
         );
         harness.SetThermostat(
             ThermostatFixtures.CreateThermostat(
@@ -231,8 +230,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0f));
 
-        // falls back to the setpoint's target of 10, which env=20 does not satisfy (needs <= 9.4)
-        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
 
         await harness.StopAsync();
     }
@@ -266,13 +264,13 @@ public class ThermostatServiceTests
     public async Task ForecastGating_Heating_BlocksCall_WhenForecastAboveActivation()
     {
         var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Heating,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 5f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                heatingLockoutC: 5f,
+                setPoints: [setPoint]
+            )
         );
         harness.SetWeatherForecast(10); // above activation of 5 -> forecast does not call for heating
 
@@ -289,13 +287,13 @@ public class ThermostatServiceTests
     public async Task ForecastGating_Heating_AllowsCall_WhenForecastAtOrBelowActivation()
     {
         var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Heating,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 5f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                heatingLockoutC: 5f,
+                setPoints: [setPoint]
+            )
         );
         harness.SetWeatherForecast(3); // at or below activation of 5 -> forecast calls for heating
 
@@ -308,16 +306,88 @@ public class ThermostatServiceTests
     }
 
     [Fact]
+    public async Task ActiveHeatingSchedule_WinsOverSetPoint_WhenScheduleIsActive()
+    {
+        var harness = new ThermostatServiceHarness();
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 21f);
+        var schedule = ThermostatFixtures.CreateActiveSchedule(
+            RunType.Heating,
+            targetTemperatureC: 18f
+        );
+        harness.SetThermostat(
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                setPoints: [setPoint],
+                schedules: [schedule]
+            )
+        );
+        harness.SetWeatherForecast(10);
+
+        await harness.StartAsync();
+        // With lockout now owned by Thermostat (not Schedule/SetPoint), an active schedule should still outrank
+        // the set point when selecting the target used for call decisions.
+        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(17.0f));
+
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
+        var heating = harness.WrittenMessages.Single(message =>
+            message.State == ControlState.Heating
+        );
+        var context = heating.Context.ShouldNotBeNull();
+        context.TargetTemperatureC.ShouldBe(18f);
+        context.ScheduleId.ShouldBe(schedule.Id);
+        context.SetPointId.ShouldBeNull();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task ForecastGating_Heating_FallsBackToSetPoint_WhenActiveScheduleDoesNotProduceAHeatingCall()
+    {
+        var harness = new ThermostatServiceHarness();
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 21f);
+        var schedule = ThermostatFixtures.CreateActiveSchedule(
+            RunType.Heating,
+            targetTemperatureC: 18f
+        );
+        harness.SetThermostat(
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                heatingLockoutC: 5f,
+                setPoints: [setPoint],
+                schedules: [schedule]
+            )
+        );
+        harness.SetWeatherForecast(4);
+
+        await harness.StartAsync();
+        // Desired behavior: if the active schedule does not produce a heating call, fallback to the set point
+        // that does and evaluate the call against that set point.
+        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0f));
+
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
+
+        var heating = harness.WrittenMessages.Single(message =>
+            message.State == ControlState.Heating
+        );
+        var context = heating.Context.ShouldNotBeNull();
+        context.TargetTemperatureC.ShouldBe(21f);
+        context.SetPointId.ShouldBe(setPoint.Id);
+        context.ScheduleId.ShouldBeNull();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
     public async Task ForecastGating_Cooling_BlocksCall_WhenForecastBelowActivation()
     {
         var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Cooling,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 25f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Cooling, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Cooling, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Cooling,
+                coolingLockoutC: 25f,
+                setPoints: [setPoint]
+            )
         );
         harness.SetWeatherForecast(20); // below activation of 25 -> forecast does not call for cooling
 
@@ -334,13 +404,13 @@ public class ThermostatServiceTests
     public async Task ForecastGating_Cooling_AllowsCall_WhenForecastAtOrAboveActivation()
     {
         var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Cooling,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 25f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Cooling, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Cooling, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Cooling,
+                coolingLockoutC: 25f,
+                setPoints: [setPoint]
+            )
         );
         harness.SetWeatherForecast(30); // at or above activation of 25 -> forecast calls for cooling
 
@@ -353,18 +423,55 @@ public class ThermostatServiceTests
     }
 
     [Fact]
+    public async Task ForecastGating_Cooling_FallsBackToSetPoint_WhenActiveScheduleDoesNotProduceACoolingCall()
+    {
+        var harness = new ThermostatServiceHarness();
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Cooling, targetTemperatureC: 24f);
+        var schedule = ThermostatFixtures.CreateActiveSchedule(
+            RunType.Cooling,
+            targetTemperatureC: 27f
+        );
+        harness.SetThermostat(
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Cooling,
+                coolingLockoutC: 25f,
+                setPoints: [setPoint],
+                schedules: [schedule]
+            )
+        );
+        harness.SetWeatherForecast(28);
+
+        await harness.StartAsync();
+        // Desired behavior: if the active schedule does not produce a cooling call, fallback to the set point
+        // that does and evaluate the call against that set point.
+        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(28.0f));
+
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Cooling]);
+
+        var cooling = harness.WrittenMessages.Single(message =>
+            message.State == ControlState.Cooling
+        );
+        var context = cooling.Context.ShouldNotBeNull();
+        context.TargetTemperatureC.ShouldBe(24f);
+        context.SetPointId.ShouldBe(setPoint.Id);
+        context.ScheduleId.ShouldBeNull();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
     public async Task WeatherDispatchFailure_LocationNotConfigured_FallsBackToEnvironmentOnlyLogic()
     {
         var harness = new ThermostatServiceHarness();
-        // ActivationTemperatureC is configured, but since there's no location, forecastTemperatureC stays null, so
+        // HeatingLockoutC is configured, but since there's no location, forecastTemperatureC stays null, so
         // useForecastForHeating must be false and the call decision falls back to env-only logic.
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Heating,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 5f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                heatingLockoutC: 5f,
+                setPoints: [setPoint]
+            )
         );
         harness.SetWeatherFailure(GetCurrentLocationErrors.LocationNotConfigured);
 
@@ -380,13 +487,13 @@ public class ThermostatServiceTests
     public async Task WeatherDispatchFailure_OtherError_AlsoFallsBackToEnvironmentOnlyLogic()
     {
         var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Heating,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 5f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                heatingLockoutC: 5f,
+                setPoints: [setPoint]
+            )
         );
         harness.SetWeatherFailure(GetWeatherForecastErrors.ForecastNotFound);
 
@@ -394,6 +501,28 @@ public class ThermostatServiceTests
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0f));
 
         harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task WeatherDispatchFailure_Cooling_AlsoFallsBackToEnvironmentOnlyLogic()
+    {
+        var harness = new ThermostatServiceHarness();
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Cooling, targetTemperatureC: 20f);
+        harness.SetThermostat(
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Cooling,
+                coolingLockoutC: 25f,
+                setPoints: [setPoint]
+            )
+        );
+        harness.SetWeatherFailure(GetWeatherForecastErrors.ForecastNotFound);
+
+        await harness.StartAsync();
+        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0f));
+
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Cooling]);
 
         await harness.StopAsync();
     }
@@ -602,13 +731,13 @@ public class ThermostatServiceTests
     public async Task ForecastGating_Heating_StopsAnActiveCall_WhenForecastRisesAboveActivation()
     {
         var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Heating,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 5f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                heatingLockoutC: 5f,
+                setPoints: [setPoint]
+            )
         );
         harness.SetWeatherForecast(3);
 
@@ -631,13 +760,13 @@ public class ThermostatServiceTests
     public async Task WeatherSuccessWithoutCurrentReading_FallsBackToEnvironmentOnlyLogic()
     {
         var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Heating,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 5f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                heatingLockoutC: 5f,
+                setPoints: [setPoint]
+            )
         );
         // the forecast lookup succeeds but carries no current reading, so forecast gating must be skipped entirely
         harness.SetWeatherForecast(null);
@@ -826,13 +955,13 @@ public class ThermostatServiceTests
     public async Task AForecastGatedCall_RecordsTheForecastItWasJudgedAgainst()
     {
         var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(
-            RunType.Heating,
-            targetTemperatureC: 20f,
-            activationTemperatureC: 5f
-        );
+        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 20f);
         harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(RunMode.Heating, setPoints: [setPoint])
+            ThermostatFixtures.CreateThermostat(
+                RunMode.Heating,
+                heatingLockoutC: 5f,
+                setPoints: [setPoint]
+            )
         );
         harness.SetWeatherForecast(3);
 

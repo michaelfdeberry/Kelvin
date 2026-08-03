@@ -34,7 +34,7 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
   }
 }
 
-public class SaveSensorPacketFeatureRegistration : IRegistration
+public class SaveSensorPacketRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

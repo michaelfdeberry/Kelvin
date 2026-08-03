@@ -10,11 +10,6 @@ public class Schedule : Entity
   public RunType Type { get; set; }
 
   /// <summary>
-  /// Indicates whether the schedule is enabled or disabled. If disabled, the schedule will not be active regardless of the time or temperature conditions.
-  /// </summary>
-  public bool Enabled { get; set; }
-
-  /// <summary>
   /// The time at which the schedule will start. The schedule will be active from StartTime to EndTime.
   /// </summary>
   public TimeOnly StartTime { get; set; }
@@ -28,11 +23,6 @@ public class Schedule : Entity
   /// The target temperature for the schedule in degrees Celsius.
   /// </summary>
   public float TargetTemperatureC { get; set; }
-
-  /// <summary>
-  /// The location temperature at which the schedule will be activated.
-  /// </summary>
-  public float? ActivationTemperatureC { get; set; }
 
   public Guid ThermostatId { get; set; }
 

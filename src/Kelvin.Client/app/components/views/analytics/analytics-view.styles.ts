@@ -3,11 +3,11 @@ import { css } from 'lit';
 const analyticsViewStyles = css`
   :host {
     display: block;
-    min-height: 100%;
     padding: 2rem;
-    box-sizing: border-box;
     background: var(--bg-dark);
     color: var(--text-main);
+    height: 100vh;
+    overflow: auto;
   }
 
   .analytics-view__placeholder {

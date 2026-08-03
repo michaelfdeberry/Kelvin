@@ -53,7 +53,7 @@ public class UpdateSensorEndpoint : IEndpointMapper
   }
 }
 
-public class UpdateSensorFeatureRegistration : IRegistration
+public class UpdateSensorRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

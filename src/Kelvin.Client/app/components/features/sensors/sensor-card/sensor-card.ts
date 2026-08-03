@@ -65,7 +65,7 @@ export class SensorCard extends LitElement {
           !!this.reading,
           () => html`
             ${when(this.sensor?.hasHumiditySensor, () => html`<div>${this.reading?.humidityPercentage.toFixed(1) ?? 0}% RH</div>`)}
-            ${when(this.sensor?.hasCO2Sensor, () => html`<div>${this.reading?.cO2LevelPpm ?? 0}ppm CO₂</div>`)}
+            ${when(this.sensor?.hasCO2Sensor, () => html`<div>${this.reading?.cO2LevelPpm ?? 0}ppm CO<sub>2</sub></div>`)}
           `,
           () =>
             html`<div>--</div>

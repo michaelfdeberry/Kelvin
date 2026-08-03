@@ -5,10 +5,6 @@ export default css`
     display: block;
   }
 
-  .settings-sensors {
-    margin-top: 1rem;
-  }
-
   .sensor-info {
     display: flex;
     align-items: center;
@@ -29,6 +25,7 @@ export default css`
     font-size: 0.7rem;
     font-weight: 600;
     border: 1px solid var(--border-subtle);
+    white-space: nowrap;
   }
   .battery-pill--high {
     color: var(--accent-success);
@@ -97,6 +94,7 @@ export default css`
   .last-seen {
     color: var(--text-soft);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   /* Action Buttons */

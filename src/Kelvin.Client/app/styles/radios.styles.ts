@@ -11,22 +11,32 @@ const radiosStyles = css`
 
   .radio__label {
     border: 1px solid var(--accent-idle);
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     background: var(--bg-panel);
     color: var(--text-main);
     font: inherit;
     font-weight: 600;
-    padding: 0.55rem 0.85rem;
+    padding: 0.5rem 1rem;
+    height: 2.5rem;
     cursor: pointer;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     gap: 1rem;
     align-items: start;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     transition:
       background-color 140ms ease,
       border-color 140ms ease,
       box-shadow 140ms ease,
       transform 140ms ease;
+  }
+
+  .radio__label span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .radio__label:hover {
@@ -40,7 +50,7 @@ const radiosStyles = css`
     width: 1.25rem;
     height: 1.25rem;
     border: 1px solid var(--accent-idle);
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     background: var(--bg-panel);
     cursor: pointer;
     transition:

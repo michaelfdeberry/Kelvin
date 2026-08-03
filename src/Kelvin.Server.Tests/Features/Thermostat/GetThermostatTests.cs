@@ -47,7 +47,6 @@ public class GetThermostatTests
                 new Schedule
                 {
                     Type = RunType.Heating,
-                    Enabled = true,
                     StartTime = new TimeOnly(6, 0),
                     EndTime = new TimeOnly(22, 0),
                     TargetTemperatureC = 21f,

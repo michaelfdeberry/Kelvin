@@ -5,7 +5,7 @@
     "body": [
       "using Kelvin.Server.Application;",
       "using Kelvin.Server.Data;",
-      "using Kelvin.Server.Models;", 
+      "using Kelvin.Server.Models;",
       "",
       "namespace Kelvin.Server.Features.${1:SpecificFeature};",
       "",
@@ -51,15 +51,15 @@
       "    }",
       "}",
       "",
-      "public class ${2:FeatureName}FeatureRegistration : IRegistration",
+      "public class ${2:FeatureName}Registration : IRegistration",
       "{",
       "    public void Register(IServiceCollection services)",
       "    {",
       "        services.AddScoped<IHandler<${2:FeatureName}Request, ${4:${2:FeatureName}Response}>, ${2:FeatureName}Handler>();",
       "    }",
-      "}"
+      "}",
     ],
-    "description": "Generates a full vertical slice feature in a single file"
+    "description": "Generates a full vertical slice feature in a single file",
   },
   "Vertical Slice Feature (With Paging)": {
     "scope": "csharp",
@@ -119,15 +119,15 @@
       "    }",
       "}",
       "",
-      "public class ${2:FeatureName}FeatureRegistration : IRegistration",
+      "public class ${2:FeatureName}Registration : IRegistration",
       "{",
       "    public void Register(IServiceCollection services)",
       "    {",
       "        services.AddScoped<IPagedHandler<${2:FeatureName}Request, ${3:${2:FeatureName}Response}>, ${2:FeatureName}Handler>();",
       "    }",
-      "}"
+      "}",
     ],
-    "description": "Generates a full vertical slice feature in a single file with paging"
+    "description": "Generates a full vertical slice feature in a single file with paging",
   },
   "Vertical Slice Feature (No Response)": {
     "scope": "csharp",
@@ -135,7 +135,7 @@
     "body": [
       "using Kelvin.Server.Application;",
       "using Kelvin.Server.Data;",
-      "using Kelvin.Server.Models;", 
+      "using Kelvin.Server.Models;",
       "",
       "namespace Kelvin.Server.Features.${1:SpecificFeature};",
       "",
@@ -157,7 +157,7 @@
       "",
       "public class ${2:FeatureName}Endpoint : IEndpointMapper",
       "{",
-      "    public void MapEndpoint(IEndpointRouteBuilder app)", 
+      "    public void MapEndpoint(IEndpointRouteBuilder app)",
       "    {",
       "        app.MapPost(\"/api/${6:route}\", async (",
       "            ${2:FeatureName}Request request,",
@@ -178,14 +178,14 @@
       "    }",
       "}",
       "",
-      "public class ${2:FeatureName}FeatureRegistration : IRegistration",
+      "public class ${2:FeatureName}Registration : IRegistration",
       "{",
       "    public void Register(IServiceCollection services)",
       "    {",
       "        services.AddScoped<IHandler<${2:FeatureName}Request>, ${2:FeatureName}Handler>();",
       "    }",
-      "}"
+      "}",
     ],
-    "description": "Generates a full vertical slice feature in a single file, without a response object"
-  }
+    "description": "Generates a full vertical slice feature in a single file, without a response object",
+  },
 }

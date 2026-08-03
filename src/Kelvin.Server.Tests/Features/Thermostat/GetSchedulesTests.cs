@@ -33,11 +33,9 @@ public class GetSchedulesTests
             var schedule = new Schedule
             {
                 Type = RunType.Heating,
-                Enabled = true,
                 StartTime = new TimeOnly(6, 0),
                 EndTime = new TimeOnly(22, 0),
                 TargetTemperatureC = 21f,
-                ActivationTemperatureC = null,
             };
             thermostat.Schedules.Add(schedule);
             context.Thermostats.Add(thermostat);
@@ -54,10 +52,8 @@ public class GetSchedulesTests
         var dto = response.Schedules.ShouldHaveSingleItem();
         dto.Id.ShouldBe(scheduleId);
         dto.Type.ShouldBe(RunType.Heating);
-        dto.Enabled.ShouldBeTrue();
         dto.StartTime.ShouldBe(new TimeOnly(6, 0));
         dto.EndTime.ShouldBe(new TimeOnly(22, 0));
         dto.TargetTemperatureC.ShouldBe(21f);
-        dto.ActivationTemperatureC.ShouldBeNull();
     }
 }

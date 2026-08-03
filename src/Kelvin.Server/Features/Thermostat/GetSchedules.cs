@@ -7,15 +7,7 @@ namespace Kelvin.Server.Features.Thermostat;
 
 public record GetSchedulesRequest() : IRequest<GetSchedulesResponse>;
 
-public record ScheduleResponse(
-  Guid Id,
-  RunType Type,
-  bool Enabled,
-  TimeOnly StartTime,
-  TimeOnly EndTime,
-  float TargetTemperatureC,
-  float? ActivationTemperatureC
-);
+public record ScheduleResponse(Guid Id, RunType Type, TimeOnly StartTime, TimeOnly EndTime, float TargetTemperatureC);
 
 public record GetSchedulesResponse(IEnumerable<ScheduleResponse> Schedules);
 
@@ -25,17 +17,7 @@ public class GetSchedulesHandler(KelvinContext context) : IHandler<GetSchedulesR
   {
     var schedules = await context.Schedules.ToListAsync(ct);
     return Result<GetSchedulesResponse>.Success(
-      new GetSchedulesResponse([
-        .. schedules.Select(s => new ScheduleResponse(
-          s.Id,
-          s.Type,
-          s.Enabled,
-          s.StartTime,
-          s.EndTime,
-          s.TargetTemperatureC,
-          s.ActivationTemperatureC
-        )),
-      ])
+      new GetSchedulesResponse([.. schedules.Select(s => new ScheduleResponse(s.Id, s.Type, s.StartTime, s.EndTime, s.TargetTemperatureC))])
     );
   }
 }
@@ -63,7 +45,7 @@ public class GetSchedulesEndpoint : IEndpointMapper
   }
 }
 
-public class GetSchedulesFeatureRegistration : IRegistration
+public class GetSchedulesRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

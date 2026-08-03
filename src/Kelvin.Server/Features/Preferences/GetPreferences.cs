@@ -44,7 +44,7 @@ public class GetPreferencesEndpoint : IEndpointMapper
   }
 }
 
-public class GetPreferencesFeatureRegistration : IRegistration
+public class GetPreferencesRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

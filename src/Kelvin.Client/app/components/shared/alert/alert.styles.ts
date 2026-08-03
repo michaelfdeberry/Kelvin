@@ -28,12 +28,11 @@ const alertStyles = css`
     box-shadow: 0 6px 16px var(--shadow-color);
     color: var(--text-main);
     margin: 0.5rem 0;
-    box-sizing: border-box;
   }
 
   .alert--banner {
-    border-radius: 0;
     width: 100%;
+    border-radius: 0;
     border: 0;
     margin: 0;
   }
@@ -46,7 +45,7 @@ const alertStyles = css`
 
   .alert__container {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto 1fr auto auto;
     gap: 0.75rem;
   }
 

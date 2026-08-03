@@ -118,7 +118,7 @@ public class ThermostatService(
 
     // Schedule windows are wall-clock TimeOnly values, so the local time is what they have to be compared against.
     var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
-    var activeSchedules = thermostat.Schedules.Where(s => s.Enabled && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
+    var activeSchedules = thermostat.Schedules.Where(s => IsActive(currentTimeOnly, s.StartTime, s.EndTime));
 
     // overlapping schedules won't be allowed, so there will never be more than one heating or cooling schedule active at a time.
     var heatingSchedule = activeSchedules.FirstOrDefault(s => s.Type == RunType.Heating);
@@ -144,8 +144,8 @@ public class ThermostatService(
       return RunMode.Off;
     }
 
-    var heatingActivationTemp = heatingSchedule?.ActivationTemperatureC ?? heatingSetPoint?.ActivationTemperatureC;
-    var coolingActivationTemp = coolingSchedule?.ActivationTemperatureC ?? coolingSetPoint?.ActivationTemperatureC;
+    var heatingActivationTemp = thermostat.HeatingLockoutC;
+    var coolingActivationTemp = thermostat.CoolingLockoutC;
 
     // if there is a forecast temp it means a current location is configured
     var useForecastForHeating = forecastTemperatureC is not null && heatingActivationTemp is not null;
@@ -262,9 +262,14 @@ public class ThermostatService(
       return RunMode.Cooling;
     }
 
-    var setpointId = shouldCallForHeating ? (heatingSetPoint?.Id ?? coolingSetPoint?.Id) ?? null : null;
-    var scheduleId = shouldCallForHeating ? (heatingSchedule?.Id ?? coolingSchedule?.Id) ?? null : null;
-    var targetTemperatureC = shouldCallForHeating ? (heatingTargetTemp ?? coolingTargetTemp) ?? null : null;
+    var setpointId = shouldCallForHeating ? heatingSetPoint?.Id : null;
+    setpointId = shouldCallForCooling ? coolingSetPoint?.Id : setpointId;
+
+    var scheduleId = shouldCallForHeating ? heatingSchedule?.Id : null;
+    scheduleId = shouldCallForCooling ? coolingSchedule?.Id : scheduleId;
+
+    var targetTemperatureC = shouldCallForHeating ? heatingTargetTemp : null;
+    targetTemperatureC = shouldCallForCooling ? coolingTargetTemp : targetTemperatureC;
 
     // no conditions are met for heating or cooling, so we will turn off the system
     logger.LogInformation("No conditions are met for heating or cooling, turning off the system.");

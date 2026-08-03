@@ -6,7 +6,7 @@ export type SetPoint = {
   id: string;
   type: RunType;
   targetTemperatureC: number;
-  activationTemperatureC: number | null;
+  activationTemperatureC?: number;
 };
 
 export type Schedule = {
@@ -16,7 +16,7 @@ export type Schedule = {
   startTime: string;
   endTime: string;
   targetTemperatureC: number;
-  activationTemperatureC: number | null;
+  activationTemperatureC?: number;
 };
 
 export type SetPointsResponse = {

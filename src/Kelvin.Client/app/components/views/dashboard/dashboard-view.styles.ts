@@ -18,31 +18,20 @@ const dashboardViewStyles = css`
   }
 
   .dashboard-view__main {
-    padding: 1rem 2rem;
+    justify-content: space-between;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
     gap: 1rem;
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
-    box-sizing: border-box;
   }
 
-  .dashboard-view__alerts-demo {
-    width: min(100%, 680px);
-    display: grid;
-    gap: 0.75rem;
-  }
-
-  .dashboard-view__modal-demo {
-    width: min(100%, 680px);
-  }
-
-  .dashboard-view__modal-demo-text {
-    margin: 0.5rem 0 1rem;
-    color: var(--text-muted);
+  .dashboard-view__settings-button {
+    display: block;
+    width: 100%;
   }
 
   .dashboard-view__stats {
@@ -61,9 +50,36 @@ const dashboardViewStyles = css`
     }
   }
 
-  @media (max-height: 480px) {
+  .dashboard-view__settings-button {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
     .dashboard-view__main {
-      padding: 0.5rem 1rem;
+      justify-content: unset;
+    }
+
+    app-sensor-list {
+      display: none;
+    }
+
+    app-thermostat-control {
+      margin: 2rem 0;
+      flex: 1;
+    }
+
+    .dashboard-view__settings-button {
+      display: block;
+      padding: 12px 24px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 30px;
+      color: var(--text-main);
+      font-size: 1rem;
+      cursor: pointer;
+      transition: 160ms;
+      text-align: center;
+      text-decoration: none;
     }
   }
 `;

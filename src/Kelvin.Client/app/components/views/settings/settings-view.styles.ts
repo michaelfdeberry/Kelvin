@@ -3,16 +3,15 @@ import { css } from 'lit';
 export default css`
   :host {
     display: block;
-    min-height: 100%;
-    padding: 2rem;
-    box-sizing: border-box;
+    padding: 1rem;
     color: var(--text-main);
   }
 
   .settings-view__panel {
     max-width: 860px;
     margin: 0 auto;
-    padding: 1.5rem;
+    padding: 1rem;
+    padding-bottom: 0;
     border-radius: var(--border-radius);
     background: var(--bg-panel);
     border: 1px solid var(--border-subtle);

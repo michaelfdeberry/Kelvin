@@ -10,6 +10,13 @@ import radiosStyles from './styles/radios.styles.js';
 import tablesStyles from './styles/tables.styles.js';
 
 const sharedStyles = css`
+  :host,
+  :host *,
+  :host *::before,
+  :host *::after {
+    box-sizing: border-box;
+  }
+
   ${buttonStyles}
   ${inputStyles}
   ${radiosStyles}
@@ -18,6 +25,11 @@ const sharedStyles = css`
   ${cardStyles}
   ${badgeStyles}
   ${tablesStyles}
+  
+  .text-muted {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
 `;
 
 export default sharedStyles;

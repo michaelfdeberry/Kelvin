@@ -9,7 +9,7 @@ const sensorListStyles = css`
 
   .sensor-list__cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 1rem;
     width: 100%;
   }

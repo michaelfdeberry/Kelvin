@@ -1,4 +1,5 @@
 import { events } from '../events.js';
+import { TemperatureUnit } from '../models/preferences.js';
 
 import type { AlertType } from '../models/alert-type.js';
 import type { ToastDetail } from '../models/toast-detail.js';
@@ -35,4 +36,19 @@ export function dispatchToast(
       : typeOrDetail;
 
   return dispatchCustomEvent<ToastDetail>(element, events.toast, detail);
+}
+
+export function toPreferredUnit(temperatureUnit: TemperatureUnit, celsius?: number, fractionDigits: number = 1): string {
+  if (celsius === undefined || celsius === null) return '';
+  if (temperatureUnit === 'Celsius') return celsius.toFixed(fractionDigits);
+  return ((celsius * 9) / 5 + 32).toFixed(fractionDigits);
+}
+
+export function fromPreferredUnit(temperatureUnit: TemperatureUnit, value: number): number {
+  if (temperatureUnit === 'Celsius') return value;
+  return ((value - 32) * 5) / 9;
+}
+
+export function getPreferredUnit(temperatureUnit: TemperatureUnit): string {
+  return temperatureUnit === 'Fahrenheit' ? '°F' : '°C';
 }

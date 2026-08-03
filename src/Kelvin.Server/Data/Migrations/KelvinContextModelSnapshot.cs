@@ -160,16 +160,10 @@ namespace Kelvin.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<float?>("ActivationTemperatureC")
-                        .HasColumnType("REAL");
-
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
                     b.Property<long?>("DeletedAt")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("Enabled")
                         .HasColumnType("INTEGER");
 
                     b.Property<TimeOnly>("EndTime")
@@ -282,9 +276,6 @@ namespace Kelvin.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<float?>("ActivationTemperatureC")
-                        .HasColumnType("REAL");
-
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
@@ -316,6 +307,9 @@ namespace Kelvin.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<float?>("CoolingLockoutC")
+                        .HasColumnType("REAL");
+
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
@@ -324,6 +318,9 @@ namespace Kelvin.Server.Data.Migrations
 
                     b.Property<bool>("FanEnabled")
                         .HasColumnType("INTEGER");
+
+                    b.Property<float?>("HeatingLockoutC")
+                        .HasColumnType("REAL");
 
                     b.Property<float>("HysteresisC")
                         .HasColumnType("REAL");

@@ -3,7 +3,9 @@ import { css } from 'lit';
 const appSidebarStyles = css`
   :host {
     display: block;
-    height: 100%;
+    max-height: 100vh;
+    position: sticky;
+    top: 0;
   }
 
   .app-sidebar__nav {

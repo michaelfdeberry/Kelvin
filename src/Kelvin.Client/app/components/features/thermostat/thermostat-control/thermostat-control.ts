@@ -1,3 +1,6 @@
+import '../thermostat-editor/thermostat-editor.js';
+import '../../../shared/temperature/temperature.js';
+
 import { consume } from '@lit/context';
 import { html, LitElement, nothing, PropertyValues, TemplateResult } from 'lit';
 import { customElement } from 'lit/decorators.js';
@@ -87,6 +90,7 @@ export class ThermostatControl extends LitElement {
           'thermostat--cooling': this.isCooling,
         })}"
       >
+        <app-thermostat-editor></app-thermostat-editor>
         <div
           class="thermostat__dial"
           aria-label="Thermostat control"
@@ -119,6 +123,8 @@ export class ThermostatControl extends LitElement {
         >
           <button
             class=${classMap({
+              button: true,
+              'button--pill': true,
               thermostat__button: true,
               'thermostat__button--auto': this.thermostat.mode === 'Automatic',
             })}
@@ -130,6 +136,8 @@ export class ThermostatControl extends LitElement {
           </button>
           <button
             class=${classMap({
+              button: true,
+              'button--pill': true,
               thermostat__button: true,
               'thermostat__button--heating': this.thermostat.mode === 'Heating',
             })}
@@ -141,6 +149,8 @@ export class ThermostatControl extends LitElement {
           </button>
           <button
             class=${classMap({
+              button: true,
+              'button--pill': true,
               thermostat__button: true,
               'thermostat__button--cooling': this.thermostat.mode === 'Cooling',
             })}
@@ -152,6 +162,8 @@ export class ThermostatControl extends LitElement {
           </button>
           <button
             class=${classMap({
+              button: true,
+              'button--pill': true,
               thermostat__button: true,
               'thermostat__button--active': this.thermostat.mode === 'Off',
             })}
@@ -164,6 +176,8 @@ export class ThermostatControl extends LitElement {
         </div>
         <button
           class=${classMap({
+            button: true,
+            'button--pill': true,
             thermostat__button: true,
             'thermostat__button--fan': this.thermostat.fanEnabled,
           })}
@@ -175,10 +189,6 @@ export class ThermostatControl extends LitElement {
         </button>
       </div>
     `;
-  }
-
-  private getButtonClass(active: boolean): string {
-    return active ? 'thermostat__button thermostat__button--active' : 'thermostat__button';
   }
 }
 

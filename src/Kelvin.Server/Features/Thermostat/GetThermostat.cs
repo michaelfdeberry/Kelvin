@@ -15,6 +15,8 @@ public record GetThermostatResponseDto(
   RunMode Mode,
   bool FanEnabled,
   float HysteresisC,
+  float? HeatingLockoutC,
+  float? CoolingLockoutC,
   float HeatingTriggerC = 0.0f,
   float HeatingSatisfiedC = 0.0f,
   float CoolingTriggerC = 0.0f,
@@ -81,7 +83,16 @@ public class GetThermostatEndpoint : IEndpointMapper
           }
 
           var thermostat = result.Value!.Thermostat!;
-          return Results.Ok(new GetThermostatResponseDto(thermostat.Id, thermostat.Mode, thermostat.FanEnabled, thermostat.HysteresisC));
+          return Results.Ok(
+            new GetThermostatResponseDto(
+              thermostat.Id,
+              thermostat.Mode,
+              thermostat.FanEnabled,
+              thermostat.HysteresisC,
+              thermostat.HeatingLockoutC,
+              thermostat.CoolingLockoutC
+            )
+          );
         }
       )
       .WithName("GetThermostat")
@@ -89,7 +100,7 @@ public class GetThermostatEndpoint : IEndpointMapper
   }
 }
 
-public class GetThermostatFeatureRegistration : IRegistration
+public class GetThermostatRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

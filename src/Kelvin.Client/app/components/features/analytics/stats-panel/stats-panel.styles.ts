@@ -5,7 +5,6 @@ const statsPanelStyles = css`
     display: block;
     padding: 2rem;
     overflow-y: auto;
-    box-sizing: border-box;
   }
 
   .stats-panel__section {

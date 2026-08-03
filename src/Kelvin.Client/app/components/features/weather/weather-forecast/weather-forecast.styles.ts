@@ -13,7 +13,6 @@ const weatherForecastStyles = css`
     width: 100%;
     max-width: 600px;
     padding: 0.8rem;
-    box-sizing: border-box;
     background: var(--bg-panel);
     border-radius: var(--border-radius);
     justify-content: space-between;
@@ -47,6 +46,13 @@ const weatherForecastStyles = css`
     color: var(--text-muted);
     font-weight: 400;
     margin-left: 4px;
+  }
+
+  @media (max-width: 768px) {
+    /* Hide the last child on mobile, provides only a 2 day forecast instead of 3 */
+    .weather-forecast__day:nth-child(4) {
+      display: none;
+    }
   }
 `;
 

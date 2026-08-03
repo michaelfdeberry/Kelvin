@@ -15,7 +15,6 @@ const sensorCardStyles = css`
     padding: 0.75rem;
     border-radius: var(--border-radius);
     text-align: center;
-    box-sizing: border-box;
     color: inherit;
     position: relative;
     display: flex;

@@ -81,7 +81,7 @@ export class SettingsSensors extends LitElement {
       icon = '🔋';
     }
 
-    return html` <span class="battery-pill ${levelClass}"> ${icon} ${percentage}% </span> `;
+    return html` <span class="battery-pill ${levelClass}"> ${icon} ${percentage.toFixed(1)}% </span> `;
   }
 
   private renderSensors(readings: SensorReading[]): TemplateResult {
@@ -120,7 +120,7 @@ export class SettingsSensors extends LitElement {
                   <td>
                     <div class="features">
                       <span class="badge ${sensor.hasHumiditySensor ? 'badge--active' : ''}">💧 Humidity</span>
-                      <span class="badge ${sensor.hasCO2Sensor ? 'badge--active' : ''}">☁️ CO₂</span>
+                      <span class="badge ${sensor.hasCO2Sensor ? 'badge--active' : ''}">☁️ CO<sub>2</sub></span>
                     </div>
                   </td>
                   <td>

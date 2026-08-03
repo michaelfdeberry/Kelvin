@@ -3,6 +3,13 @@ import { css } from 'lit';
 const modalStyles = css`
   :host {
     display: contents;
+    --modal-padding: 1rem;
+    --modal-header-padding: var(--modal-padding);
+    --modal-body-padding: var(--modal-padding);
+    --modal-actions-padding: var(--modal-padding);
+    --modal-border-size: 1px;
+    --modal-heading-border-size: var(--modal-border-size);
+    --modal-actions-border-size: var(--modal-border-size);
   }
 
   .modal {
@@ -10,36 +17,38 @@ const modalStyles = css`
     inset: 0;
     z-index: 1200;
     background: var(--surface-overlay-strong);
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 1rem;
-    box-sizing: border-box;
   }
 
   .modal__dialog {
     width: min(100%, 560px);
     max-height: calc(100vh - 2rem);
-    overflow: auto;
     border: 1px solid var(--border-subtle);
     border-radius: 14px;
     background: var(--bg-panel);
     box-shadow: 0 24px 40px var(--shadow-color);
     color: var(--text-main);
-    padding: 1rem;
-    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
   }
 
   .modal__header {
     display: flex;
-    align-items: start;
+    align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    margin-bottom: 0.5rem;
+    padding: var(--modal-header-padding);
+    border-bottom: var(--modal-heading-border-size) solid var(--border-subtle);
   }
 
   .modal__title {
     margin: 0;
     font-size: 1.1rem;
+    height: 40px;
+    line-height: 40px;
   }
 
   .modal__close {
@@ -69,7 +78,13 @@ const modalStyles = css`
   }
 
   .modal__body {
-    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--modal-body-padding);
   }
 
   .modal__body :first-child {
@@ -85,6 +100,8 @@ const modalStyles = css`
     justify-content: flex-end;
     align-items: center;
     gap: 0.5rem;
+    padding: var(--modal-actions-padding);
+    border-top: var(--modal-actions-border-size) solid var(--border-subtle);
   }
 `;
 

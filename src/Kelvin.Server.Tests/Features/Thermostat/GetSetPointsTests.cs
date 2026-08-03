@@ -30,12 +30,7 @@ public class GetSetPointsTests
         await using (var context = harness.CreateContext())
         {
             var thermostat = new Models.Thermostat { Mode = RunMode.Cooling, FanEnabled = false };
-            var setPoint = new SetPoint
-            {
-                Type = RunType.Cooling,
-                TargetTemperatureC = 24f,
-                ActivationTemperatureC = 26f,
-            };
+            var setPoint = new SetPoint { Type = RunType.Cooling, TargetTemperatureC = 24f };
             thermostat.SetPoints.Add(setPoint);
             context.Thermostats.Add(thermostat);
             await context.SaveChangesAsync();
@@ -52,6 +47,5 @@ public class GetSetPointsTests
         dto.Id.ShouldBe(setPointId);
         dto.Type.ShouldBe(RunType.Cooling);
         dto.TargetTemperatureC.ShouldBe(24f);
-        dto.ActivationTemperatureC.ShouldBe(26f);
     }
 }

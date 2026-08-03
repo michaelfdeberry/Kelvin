@@ -31,7 +31,7 @@ public class GetLatestControlStateChangeHandler(KelvinContext context)
   }
 }
 
-public class GetLatestControlStateChangeFeatureRegistration : IRegistration
+public class GetLatestControlStateChangeRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

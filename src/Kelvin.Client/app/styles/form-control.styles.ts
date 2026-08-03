@@ -26,10 +26,29 @@ const formControlStyles = css`
 
   .form-control__input {
     display: block;
-    box-sizing: border-box;
     max-width: 100%;
     width: 100%;
     margin-top: 0.5rem;
+  }
+
+  .form-control--inline {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .form-control--inline .form-control__label {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    text-align: end;
+    line-height: 1;
+    white-space: nowrap;
+    justify-content: flex-end;
+  }
+
+  .form-control--inline .form-control__input {
+    margin-top: 0;
+    width: 100px;
   }
 
   .form-group fieldset {

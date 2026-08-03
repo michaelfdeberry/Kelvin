@@ -34,7 +34,7 @@ public class GetSensorsEndpoint : IEndpointMapper
   }
 }
 
-public class GetSensorsFeatureRegistration : IRegistration
+public class GetSensorsRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

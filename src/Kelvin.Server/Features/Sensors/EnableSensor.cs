@@ -55,7 +55,7 @@ public class EnableSensorEndpoint : IEndpointMapper
   }
 }
 
-public class EnableSensorFeatureRegistration : IRegistration
+public class EnableSensorRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

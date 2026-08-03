@@ -71,6 +71,7 @@ const thermostatControlStyles = css`
     margin-top: 5px;
     font-size: 1.25rem;
     color: var(--thermostat-accent);
+    height: 28px;
   }
 
   .thermostat__current-temp {
@@ -78,6 +79,10 @@ const thermostatControlStyles = css`
     font-size: 4.5rem;
     font-weight: 200;
     line-height: 1;
+    height: 72px;
+  }
+  .thermostat__status {
+    height: 28px;
   }
 
   .thermostat__status-badge {
@@ -97,15 +102,8 @@ const thermostatControlStyles = css`
     justify-content: center;
   }
 
-  .thermostat__button {
-    padding: 12px 24px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-radius: 30px;
-    color: var(--text-main);
-    font-size: 1rem;
-    cursor: pointer;
-    transition: 160ms ease;
+  .thermostat__controls .thermostat__button {
+    width: 86px;
   }
 
   .thermostat__button--auto {
@@ -137,9 +135,19 @@ const thermostatControlStyles = css`
     cursor: not-allowed;
   }
 
-  @media (max-height: 480px) {
+  @media (max-width: 768px) {
     .thermostat__dial-container {
       transform: scale(0.9);
+    }
+
+    .thermostat__controls {
+      padding-top: 1rem;
+    }
+
+    .thermostat__button,
+    .thermostat__controls .thermostat__button {
+      width: 100%;
+      display: block;
     }
   }
 `;

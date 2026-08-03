@@ -26,8 +26,13 @@ export class DashboardView extends LitElement {
         <section class="dashboard-view__main">
           <app-weather-forecast></app-weather-forecast>
           <app-thermostat-control></app-thermostat-control>
-
           <app-sensor-list></app-sensor-list>
+          <a
+            href="/settings"
+            class="dashboard-view__settings-button button button--secondary"
+          >
+            Settings
+          </a>
         </section>
 
         <aside class="dashboard-view__stats">

@@ -73,7 +73,7 @@ public class UpdatePreferencesEndpoint : IEndpointMapper
   }
 }
 
-public class UpdatePreferencesFeatureRegistration : IRegistration
+public class UpdatePreferencesRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

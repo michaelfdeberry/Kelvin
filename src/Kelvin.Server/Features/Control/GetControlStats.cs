@@ -166,7 +166,7 @@ public class GetControlStatsEndpoint : IEndpointMapper
   }
 }
 
-public class GetControlStatsFeatureRegistration : IRegistration
+public class GetControlStatsRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

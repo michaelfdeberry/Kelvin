@@ -80,7 +80,7 @@ public class SearchLocationsEndpoint : IEndpointMapper
   }
 }
 
-public class SearchLocationsFeatureRegistration : IRegistration
+public class SearchLocationsRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {
