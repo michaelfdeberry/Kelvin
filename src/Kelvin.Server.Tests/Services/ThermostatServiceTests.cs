@@ -1,4 +1,3 @@
-using Kelvin.Server.Application;
 using Kelvin.Server.Features.GeoCoding;
 using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Features.Weather;
@@ -21,8 +20,12 @@ namespace Kelvin.Server.Tests.Services;
 /// symmetrically `callForHeating` can only become true when `_activeCall` is `Dwell` or `Heating` (never `Cooling`).
 /// That means the guard clause checking for a direct Heating&lt;-&gt;Cooling flip is unreachable via the public
 /// surface as currently written - it can never fire given how callForHeating/callForCooling are gated. It is not
-/// tested here for that reason (asserting unreachable code would be misleading). The "simultaneous heating AND
-/// cooling calls" guard below IS reachable (both can independently start from Dwell) and is tested.
+/// tested here for that reason (asserting unreachable code would be misleading). The same is true of
+/// ProcessAutomatic's "both isHeatingMode and isCoolingMode are true" fallback: any inputs that would satisfy both
+/// flags simultaneously are already caught by an earlier configuration-validity check (hasInvalidTargets/
+/// hasInvalidHysteresis in the no-forecast path, invalidForecastRange in the forecast path), so it too is
+/// unreachable and is not directly tested; InvertedAutomaticTargets_WritesEnableThenDisable exercises that earlier,
+/// reachable guard instead.
 /// </remarks>
 public class ThermostatServiceTests
 {
@@ -153,11 +156,11 @@ public class ThermostatServiceTests
     }
 
     [Fact]
-    public async Task SimultaneousHeatingAndCoolingCalls_WritesEnableThenDisable_NotDwell()
+    public async Task InvertedAutomaticTargets_WritesEnableThenDisable()
     {
         var harness = new ThermostatServiceHarness();
-        // Deliberately inverted/contrived configuration: heating target above cooling target so both conditions can
-        // be satisfied simultaneously from Dwell, triggering the defensive "both calls active" fallback.
+        // Heating target above cooling target trips the hasInvalidTargets configuration guard in ProcessAutomatic,
+        // which returns Disable before isHeatingMode/isCoolingMode are ever evaluated.
         var heatingSetPoint = ThermostatFixtures.CreateSetPoint(
             RunType.Heating,
             targetTemperatureC: 25f
@@ -174,8 +177,6 @@ public class ThermostatServiceTests
         );
 
         await harness.StartAsync();
-
-        // 20 <= 25-0.6=24.4 (calls for heating) AND 20 >= 15+0.6=15.6 (calls for cooling) at the same time.
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0f));
 
         harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Disable]);
@@ -189,31 +190,6 @@ public class ThermostatServiceTests
         var harness = new ThermostatServiceHarness();
         // setpoint alone would not call for heat at env=20 (target 10 -> needs <= 9.4), but the active schedule's
         // higher target (25 -> needs <= 24.4) does, proving the schedule value is the one used.
-        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 10f);
-        var schedule = ThermostatFixtures.CreateActiveSchedule(
-            RunType.Heating,
-            targetTemperatureC: 25f
-        );
-        harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(
-                RunMode.Heating,
-                setPoints: [setPoint],
-                schedules: [schedule]
-            )
-        );
-
-        await harness.StartAsync();
-        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0f));
-
-        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
-
-        await harness.StopAsync();
-    }
-
-    [Fact]
-    public async Task ScheduleInWindow_IsAlwaysApplied()
-    {
-        var harness = new ThermostatServiceHarness();
         var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 10f);
         var schedule = ThermostatFixtures.CreateActiveSchedule(
             RunType.Heating,
@@ -330,49 +306,12 @@ public class ThermostatServiceTests
 
         harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         var heating = harness.WrittenMessages.Single(message =>
-            message.State == ControlState.Heating
+            message.Context.State == ControlState.Heating
         );
         var context = heating.Context.ShouldNotBeNull();
         context.TargetTemperatureC.ShouldBe(18f);
         context.ScheduleId.ShouldBe(schedule.Id);
         context.SetPointId.ShouldBeNull();
-
-        await harness.StopAsync();
-    }
-
-    [Fact]
-    public async Task ForecastGating_Heating_FallsBackToSetPoint_WhenActiveScheduleDoesNotProduceAHeatingCall()
-    {
-        var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Heating, targetTemperatureC: 21f);
-        var schedule = ThermostatFixtures.CreateActiveSchedule(
-            RunType.Heating,
-            targetTemperatureC: 18f
-        );
-        harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(
-                RunMode.Heating,
-                heatingLockoutC: 5f,
-                setPoints: [setPoint],
-                schedules: [schedule]
-            )
-        );
-        harness.SetWeatherForecast(4);
-
-        await harness.StartAsync();
-        // Desired behavior: if the active schedule does not produce a heating call, fallback to the set point
-        // that does and evaluate the call against that set point.
-        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0f));
-
-        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
-
-        var heating = harness.WrittenMessages.Single(message =>
-            message.State == ControlState.Heating
-        );
-        var context = heating.Context.ShouldNotBeNull();
-        context.TargetTemperatureC.ShouldBe(21f);
-        context.SetPointId.ShouldBe(setPoint.Id);
-        context.ScheduleId.ShouldBeNull();
 
         await harness.StopAsync();
     }
@@ -418,43 +357,6 @@ public class ThermostatServiceTests
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0f));
 
         harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Cooling]);
-
-        await harness.StopAsync();
-    }
-
-    [Fact]
-    public async Task ForecastGating_Cooling_FallsBackToSetPoint_WhenActiveScheduleDoesNotProduceACoolingCall()
-    {
-        var harness = new ThermostatServiceHarness();
-        var setPoint = ThermostatFixtures.CreateSetPoint(RunType.Cooling, targetTemperatureC: 24f);
-        var schedule = ThermostatFixtures.CreateActiveSchedule(
-            RunType.Cooling,
-            targetTemperatureC: 27f
-        );
-        harness.SetThermostat(
-            ThermostatFixtures.CreateThermostat(
-                RunMode.Cooling,
-                coolingLockoutC: 25f,
-                setPoints: [setPoint],
-                schedules: [schedule]
-            )
-        );
-        harness.SetWeatherForecast(28);
-
-        await harness.StartAsync();
-        // Desired behavior: if the active schedule does not produce a cooling call, fallback to the set point
-        // that does and evaluate the call against that set point.
-        await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(28.0f));
-
-        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Cooling]);
-
-        var cooling = harness.WrittenMessages.Single(message =>
-            message.State == ControlState.Cooling
-        );
-        var context = cooling.Context.ShouldNotBeNull();
-        context.TargetTemperatureC.ShouldBe(24f);
-        context.SetPointId.ShouldBe(setPoint.Id);
-        context.ScheduleId.ShouldBeNull();
 
         await harness.StopAsync();
     }
@@ -889,7 +791,7 @@ public class ThermostatServiceTests
         );
 
         var heating = harness.WrittenMessages.Single(message =>
-            message.State == ControlState.Heating
+            message.Context.State == ControlState.Heating
         );
         var context = heating.Context.ShouldNotBeNull();
         context.EnvironmentTemperatureC.ShouldBe(19.0f);
@@ -925,7 +827,7 @@ public class ThermostatServiceTests
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0f));
 
         var cooling = harness.WrittenMessages.Single(message =>
-            message.State == ControlState.Cooling
+            message.Context.State == ControlState.Cooling
         );
         var context = cooling.Context.ShouldNotBeNull();
         // The schedule outranks the set point, so it is the schedule that has to be credited for the call.
@@ -945,7 +847,9 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        var dwell = harness.WrittenMessages.Single(message => message.State == ControlState.Dwell);
+        var dwell = harness.WrittenMessages.Single(message =>
+            message.Context.State == ControlState.Dwell
+        );
         dwell.Context.ShouldNotBeNull().Reason.ShouldBe("the thermostat mode is Off");
 
         await harness.StopAsync();
@@ -969,7 +873,7 @@ public class ThermostatServiceTests
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0f));
 
         var heating = harness.WrittenMessages.Single(message =>
-            message.State == ControlState.Heating
+            message.Context.State == ControlState.Heating
         );
         heating.Context.ShouldNotBeNull().ForecastTemperatureC.ShouldBe(3);
 

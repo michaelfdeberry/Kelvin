@@ -41,6 +41,7 @@ public class ThermostatService(
 
         // What the loop knew when it made its decision, carried along so a recorded state change can explain itself.
         var context = new ControlContext(
+          State: _activeCall,
           EnvironmentTemperatureC: environment.TemperatureC,
           HumidityPercentage: environment.HumidityPercentage,
           CO2LevelPpm: environment.CO2LevelPpm,
@@ -54,7 +55,7 @@ public class ThermostatService(
           _activeCall = ControlState.Dwell;
           // the updating of the state will dispatch the control message, but do it here just in case.
           await controlChannel.WriteAsync(
-            new ControlMessage(ControlState.Disable, context with { Reason = "the thermostat mode is Disabled" }),
+            new ControlMessage(context with { State = ControlState.Disable, Reason = "the thermostat mode is Disabled" }),
             stoppingToken
           );
           continue;
@@ -62,7 +63,7 @@ public class ThermostatService(
 
         // re-assert control every cycle so a restart re-energizes the control relay, noop if already energized.
         await controlChannel.WriteAsync(
-          new ControlMessage(ControlState.Enable, context with { Reason = "the thermostat is enabled" }),
+          new ControlMessage(context with { State = ControlState.Enable, Reason = "the thermostat is enabled" }),
           stoppingToken
         );
 
@@ -71,7 +72,7 @@ public class ThermostatService(
           logger.LogInformation("Thermostat is Off, skipping environment processing.");
           _activeCall = ControlState.Dwell;
           await controlChannel.WriteAsync(
-            new ControlMessage(ControlState.Dwell, context with { Reason = "the thermostat mode is Off" }),
+            new ControlMessage(context with { State = ControlState.Dwell, Reason = "the thermostat mode is Off" }),
             stoppingToken
           );
           continue;
@@ -89,7 +90,7 @@ public class ThermostatService(
         // this returns the run mode for future use.
         // E.g. when humidifier support is added it would only run in heating mode
         // if a dehumidifier is added it might make sense to only run that when in cooling mode but the cooling mode is not active, etc.
-        var runMode = await ProcessTemperature(environment, thermostat, forecastTemperatureC, context, stoppingToken);
+        var runMode = await ProcessTemperature(context, environment, thermostat, forecastTemperatureC, stoppingToken);
         continue;
       }
       catch (OperationCanceledException)
@@ -103,84 +104,136 @@ public class ThermostatService(
     }
   }
 
-  private async Task<RunMode> ProcessTemperature(
-    EnvironmentReading environment,
-    Thermostat thermostat,
-    float? forecastTemperatureC,
-    ControlContext context,
-    CancellationToken cancellationToken
-  )
+  private ControlContext ProcessAutomatic(ControlContext context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
   {
-    var environmentTemperatureC = environment.TemperatureC;
-    var previousActiveCall = _activeCall;
-
-    context = context with { ForecastTemperatureC = forecastTemperatureC };
-
-    // Schedule windows are wall-clock TimeOnly values, so the local time is what they have to be compared against.
     var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
-    var activeSchedules = thermostat.Schedules.Where(s => IsActive(currentTimeOnly, s.StartTime, s.EndTime));
-
-    // overlapping schedules won't be allowed, so there will never be more than one heating or cooling schedule active at a time.
-    var heatingSchedule = activeSchedules.FirstOrDefault(s => s.Type == RunType.Heating);
-    var coolingSchedule = activeSchedules.FirstOrDefault(s => s.Type == RunType.Cooling);
-
-    // similarly, there will only ever be at most one heating and one cooling set point configured
     var heatingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Heating);
     var coolingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Cooling);
-
-    // gets the configured target temperature for heating and cooling, prioritizing schedules.
+    var heatingSchedule = thermostat.Schedules.FirstOrDefault(s => s.Type == RunType.Heating && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
+    var coolingSchedule = thermostat.Schedules.FirstOrDefault(s => s.Type == RunType.Cooling && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
     var heatingTargetTemp = heatingSchedule?.TargetTemperatureC ?? heatingSetPoint?.TargetTemperatureC;
     var coolingTargetTemp = coolingSchedule?.TargetTemperatureC ?? coolingSetPoint?.TargetTemperatureC;
 
-    // If there are no active heating or cooling target temps, log the information and do nothing.
-    if (heatingTargetTemp is null && coolingTargetTemp is null)
+    // this shouldn't be possible, it's not allowed to not have both configured for auto mode
+    if (heatingTargetTemp is null || coolingTargetTemp is null)
     {
-      logger.LogInformation("No active heating or cooling schedules or set points found.");
-      _activeCall = ControlState.Dwell;
-      await controlChannel.WriteAsync(
-        new ControlMessage(ControlState.Dwell, context with { Reason = "no heating or cooling schedule or set point is active" }),
-        cancellationToken
-      );
-      return RunMode.Off;
+      logger.LogInformation("Invalid configuration for automatic control.");
+      return context with { State = ControlState.Dwell, Reason = "Invalid configuration for automatic control" };
     }
 
-    var heatingActivationTemp = thermostat.HeatingLockoutC;
-    var coolingActivationTemp = thermostat.CoolingLockoutC;
-
-    // if there is a forecast temp it means a current location is configured
-    var useForecastForHeating = forecastTemperatureC is not null && heatingActivationTemp is not null;
-    var useForecastForCooling = forecastTemperatureC is not null && coolingActivationTemp is not null;
-    var forecastCallsForHeating = useForecastForHeating && forecastTemperatureC <= heatingActivationTemp;
-    var forecastCallsForCooling = useForecastForCooling && forecastTemperatureC >= coolingActivationTemp;
-
-    // determine if the environment temperature is below the heating target temp or above the cooling target temp
-    var environmentBelowTarget = environmentTemperatureC < heatingTargetTemp;
-    var environmentAboveTarget = environmentTemperatureC > coolingTargetTemp;
-
-    bool callForHeating = false;
-    bool callForCooling = false;
+    var isHeatingMode = false;
+    var isCoolingMode = false;
     var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresisRange = 2 * hysteresis;
+    var forecastRange = 5;
 
-    // these conditions are true if the system reaches a state where it should call for heating or cooling,
-    // either because the forecast calls for it or because the environment temperature is outside the target range
-    // but before the hysteresis is applied.
-    var shouldCallForHeating = (useForecastForHeating && forecastCallsForHeating) || !useForecastForHeating;
-    var shouldCallForCooling = (useForecastForCooling && forecastCallsForCooling) || !useForecastForCooling;
-
-    // determine if the environment temperature is below the heating target temp or above the cooling target temp, taking into account hysteresis
-    if (shouldCallForHeating)
+    // no forecast integration at all, both lockouts are required if forecast is used in automatic mode.
+    if (forecastTemperatureC is null || thermostat.HeatingLockoutC is null || thermostat.CoolingLockoutC is null)
     {
-      if (_activeCall == ControlState.Dwell && environmentTemperatureC <= (heatingTargetTemp - hysteresis))
+      var hasInvalidTargets = heatingTargetTemp > coolingTargetTemp;
+      var hasInvalidHysteresis = coolingTargetTemp - heatingTargetTemp < hysteresisRange;
+      if (hasInvalidTargets || hasInvalidHysteresis)
       {
-        callForHeating = true;
+        logger.LogCritical(
+          @"
+            The heating target temperature ({HeatingTargetTemp}C) is higher than the cooling target temperature ({CoolingTargetTemp}C). 
+            This is an invalid configuration.
+          ",
+          heatingTargetTemp,
+          coolingTargetTemp
+        );
+        return context with { State = ControlState.Disable, Reason = "the heating target temperature is higher than the cooling target temperature" };
       }
-      else if (_activeCall == ControlState.Heating && environmentTemperatureC < (heatingTargetTemp + hysteresis))
+
+      isHeatingMode = heatingTargetTemp is not null && environment.TemperatureC <= (heatingTargetTemp - hysteresis);
+      isCoolingMode = coolingTargetTemp is not null && environment.TemperatureC >= (coolingTargetTemp + hysteresis);
+    }
+    else
+    {
+      // Cooling has to be greater than heating, and the forecast temperature has to be within the range of the two targets,
+      // otherwise it is an invalid configuration.
+      var invalidForecastRange = thermostat.CoolingLockoutC - thermostat.HeatingLockoutC < forecastRange;
+      if (invalidForecastRange)
       {
-        callForHeating = true;
+        logger.LogWarning(
+          @"
+            The forecast temperature ({ForecastTemperatureC}C) is outside the valid range of the heating target temperature ({HeatingTargetTemp}C) and cooling target temperature ({CoolingTargetTemp}C). 
+            This is an invalid configuration.
+          ",
+          forecastTemperatureC,
+          heatingTargetTemp,
+          coolingTargetTemp
+        );
+
+        return context with
+        {
+          State = ControlState.Dwell,
+          Reason = "the forecast temperature is outside the valid range of the heating and cooling target temperatures",
+        };
       }
+      isHeatingMode = heatingTargetTemp is not null && forecastTemperatureC <= thermostat.HeatingLockoutC;
+      isCoolingMode = coolingTargetTemp is not null && forecastTemperatureC >= thermostat.CoolingLockoutC;
     }
 
-    if (shouldCallForCooling)
+    // shouldn't be possible given the above logic, but just in case, log a warning and return Dwell if both heating and cooling conditions are met.
+    if (isHeatingMode && isCoolingMode)
+    {
+      logger.LogCritical(
+        "Both heating and cooling conditions are met. This is an unexpected state. Forecast temperature: {ForecastTemperatureC}C, Heating target: {HeatingTargetTemp}C, Cooling target: {CoolingTargetTemp}C",
+        forecastTemperatureC,
+        heatingTargetTemp,
+        coolingTargetTemp
+      );
+      return context with { State = ControlState.Disable, Reason = "both heating and cooling conditions were met" };
+    }
+
+    if (!isHeatingMode && !isCoolingMode)
+    {
+      logger.LogInformation("No active heating or cooling mode found.");
+      return context with { State = ControlState.Dwell, Reason = "no active heating or cooling mode is active" };
+    }
+
+    if (isHeatingMode)
+    {
+      return ProcessHeating(context, environment, thermostat, forecastTemperatureC);
+    }
+
+    if (isCoolingMode)
+    {
+      return ProcessCooling(context, environment, thermostat, forecastTemperatureC);
+    }
+
+    return context with
+    {
+      State = ControlState.Dwell,
+      Reason = "no active heating or cooling mode",
+    };
+  }
+
+  private ControlContext ProcessCooling(ControlContext context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
+  {
+    context = context with { ForecastTemperatureC = forecastTemperatureC };
+
+    var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
+    var environmentTemperatureC = environment.TemperatureC;
+    var coolingLockoutC = thermostat.CoolingLockoutC;
+    var coolingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Cooling);
+    var coolingSchedule = thermostat.Schedules.FirstOrDefault(s => s.Type == RunType.Cooling && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
+    var useForecastForCooling = forecastTemperatureC is not null && coolingLockoutC is not null;
+    var forecastAllowsForCooling = useForecastForCooling && forecastTemperatureC >= coolingLockoutC;
+
+    if (coolingSetPoint is null && coolingSchedule is null)
+    {
+      logger.LogInformation("No active cooling schedule or set point found.");
+      return context with { State = ControlState.Dwell, Reason = "no cooling schedule or set point is active" };
+    }
+
+    var callForCooling = false;
+    var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var coolingTargetTemp = coolingSchedule?.TargetTemperatureC ?? coolingSetPoint?.TargetTemperatureC;
+    var shouldCheckForCooling = (useForecastForCooling && forecastAllowsForCooling) || !useForecastForCooling;
+
+    if (shouldCheckForCooling)
     {
       if (_activeCall == ControlState.Dwell && environmentTemperatureC >= (coolingTargetTemp + hysteresis))
       {
@@ -188,107 +241,114 @@ public class ThermostatService(
       }
       else if (_activeCall == ControlState.Cooling && environmentTemperatureC > (coolingTargetTemp - hysteresis))
       {
+        // all ready cooling, calling for cool is a noop, but we will still return a control message to keep the state updated.
         callForCooling = true;
       }
-    }
-
-    if ((callForHeating && previousActiveCall == ControlState.Cooling) || (callForCooling && previousActiveCall == ControlState.Heating))
-    {
-      // It should never be possible to switch directly between an active heating call and an active
-      // cooling call; the hysteresis logic above is gated on _activeCall specifically to prevent this.
-      // Treat it as a critical error and fall back to Dwell rather than flipping the call directly.
-      logger.LogCritical(
-        "Attempted to switch directly from {PreviousActiveCall} to a call for {RequestedCall} without an intermediate Dwell state.",
-        previousActiveCall,
-        callForHeating ? RunType.Heating : RunType.Cooling
-      );
-      _activeCall = ControlState.Dwell;
-      await controlChannel.WriteAsync(
-        new ControlMessage(ControlState.Dwell, context with { Reason = "an unsafe call transition was requested" }),
-        cancellationToken
-      );
-      return RunMode.Off;
-    }
-
-    if (callForHeating && callForCooling)
-    {
-      // turn off the system, revert control to the dumb thermostat, and log the error.
-      logger.LogCritical("Both heating and cooling conditions are met. This is an unexpected state.");
-      _activeCall = ControlState.Dwell;
-      await controlChannel.WriteAsync(
-        new ControlMessage(ControlState.Disable, context with { Reason = "the heating and cooling conditions were both met" }),
-        cancellationToken
-      );
-      return RunMode.Off;
-    }
-
-    if (callForHeating && (thermostat.Mode == RunMode.Heating || thermostat.Mode == RunMode.Automatic))
-    {
-      logger.LogInformation("Thermostat is in heating mode and conditions are met for heating.");
-      _activeCall = ControlState.Heating;
-      await controlChannel.WriteAsync(
-        new ControlMessage(
-          ControlState.Heating,
-          context with
-          {
-            TargetTemperatureC = heatingTargetTemp,
-            ScheduleId = heatingSchedule?.Id,
-            SetPointId = heatingSchedule is null ? heatingSetPoint?.Id : null,
-            Reason = "the heating conditions were met",
-          }
-        ),
-        cancellationToken
-      );
-      return RunMode.Heating;
     }
 
     if (callForCooling && (thermostat.Mode == RunMode.Cooling || thermostat.Mode == RunMode.Automatic))
     {
       logger.LogInformation("Thermostat is in cooling mode and conditions are met for cooling.");
-      _activeCall = ControlState.Cooling;
-      await controlChannel.WriteAsync(
-        new ControlMessage(
-          ControlState.Cooling,
-          context with
-          {
-            TargetTemperatureC = coolingTargetTemp,
-            ScheduleId = coolingSchedule?.Id,
-            SetPointId = coolingSchedule is null ? coolingSetPoint?.Id : null,
-            Reason = "the cooling conditions were met",
-          }
-        ),
-        cancellationToken
-      );
-      return RunMode.Cooling;
+      return context with
+      {
+        State = ControlState.Cooling,
+        TargetTemperatureC = coolingTargetTemp,
+        ScheduleId = coolingSchedule?.Id,
+        SetPointId = coolingSchedule is null ? coolingSetPoint?.Id : null,
+        Reason = "the cooling conditions were met",
+      };
     }
 
-    var setpointId = shouldCallForHeating ? heatingSetPoint?.Id : null;
-    setpointId = shouldCallForCooling ? coolingSetPoint?.Id : setpointId;
+    logger.LogInformation("No conditions are met for cooling, turning off the system.");
+    return context with
+    {
+      State = ControlState.Dwell,
+      TargetTemperatureC = coolingTargetTemp,
+      ScheduleId = coolingSchedule?.Id,
+      SetPointId = coolingSchedule is null ? coolingSetPoint?.Id : null,
+      Reason = "no cooling conditions were met",
+    };
+  }
 
-    var scheduleId = shouldCallForHeating ? heatingSchedule?.Id : null;
-    scheduleId = shouldCallForCooling ? coolingSchedule?.Id : scheduleId;
+  private ControlContext ProcessHeating(ControlContext context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
+  {
+    context = context with { ForecastTemperatureC = forecastTemperatureC };
 
-    var targetTemperatureC = shouldCallForHeating ? heatingTargetTemp : null;
-    targetTemperatureC = shouldCallForCooling ? coolingTargetTemp : targetTemperatureC;
+    var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
+    var environmentTemperatureC = environment.TemperatureC;
+    var heatingLockoutC = thermostat.HeatingLockoutC;
+    var heatingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Heating);
+    var heatingSchedule = thermostat.Schedules.FirstOrDefault(s => s.Type == RunType.Heating && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
+    var useForecastForHeating = forecastTemperatureC is not null && heatingLockoutC is not null;
+    var forecastAllowsForHeating = useForecastForHeating && forecastTemperatureC <= heatingLockoutC;
 
-    // no conditions are met for heating or cooling, so we will turn off the system
-    logger.LogInformation("No conditions are met for heating or cooling, turning off the system.");
-    _activeCall = ControlState.Dwell;
-    await controlChannel.WriteAsync(
-      new ControlMessage(
-        ControlState.Dwell,
-        context with
-        {
-          TargetTemperatureC = targetTemperatureC,
-          ScheduleId = scheduleId,
-          SetPointId = setpointId,
-          Reason = "no heating or cooling conditions were met",
-        }
-      ),
-      cancellationToken
-    );
+    if (heatingSetPoint is null && heatingSchedule is null)
+    {
+      logger.LogInformation("No active heating schedule or set point found.");
+      return context with { State = ControlState.Dwell, Reason = "no heating schedule or set point is active" };
+    }
 
-    return RunMode.Off;
+    var callForHeating = false;
+    var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var heatingTargetTemp = heatingSchedule?.TargetTemperatureC ?? heatingSetPoint?.TargetTemperatureC;
+    var shouldCheckForHeating = (useForecastForHeating && forecastAllowsForHeating) || !useForecastForHeating;
+
+    if (shouldCheckForHeating)
+    {
+      if (_activeCall == ControlState.Dwell && environmentTemperatureC <= (heatingTargetTemp - hysteresis))
+      {
+        callForHeating = true;
+      }
+      else if (_activeCall == ControlState.Heating && environmentTemperatureC < (heatingTargetTemp + hysteresis))
+      {
+        // all ready heating, calling for heat is a noop, but we will still return a control message to keep the state updated.
+        callForHeating = true;
+      }
+    }
+
+    if (callForHeating && (thermostat.Mode == RunMode.Heating || thermostat.Mode == RunMode.Automatic))
+    {
+      logger.LogInformation("Thermostat is in heating mode and conditions are met for heating.");
+      return context with
+      {
+        State = ControlState.Heating,
+        TargetTemperatureC = heatingTargetTemp,
+        ScheduleId = heatingSchedule?.Id,
+        SetPointId = heatingSchedule is null ? heatingSetPoint?.Id : null,
+        Reason = "the heating conditions were met",
+      };
+    }
+
+    logger.LogInformation("No conditions are met for heating, turning off the system.");
+    return context with
+    {
+      State = ControlState.Dwell,
+      TargetTemperatureC = heatingTargetTemp,
+      ScheduleId = heatingSchedule?.Id,
+      SetPointId = heatingSchedule is null ? heatingSetPoint?.Id : null,
+      Reason = "no heating conditions were met",
+    };
+  }
+
+  private async Task<ControlContext> ProcessTemperature(
+    ControlContext context,
+    EnvironmentReading environment,
+    Thermostat thermostat,
+    float? forecastTemperatureC,
+    CancellationToken cancellationToken
+  )
+  {
+    context = thermostat.Mode switch
+    {
+      RunMode.Heating => ProcessHeating(context, environment, thermostat, forecastTemperatureC),
+      RunMode.Cooling => ProcessCooling(context, environment, thermostat, forecastTemperatureC),
+      RunMode.Automatic => ProcessAutomatic(context, environment, thermostat, forecastTemperatureC),
+      _ => context with { State = ControlState.Dwell, Reason = "the thermostat mode is Off or Disabled" },
+    };
+
+    _activeCall = context.State;
+    await controlChannel.WriteAsync(new ControlMessage(context), cancellationToken);
+    return context;
   }
 
   private float GetHysteresis(float? thermostatHysteresis)

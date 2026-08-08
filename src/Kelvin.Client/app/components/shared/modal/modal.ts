@@ -17,6 +17,8 @@ export class Modal extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   @property({ type: String }) heading = 'Dialog';
   @property({ type: String }) description = '';
+  @property({ type: Boolean, reflect: true }) small = false;
+  @property({ type: Boolean }) closeOnBackdropClick = true;
 
   @query('.modal__dialog')
   private dialogElement!: HTMLElement;
@@ -52,7 +54,7 @@ export class Modal extends LitElement {
     this.open = true;
   }
 
-  close(reason: ModalCloseReason = 'close-button') {
+  hide(reason: ModalCloseReason = 'close-button') {
     if (!this.open) {
       return;
     }
@@ -87,7 +89,7 @@ export class Modal extends LitElement {
     });
 
     if (this.dispatchEvent(requestEvent)) {
-      this.close(reason);
+      this.hide(reason);
     }
   }
 
@@ -228,7 +230,7 @@ export class Modal extends LitElement {
   };
 
   private onOverlayClick(event: Event) {
-    if (event.target !== event.currentTarget) {
+    if (event.target !== event.currentTarget || !this.closeOnBackdropClick) {
       return;
     }
 
@@ -290,6 +292,7 @@ export class Modal extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-modal': Modal;
   }

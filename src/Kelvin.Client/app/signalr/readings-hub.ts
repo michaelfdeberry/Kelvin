@@ -18,6 +18,7 @@ export class ReadingsHub extends SignalRHubBase {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'signalr-readings-hub': ReadingsHub;
   }

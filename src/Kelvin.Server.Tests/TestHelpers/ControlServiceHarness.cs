@@ -3,8 +3,10 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -74,14 +76,15 @@ public sealed class ControlServiceHarness
         SetLatestLifecycleState(null);
 
         SetGateway(ControlFixtures.CreateGateway());
-
+        var (hub, clientProxy) = CreateFakeHub();
         _service = new ControlService(
             NullLogger<ControlService>.Instance,
             _controlChannel,
             _dispatcher,
             Relays,
             Time,
-            _lifetime
+            _lifetime,
+            hub
         );
     }
 
@@ -149,21 +152,11 @@ public sealed class ControlServiceHarness
     public Task StopAsync() => _service.StopAsync(new CancellationToken(canceled: true));
 
     /// <summary>
-    /// Delivers a control message, then waits until the service has looped all the way back around into its next
-    /// iteration - guaranteeing every relay call belonging to that message has already happened.
-    /// </summary>
-    public async Task PushAsync(ControlState state)
-    {
-        Deliver(state);
-        await _iterationStarted.WaitAsync();
-    }
-
-    /// <summary>
     /// Delivers a control message carrying producer context, then waits for the next iteration.
     /// </summary>
-    public async Task PushAsync(ControlState state, ControlContext context)
+    public async Task PushAsync(ControlContext context)
     {
-        Deliver(state, context);
+        Deliver(context);
         await _iterationStarted.WaitAsync();
     }
 
@@ -171,7 +164,7 @@ public sealed class ControlServiceHarness
     /// Delivers a control message without waiting for the next iteration, for cases where the service is not
     /// expected to loop again (an unusable GPIO stops the service).
     /// </summary>
-    public void Deliver(ControlState state, ControlContext? context = null)
+    public void Deliver(ControlContext context)
     {
         var pending =
             _pendingRead
@@ -179,7 +172,7 @@ public sealed class ControlServiceHarness
                 "The service is not currently awaiting a control message."
             );
         _pendingRead = null;
-        pending.SetResult(new ControlMessage(state, context));
+        pending.SetResult(new ControlMessage(context));
     }
 
     /// <summary>
@@ -190,5 +183,20 @@ public sealed class ControlServiceHarness
     {
         Time.Advance(delay);
         await _iterationStarted.WaitAsync();
+    }
+
+    private static (
+        IHubContext<ControlHub, IControlClient> Hub,
+        IControlClient ClientProxy
+    ) CreateFakeHub()
+    {
+        var clientProxy = A.Fake<IControlClient>();
+        var clients = A.Fake<IHubClients<IControlClient>>();
+        A.CallTo(() => clients.All).Returns(clientProxy);
+
+        var hub = A.Fake<IHubContext<ControlHub, IControlClient>>();
+        A.CallTo(() => hub.Clients).Returns(clients);
+
+        return (hub, clientProxy);
     }
 }

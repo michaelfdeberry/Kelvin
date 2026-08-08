@@ -6,7 +6,8 @@ import settingsGeneralTabStyles from './settings-general.styles.js';
 import { preferencesContext } from '../../../../contexts/preferences-context.js';
 import { events } from '../../../../events.js';
 import { Preferences } from '../../../../models/preferences.js';
-import { apiFetch } from '../../../../services/api.js';
+import resources from '../../../../services/api-resources.js';
+import { apiPut } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 
@@ -30,9 +31,8 @@ export class SettingsGeneral extends LitElement {
     }
 
     const preferences = { ...this.preferences, temperatureUnit, timeFormat };
-    await apiFetch<void>('preferences', {
-      method: 'PUT',
-      body: JSON.stringify(preferences),
+    await apiPut<void>(resources.preferences.updatePreferences, {
+      body: preferences,
     });
 
     dispatchCustomEvent(this, events.preferencesSaved, preferences);
@@ -124,6 +124,7 @@ export class SettingsGeneral extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-settings-general': SettingsGeneral;
   }

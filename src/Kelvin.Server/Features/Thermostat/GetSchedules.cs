@@ -15,7 +15,7 @@ public class GetSchedulesHandler(KelvinContext context) : IHandler<GetSchedulesR
 {
   public async Task<Result<GetSchedulesResponse>> HandleAsync(GetSchedulesRequest request, CancellationToken ct = default)
   {
-    var schedules = await context.Schedules.ToListAsync(ct);
+    var schedules = await context.Schedules.Where(s => s.DeletedAt == null).ToListAsync(ct);
     return Result<GetSchedulesResponse>.Success(
       new GetSchedulesResponse([.. schedules.Select(s => new ScheduleResponse(s.Id, s.Type, s.StartTime, s.EndTime, s.TargetTemperatureC))])
     );

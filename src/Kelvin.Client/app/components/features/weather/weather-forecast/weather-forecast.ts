@@ -7,7 +7,8 @@ import { customElement } from 'lit/decorators.js';
 import weatherForecastStyles from './weather-forecast.styles.js';
 import { WEATHER_ICONS } from './weather-icons.js';
 import { WeatherForecastResponse, WeatherForecastDay } from '../../../../models/forecast-day.js';
-import { apiFetch } from '../../../../services/api.js';
+import resources from '../../../../services/api-resources.js';
+import { apiGet } from '../../../../services/api.js';
 import sharedStyles from '../../../../shared.styles.js';
 
 @customElement('app-weather-forecast')
@@ -16,7 +17,7 @@ export class WeatherForecast extends LitElement {
 
   private getWeatherTask = new Task(this, {
     task: async (_, { signal }) => {
-      return apiFetch<WeatherForecastResponse>('weather/forecast', { signal });
+      return apiGet<WeatherForecastResponse>(resources.weather.getWeatherForecast, { signal });
     },
     args: () => [this],
   });
@@ -96,6 +97,7 @@ export class WeatherForecast extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-weather-forecast': WeatherForecast;
   }

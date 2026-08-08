@@ -126,6 +126,7 @@ export class SensorCard extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-sensor-card': SensorCard;
   }

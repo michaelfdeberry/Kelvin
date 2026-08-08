@@ -12,7 +12,7 @@ public class GetSensorsHandler(KelvinContext context) : IHandler<GetSensorsReque
 {
   public async Task<Result<GetSensorsResponse>> HandleAsync(GetSensorsRequest request, CancellationToken ct = default)
   {
-    var sensors = await context.Sensors.Select(s => SensorResponse.FromSensor(s)).ToListAsync(ct);
+    var sensors = await context.Sensors.Where(s => !s.DeletedAt.HasValue).Select(s => SensorResponse.FromSensor(s)).ToListAsync(ct);
     return Result<GetSensorsResponse>.Success(new GetSensorsResponse(sensors));
   }
 }

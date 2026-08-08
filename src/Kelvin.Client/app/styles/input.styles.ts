@@ -19,10 +19,6 @@ const inputStyles = css`
       background-color 140ms ease;
   }
 
-  .input[type='number'] {
-    text-align: right;
-  }
-
   .input[type='number']::-webkit-outer-spin-button,
   .input[type='number']::-webkit-inner-spin-button {
     -webkit-appearance: none;

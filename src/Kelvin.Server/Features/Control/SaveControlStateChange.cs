@@ -21,11 +21,8 @@ public static class SaveControlStateChangeErrors
 /// change is announced, so a subscriber can never be told about something that was not persisted. Notifications
 /// will be dispatched here alongside the broadcast.
 /// </remarks>
-public class SaveControlStateChangeHandler(
-  KelvinContext context,
-  IHubContext<ControlHub, IControlClient> hub,
-  ILogger<SaveControlStateChangeHandler> logger
-) : IHandler<SaveControlStateChangeRequest>
+public class SaveControlStateChangeHandler(KelvinContext context, ILogger<SaveControlStateChangeHandler> logger)
+  : IHandler<SaveControlStateChangeRequest>
 {
   public async Task<Result> HandleAsync(SaveControlStateChangeRequest request, CancellationToken cancellationToken = default)
   {
@@ -38,16 +35,6 @@ public class SaveControlStateChangeHandler(
     {
       logger.LogError(ex, "Failed to record the {Kind} state change to {State}.", request.Change.Kind, request.Change.State);
       return Result.Failure(SaveControlStateChangeErrors.DefaultError);
-    }
-
-    try
-    {
-      await hub.Clients.All.ControlStateChanged(ControlStateChangeDto.FromEntity(request.Change));
-    }
-    catch (Exception ex)
-    {
-      // The change is already recorded, so a client that missed the broadcast can still read the current state.
-      logger.LogError(ex, "Failed to broadcast the {Kind} state change to {State}.", request.Change.Kind, request.Change.State);
     }
 
     return Result.Success();

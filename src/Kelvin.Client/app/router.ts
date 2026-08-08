@@ -126,6 +126,7 @@ export class AppRouter extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-router': AppRouter;
   }

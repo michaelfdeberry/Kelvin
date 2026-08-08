@@ -3,16 +3,17 @@ import '../../../shared/modal/modal.js';
 import { consume } from '@lit/context';
 import { LitElement, TemplateResult, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
+import { when } from 'lit/directives/when.js';
 
 import sensorSettingsStyles from './sensor-settings.styles.js';
 import { sensorsContext } from '../../../../contexts/sensors-context.js';
 import { events } from '../../../../events.js';
 import { Sensor } from '../../../../models/sensors.js';
-import { apiFetch } from '../../../../services/api.js';
+import resources from '../../../../services/api-resources.js';
+import { apiPut } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 import { Modal } from '../../../shared/modal/modal.js';
-import { when } from 'lit/directives/when.js';
 
 @customElement('app-sensor-settings')
 export class SensorSettings extends LitElement {
@@ -67,9 +68,9 @@ export class SensorSettings extends LitElement {
       hasBattery,
     };
 
-    await apiFetch(`sensors/${this.sensor?.id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updatedSensor),
+    await apiPut<void>(resources.sensors.updateSensor, {
+      body: updatedSensor,
+      routeParams: { id: this.sensor!.id },
     });
 
     dispatchToast(this, 'success', 'Sensor updated successfully.', { duration: 3000 });
@@ -166,7 +167,7 @@ export class SensorSettings extends LitElement {
           <button
             type="button"
             class="button button--secondary"
-            @click=${() => this.modal.close('close-button')}
+            @click=${() => this.modal.hide('close-button')}
           >
             Cancel
           </button>
@@ -184,6 +185,7 @@ export class SensorSettings extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-sensor-settings': SensorSettings;
   }

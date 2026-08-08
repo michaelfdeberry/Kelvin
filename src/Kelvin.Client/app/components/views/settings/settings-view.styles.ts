@@ -8,7 +8,7 @@ export default css`
   }
 
   .settings-view__panel {
-    max-width: 860px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 1rem;
     padding-bottom: 0;
@@ -30,7 +30,7 @@ export default css`
     line-height: 1.5;
   }
 
-  @media (max-width: 700px) {
+  @media (max-width: 768px) {
     :host {
       padding: 1rem;
     }

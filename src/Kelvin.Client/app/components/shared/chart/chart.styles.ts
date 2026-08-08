@@ -10,12 +10,47 @@ export default css`
   svg {
     width: 100%;
     height: 100%;
-    overflow: visible;
-    /* Ensures the SVG stretches to fit the container */
+    overflow: hidden;
     display: block;
   }
-  .chart-bg {
-    fill: var(--bg-panel, #1e293b);
-    border-radius: 8px;
+
+  .chart-surface {
+    fill: var(--surface-overlay);
+  }
+
+  .chart-grid {
+    stroke: var(--border-subtle);
+    stroke-opacity: 0.72;
+    stroke-width: 1;
+  }
+
+  .chart-axis-labels {
+    fill: var(--text-muted);
+    font-size: 7px;
+  }
+
+  .chart-axis-labels--time {
+    font-size: 6.5px;
+  }
+
+  .chart-tooltip__guide {
+    stroke: var(--text-muted);
+    stroke-dasharray: 3 3;
+    stroke-width: 1;
+  }
+
+  .chart-tooltip rect {
+    fill: var(--bg-panel);
+    stroke: var(--border-subtle);
+    stroke-width: 1;
+  }
+
+  .chart-tooltip text {
+    fill: var(--text-main);
+    font-size: 7px;
+  }
+
+  .chart-tooltip .chart-tooltip__time {
+    fill: var(--text-muted);
   }
 `;

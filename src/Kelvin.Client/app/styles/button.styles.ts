@@ -96,7 +96,7 @@ const buttonStyles = css`
 
   .button--small {
     font-size: 0.85rem;
-    padding: 0.35rem 0.65rem;
+    height: 2rem;
   }
 
   .button--pill {

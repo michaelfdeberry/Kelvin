@@ -49,7 +49,7 @@ export class StatsPanel extends LitElement {
   }
 
   private buildSections(data: ControlAnalyticsData): StatSection[] {
-    return [this.buildTelemetrySection(data), this.buildHysteresisSection(data), this.buildRelaySection(data)];
+    return [this.buildTelemetrySection(data), this.buildHysteresisSection(data), this.buildForecastLockoutSection(), this.buildRelaySection(data)];
   }
 
   private buildTelemetrySection(data: ControlAnalyticsData): StatSection {
@@ -103,6 +103,35 @@ export class StatsPanel extends LitElement {
     };
   }
 
+  private buildForecastLockoutSection(): StatSection {
+    const rows: StatRow[] = [];
+
+    if (this.thermostat.mode === 'Heating' || this.thermostat.mode === 'Automatic') {
+      rows.push({
+        label: 'Heating Lockout:',
+        value:
+          typeof this.thermostat.heatingLockoutC === 'number'
+            ? `${this.thermostat.heatingLockoutC.toFixed(1)}°C (${this.formatTemperature(this.thermostat.heatingLockoutC)})`
+            : '--',
+      });
+    }
+
+    if (this.thermostat.mode === 'Cooling' || this.thermostat.mode === 'Automatic') {
+      rows.push({
+        label: 'Cooling Lockout:',
+        value:
+          typeof this.thermostat.coolingLockoutC === 'number'
+            ? `${this.thermostat.coolingLockoutC.toFixed(1)}°C (${this.formatTemperature(this.thermostat.coolingLockoutC)})`
+            : '--',
+      });
+    }
+
+    return {
+      title: 'Forecast Lockout Configuration',
+      rows,
+    };
+  }
+
   private buildRelaySection(data: ControlAnalyticsData): StatSection {
     const controlEnabled = data.controlState.controlState === 'Enable';
     const callState = data.controlState.callState;
@@ -131,12 +160,16 @@ export class StatsPanel extends LitElement {
       const heatingSatisfied = source.targetTemperatureC + hysteresisC;
       return [
         {
+          label: 'Heating Target:',
+          value: `= ${source.targetTemperatureC.toFixed(1)}°C (${this.formatTemperature(source.targetTemperatureC)})`,
+        },
+        {
           label: 'Heating Trigger:',
-          value: `≤ ${heatingTrigger.toFixed(1)}°C (${this.celsiusDeltaToFahrenheit(heatingTrigger).toFixed(1)}°F)`,
+          value: `≤ ${heatingTrigger.toFixed(1)}°C (${this.formatTemperature(heatingTrigger)})`,
         },
         {
           label: 'Heating Satisfied:',
-          value: `≥ ${heatingSatisfied.toFixed(1)}°C (${this.celsiusDeltaToFahrenheit(heatingSatisfied).toFixed(1)}°F)`,
+          value: `≥ ${heatingSatisfied.toFixed(1)}°C (${this.formatTemperature(heatingSatisfied)})`,
         },
       ];
     }
@@ -145,12 +178,16 @@ export class StatsPanel extends LitElement {
     const coolingSatisfied = source.targetTemperatureC - hysteresisC;
     return [
       {
+        label: 'Cooling Target:',
+        value: `= ${source.targetTemperatureC.toFixed(1)}°C (${this.formatTemperature(source.targetTemperatureC)})`,
+      },
+      {
         label: 'Cooling Trigger:',
-        value: `≥ ${coolingTrigger.toFixed(1)}°C (${this.celsiusDeltaToFahrenheit(coolingTrigger).toFixed(1)}°F)`,
+        value: `≥ ${coolingTrigger.toFixed(1)}°C (${this.formatTemperature(coolingTrigger)})`,
       },
       {
         label: 'Cooling Satisfied:',
-        value: `≤ ${coolingSatisfied.toFixed(1)}°C (${this.celsiusDeltaToFahrenheit(coolingSatisfied).toFixed(1)}°F)`,
+        value: `≤ ${coolingSatisfied.toFixed(1)}°C (${this.formatTemperature(coolingSatisfied)})`,
       },
     ];
   }
@@ -179,7 +216,7 @@ export class StatsPanel extends LitElement {
     const now = new Date();
     const currentSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
-    return schedules.find(schedule => schedule.enabled && schedule.type === type && this.isScheduleActive(schedule, currentSeconds));
+    return schedules.find(schedule => schedule.type === type && this.isScheduleActive(schedule, currentSeconds));
   }
 
   private isScheduleActive(schedule: Schedule, currentSeconds: number): boolean {
@@ -300,6 +337,7 @@ export class StatsPanel extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-stats-panel': StatsPanel;
   }

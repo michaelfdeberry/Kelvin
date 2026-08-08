@@ -56,6 +56,7 @@ const thermostatControlStyles = css`
   }
 
   .thermostat__dial-inner {
+    padding-top: 50px;
     width: 240px;
     height: 240px;
     border-radius: 50%;
@@ -71,18 +72,21 @@ const thermostatControlStyles = css`
     margin-top: 5px;
     font-size: 1.25rem;
     color: var(--thermostat-accent);
-    height: 28px;
   }
 
   .thermostat__current-temp {
     margin: 0;
-    font-size: 4.5rem;
-    font-weight: 200;
-    line-height: 1;
-    height: 72px;
+    font-size: 4rem;
+    height: 4rem;
+    line-height: 4rem;
   }
+
   .thermostat__status {
-    height: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
   }
 
   .thermostat__status-badge {
@@ -92,6 +96,10 @@ const thermostatControlStyles = css`
     border: 1px solid var(--thermostat-accent);
     border-radius: 20px;
     font-size: 0.75rem;
+  }
+
+  .thermostat__edit-button {
+    margin-top: 10px;
   }
 
   .thermostat__controls {

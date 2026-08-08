@@ -12,12 +12,20 @@ import appShellStyles from './app.styles.js';
 import './components/layout/app-sidebar/app-sidebar.js';
 import { defaultPreferences, preferencesContext } from './contexts/preferences-context.js';
 import { defaultSensors, sensorsContext } from './contexts/sensors-context.js';
-import { thermostatContext, defaultThermostat } from './contexts/thermostat-context.js';
+import {
+  thermostatContext,
+  defaultThermostat,
+  defaultSetPoints,
+  setPointsContext,
+  defaultSchedules,
+  schedulesContext,
+} from './contexts/thermostat-context.js';
 import { events } from './events.js';
 import { Sensors as SensorsResponse } from './models/sensors.js';
 import './router.js';
-import { Thermostat } from './models/thermostat.js';
-import { apiFetch } from './services/api.js';
+import { SchedulesResponse, SetPointsResponse, Thermostat } from './models/thermostat.js';
+import resources from './services/api-resources.js';
+import { apiGet, apiPut } from './services/api.js';
 import { dispatchToast } from './services/utilities.js';
 import sharedStyles from './shared.styles.js';
 
@@ -40,6 +48,16 @@ export class KelvinApp extends LitElement {
   private thermostatProvider = new ContextProvider(this, {
     context: thermostatContext,
     initialValue: defaultThermostat,
+  });
+
+  private setPointsProvider = new ContextProvider(this, {
+    context: setPointsContext,
+    initialValue: defaultSetPoints,
+  });
+
+  private schedulesProvider = new ContextProvider(this, {
+    context: schedulesContext,
+    initialValue: defaultSchedules,
   });
 
   @state()
@@ -88,7 +106,7 @@ export class KelvinApp extends LitElement {
 
   private async loadPreferences(): Promise<void> {
     try {
-      const preferences = await apiFetch<Preferences>('preferences');
+      const preferences = await apiGet<Preferences>(resources.preferences.getPreferences);
       this.preferencesProvider.setValue(preferences);
     } catch (err) {
       dispatchToast(this, 'error', 'Failed to load preferences.');
@@ -98,7 +116,7 @@ export class KelvinApp extends LitElement {
 
   private async loadSensors(): Promise<void> {
     try {
-      const response = await apiFetch<SensorsResponse>('sensors');
+      const response = await apiGet<SensorsResponse>(resources.sensors.getSensors);
       this.sensorsProvider.setValue(response.sensors);
     } catch (err) {
       dispatchToast(this, 'error', 'Failed to load sensors.');
@@ -108,9 +126,15 @@ export class KelvinApp extends LitElement {
 
   private async loadThermostat(): Promise<void> {
     try {
-      const thermostat = await apiFetch<Thermostat>('thermostat');
+      const thermostat = await apiGet<Thermostat>(resources.thermostat.getThermostat);
       this.isThermostatDisabled = thermostat.mode === 'Disabled';
       this.thermostatProvider.setValue(thermostat);
+
+      const setPointsResponse = await apiGet<SetPointsResponse>(resources.thermostat.getSetPoints);
+      this.setPointsProvider.setValue(setPointsResponse.setPoints);
+
+      const schedulesResponse = await apiGet<SchedulesResponse>(resources.thermostat.getSchedules);
+      this.schedulesProvider.setValue(schedulesResponse.schedules);
     } catch (err) {
       dispatchToast(this, 'error', 'Failed to load thermostat.');
       console.error('Failed to load thermostat:', err);
@@ -120,7 +144,9 @@ export class KelvinApp extends LitElement {
   private async handleTakeControlClick(): Promise<void> {
     try {
       console.log('Current thermostat mode:', this.thermostatProvider.value.mode);
-      await apiFetch('thermostat', { method: 'PUT', body: JSON.stringify({ ...this.thermostatProvider.value, mode: 'Off' }) });
+      await apiPut<void>(resources.thermostat.updateThermostat, {
+        body: { ...this.thermostatProvider.value, mode: 'Off' },
+      });
       this.loadThermostat();
     } catch (error) {
       dispatchToast(this, 'error', 'Failed to take control of the thermostat.');
@@ -171,6 +197,7 @@ export class KelvinApp extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'kelvin-app': KelvinApp;
   }

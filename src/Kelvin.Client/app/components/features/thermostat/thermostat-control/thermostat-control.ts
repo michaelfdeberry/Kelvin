@@ -2,32 +2,39 @@ import '../thermostat-editor/thermostat-editor.js';
 import '../../../shared/temperature/temperature.js';
 
 import { consume } from '@lit/context';
-import { html, LitElement, nothing, PropertyValues, TemplateResult } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { html, LitElement, nothing, TemplateResult } from 'lit';
+import { customElement, query } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import { when } from 'lit/directives/when.js';
 
 import thermostatControlStyles from './thermostat-control.styles.js';
+import editIcon from '../../../../../assets/icons/edit.svg?raw';
 import { controlContext } from '../../../../contexts/control-context.js';
 import { environmentReadingsContext } from '../../../../contexts/sensors-context.js';
-import { thermostatContext } from '../../../../contexts/thermostat-context.js';
+import { schedulesContext, setPointsContext, thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
 import { ControlStateChange } from '../../../../models/control-state-change.js';
 import { EnvironmentReading } from '../../../../models/sensors.js';
-import { RunMode, Thermostat } from '../../../../models/thermostat.js';
-import { apiFetch } from '../../../../services/api.js';
-import { dispatchCustomEvent } from '../../../../services/utilities.js';
+import { RunMode, Schedule, SetPoint, Thermostat } from '../../../../models/thermostat.js';
+import resources from '../../../../services/api-resources.js';
+import { apiPut } from '../../../../services/api.js';
+import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
+import { ThermostatEditor } from '../thermostat-editor/thermostat-editor.js';
 
 @customElement('app-thermostat-control')
 export class ThermostatControl extends LitElement {
   static override styles = [sharedStyles, thermostatControlStyles];
 
-  private isHeating = false;
-  private isCooling = false;
-
   @consume({ context: thermostatContext, subscribe: true })
   thermostat!: Thermostat;
+
+  @consume({ context: setPointsContext, subscribe: true })
+  setPoints!: SetPoint[];
+
+  @consume({ context: schedulesContext, subscribe: true })
+  schedules!: Schedule[];
 
   @consume({ context: environmentReadingsContext, subscribe: true })
   environment!: EnvironmentReading;
@@ -35,35 +42,54 @@ export class ThermostatControl extends LitElement {
   @consume({ context: controlContext, subscribe: true })
   controlState!: Partial<ControlStateChange>;
 
-  protected override update(changedProperties: PropertyValues): void {
-    console.log('ThermostatControl update called with changedProperties:', changedProperties);
-    if (changedProperties.has('controlState')) {
-      console.log('Control state changed:', this.controlState);
-    }
-
-    super.update(changedProperties);
-  }
+  @query('app-thermostat-editor')
+  private thermostatEditor!: ThermostatEditor;
 
   private renderSetpoint(): TemplateResult | typeof nothing {
     if (this.thermostat.mode === 'Disabled') return nothing;
     if (this.thermostat.mode === 'Off') return nothing;
 
-    const setpointTempC: number | undefined = undefined;
+    let targetTempC = this.controlState.targetTemperatureC;
+
+    // the target temp won't be in the control state until the state changes
+    // using the set points or schedules to determine the target temp for the current mode
+    if (!targetTempC) {
+      let setPoint: SetPoint | undefined;
+      let schedule: Schedule | undefined;
+
+      const isActive = (schedule: Schedule) => {
+        const start = new Date(schedule.startTime).getTime();
+        const end = new Date(schedule.endTime).getTime();
+        const current = Date.now();
+
+        if (start <= end) return current >= start && current <= end;
+        return current >= start || current <= end;
+      };
+
+      if (this.controlState.state === 'Cooling') {
+        setPoint = this.setPoints.find(sp => sp.type === 'Cooling');
+        schedule = this.schedules.find(s => s.type === 'Cooling' && isActive(s));
+      } else if (this.controlState.state === 'Heating') {
+        setPoint = this.setPoints.find(sp => sp.type === 'Heating');
+        schedule = this.schedules.find(s => s.type === 'Heating' && isActive(s));
+      }
+
+      targetTempC = setPoint?.targetTemperatureC ?? schedule?.targetTemperatureC;
+    }
+
+    if (!targetTempC) return nothing;
 
     return html`
       Set to
       <app-temperature
-        .temperature=${setpointTempC}
+        .temperature=${targetTempC}
         show-unit
       ></app-temperature>
     `;
   }
 
   private async updateThermostat(update: Thermostat): Promise<void> {
-    await apiFetch('thermostat', {
-      method: 'PUT',
-      body: JSON.stringify(update),
-    });
+    await apiPut<void>(resources.thermostat.updateThermostat, { body: update });
     dispatchCustomEvent(this, events.thermostatUpdated);
   }
 
@@ -79,6 +105,16 @@ export class ThermostatControl extends LitElement {
       ...this.thermostat,
       mode: mode,
     });
+
+    const isConfiguredForHeating = this.setPoints.some(setPoint => setPoint.type === 'Heating');
+    const isConfiguredForCooling = this.setPoints.some(setPoint => setPoint.type === 'Cooling');
+    const requiresHeatingConfiguration = (mode === 'Heating' || mode === 'Automatic') && !isConfiguredForHeating;
+    const requiresCoolingConfiguration = (mode === 'Cooling' || mode === 'Automatic') && !isConfiguredForCooling;
+
+    if (requiresHeatingConfiguration || requiresCoolingConfiguration) {
+      this.thermostatEditor.open();
+      dispatchToast(this, 'information', 'Configuration is required before this mode can be used. Please configure the thermostat settings.');
+    }
   }
 
   override render() {
@@ -86,8 +122,8 @@ export class ThermostatControl extends LitElement {
       <div
         class="${classMap({
           thermostat: true,
-          'thermostat--heating': this.isHeating,
-          'thermostat--cooling': this.isCooling,
+          'thermostat--heating': this.controlState.state === 'Heating',
+          'thermostat--cooling': this.controlState.state === 'Cooling',
         })}"
       >
         <app-thermostat-editor></app-thermostat-editor>
@@ -99,10 +135,10 @@ export class ThermostatControl extends LitElement {
             <div class="thermostat__target-temp">${this.renderSetpoint()}</div>
             <div class="thermostat__current-temp">
               ${when(
-                this.environment.temperatureC,
+                this.environment.temperatureC ?? this.controlState.environmentTemperatureC,
                 () => html`
                   <app-temperature
-                    temperature="${this.environment.temperatureC}"
+                    temperature="${this.environment.temperatureC ?? this.controlState.environmentTemperatureC}"
                     show-unit
                   ></app-temperature>
                 `,
@@ -110,9 +146,21 @@ export class ThermostatControl extends LitElement {
               )}
             </div>
             <div class="thermostat__status">
-              ${when(this.isHeating, () => html`<div class="thermostat__status-badge">🔥 HEATING</div>`)}
-              ${when(this.isCooling, () => html`<div class="thermostat__status-badge">❄️ COOLING</div>`)}
+              ${when(this.controlState.state === 'Heating', () => html`<div class="thermostat__status-badge">🔥 HEATING</div>`)}
+              ${when(this.controlState.state === 'Cooling', () => html`<div class="thermostat__status-badge">❄️ COOLING</div>`)}
             </div>
+            ${when(
+              this.thermostat.mode !== 'Disabled' && this.thermostat.mode !== 'Off',
+              () => html`
+                <button
+                  class="thermostat__edit-button button button--icon"
+                  aria-label="Edit Settings"
+                  @click=${() => this.thermostatEditor.open()}
+                >
+                  ${unsafeSVG(editIcon)}
+                </button>
+              `,
+            )}
           </div>
         </div>
 
@@ -193,6 +241,7 @@ export class ThermostatControl extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-thermostat-control': ThermostatControl;
   }

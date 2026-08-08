@@ -14,8 +14,11 @@ const weatherForecastStyles = css`
     max-width: 600px;
     padding: 0.8rem;
     background: var(--bg-panel);
-    border-radius: var(--border-radius);
     justify-content: space-between;
+    border-radius: var(--border-radius);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 14px 34px var(--shadow-color);
   }
 
   .weather-forecast__day {

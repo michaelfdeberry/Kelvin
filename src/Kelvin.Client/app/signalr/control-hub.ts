@@ -3,7 +3,8 @@ import { customElement } from 'lit/decorators.js';
 import { signalrEvents } from '../events.js';
 import { SignalRHubBase } from './signalr-hub-base.js';
 import { ControlStateChange } from '../models/control-state-change.js';
-import { apiFetch } from '../services/api.js';
+import resources from '../services/api-resources.js';
+import { apiGet } from '../services/api.js';
 import { dispatchCustomEvent } from '../services/utilities.js';
 
 import type { ControlStateResponse } from '../models/control-state.js';
@@ -26,7 +27,7 @@ export class ControlHub extends SignalRHubBase {
 
   private async loadInitialState(): Promise<void> {
     try {
-      const response = await apiFetch<ControlStateResponse>('control/state');
+      const response = await apiGet<ControlStateResponse>(resources.control.getControlState);
       if (!response.lastChange) {
         console.warn('No control state change found in the response.');
         return;
@@ -40,6 +41,7 @@ export class ControlHub extends SignalRHubBase {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'signalr-control-hub': ControlHub;
   }

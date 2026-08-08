@@ -59,7 +59,7 @@ const settingsLocationTabStyles = css`
     color: var(--accent-danger);
   }
 
-  @media (max-width: 700px) {
+  @media (max-width: 768px) {
     .settings-location-tab__search {
       grid-template-columns: 1fr;
     }

@@ -9,7 +9,8 @@ import settingsLocationTabStyles from './settings-location.styles.js';
 import editIcon from '../../../../../assets/icons/edit.svg?raw';
 import { CurrentLocation } from '../../../../models/current-location.js';
 import { SearchLocations } from '../../../../models/search-locations.js';
-import { apiFetch } from '../../../../services/api.js';
+import resources from '../../../../services/api-resources.js';
+import { apiGet, apiPut } from '../../../../services/api.js';
 import { dispatchToast } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 
@@ -31,7 +32,7 @@ export class SettingsLocationTab extends LitElement {
   private currentLocationTask = new Task(this, {
     task: async (_, { signal }) => {
       try {
-        return await apiFetch<CurrentLocation | undefined>('locations/current', { signal });
+        return await apiGet<CurrentLocation | undefined>(resources.locations.getCurrentLocation, { signal });
       } catch (error) {
         if (error instanceof Error && error.message.includes('LocationNotConfigured')) {
           this.isEditing = true;
@@ -50,7 +51,7 @@ export class SettingsLocationTab extends LitElement {
         return [];
       }
 
-      const locationsResponse = await apiFetch<SearchLocations>(`locations/search?query=${encodeURIComponent(query)}`, { signal });
+      const locationsResponse = await apiGet<SearchLocations>(resources.locations.searchLocations, { signal, queryParams: { query } });
       if (locationsResponse.locations.length === 0) {
         throw new Error('No matching locations were found.');
       }
@@ -73,9 +74,8 @@ export class SettingsLocationTab extends LitElement {
     this.savePending = true;
 
     try {
-      await apiFetch<void>('locations/current', {
-        method: 'PUT',
-        body: JSON.stringify({ locationId }),
+      await apiPut<void>(resources.locations.setCurrentLocation, {
+        body: { locationId },
       });
 
       this.selectedLocationId = undefined;
@@ -220,6 +220,7 @@ export class SettingsLocationTab extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-settings-location-tab': SettingsLocationTab;
   }

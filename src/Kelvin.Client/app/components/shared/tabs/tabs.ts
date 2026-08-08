@@ -29,34 +29,7 @@ export class Tabs extends LitElement {
   private resizeObserver?: ResizeObserver;
 
   override firstUpdated(): void {
-    this.resizeObserver = new ResizeObserver(this.updateScrollState);
-    if (this.tablistElement) this.resizeObserver.observe(this.tablistElement);
-    this.updateScrollState();
-
-    if (!this.tabs?.length) return;
-    if (!this.panels?.length) return;
-
-    this.tabs.forEach((tab, index) => {
-      const panel = this.panels[index];
-      if (!panel) return;
-
-      tab.setAttribute('aria-controls', panel.id);
-      tab.setAttribute('role', 'tab');
-      tab.setAttribute('tabindex', index === 0 ? '0' : '-1');
-      tab.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
-      tab.classList.add('tab');
-      tab.classList.toggle('tab--selected', index === 0);
-    });
-
-    this.panels.forEach((panel, index) => {
-      const tab = this.tabs[index];
-      if (!tab) return;
-
-      panel.setAttribute('role', 'tabpanel');
-      panel.setAttribute('aria-labelledby', tab.id);
-      panel.classList.add('panel');
-      panel.classList.toggle('panel--selected', index === 0);
-    });
+    this.configureTabs();
   }
 
   override disconnectedCallback(): void {
@@ -75,6 +48,38 @@ export class Tabs extends LitElement {
 
   private handleTabSlotChange(): void {
     this.updateScrollState();
+    this.configureTabs();
+  }
+
+  private configureTabs(): void {
+    this.resizeObserver = new ResizeObserver(this.updateScrollState);
+    if (this.tablistElement) this.resizeObserver.observe(this.tablistElement);
+    this.updateScrollState();
+
+    if (!this.tabs?.length) return;
+    if (!this.panels?.length) return;
+
+    this.tabs.forEach((tab, index) => {
+      const panel = this.panels[index];
+      if (!panel) return;
+
+      tab.setAttribute('aria-controls', panel.id);
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('tabindex', index === 0 ? '0' : '-1');
+      tab.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+      tab.classList.toggle('tab', true);
+      tab.classList.toggle('tab--selected', index === 0);
+    });
+
+    this.panels.forEach((panel, index) => {
+      const tab = this.tabs[index];
+      if (!tab) return;
+
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', tab.id);
+      panel.classList.toggle('panel', true);
+      panel.classList.toggle('panel--selected', index === 0);
+    });
   }
 
   private handleScrollButtonClick(direction: -1 | 1): void {
@@ -85,6 +90,9 @@ export class Tabs extends LitElement {
   }
 
   private handleTabClick(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+
     const path = event.composedPath();
     const clickedTab = path.find(el => el instanceof HTMLButtonElement && el.slot === 'tab') as HTMLButtonElement | undefined;
     if (!clickedTab) return;
@@ -141,7 +149,10 @@ export class Tabs extends LitElement {
           </button>
         </div>
         <div class="tabs__panels">
-          <slot name="panel"></slot>
+          <slot
+            name="panel"
+            @slotchange=${this.configureTabs}
+          ></slot>
         </div>
       </div>
     `;

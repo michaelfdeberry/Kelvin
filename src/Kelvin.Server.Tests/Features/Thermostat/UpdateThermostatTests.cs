@@ -66,7 +66,7 @@ public class UpdateThermostatTests
         );
 
         result.IsSuccess.ShouldBeTrue();
-        sent.ShouldHaveSingleItem().State.ShouldBe(ControlState.Disable);
+        sent.ShouldHaveSingleItem().Context.State.ShouldBe(ControlState.Disable);
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public class UpdateThermostatTests
 
         result.IsSuccess.ShouldBeTrue();
         sent.Count.ShouldBe(2);
-        sent[0].State.ShouldBe(ControlState.Enable);
-        sent[1].State.ShouldBe(ControlState.Dwell);
+        sent[0].Context.State.ShouldBe(ControlState.Enable);
+        sent[1].Context.State.ShouldBe(ControlState.Dwell);
     }
 
     [Theory]
@@ -103,7 +103,7 @@ public class UpdateThermostatTests
         );
 
         result.IsSuccess.ShouldBeTrue();
-        sent.ShouldHaveSingleItem().State.ShouldBe(ControlState.Enable);
+        sent.ShouldHaveSingleItem().Context.State.ShouldBe(ControlState.Enable);
     }
 
     [Fact]

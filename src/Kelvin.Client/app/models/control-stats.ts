@@ -1,4 +1,4 @@
-export interface ControlStats {
+export type ControlStats = {
   from: string;
   to: string;
   heatingSeconds: number;
@@ -11,4 +11,4 @@ export interface ControlStats {
   coolingCycles: number;
   averageHeatingCycleSeconds?: number | null;
   averageCoolingCycleSeconds?: number | null;
-}
+};

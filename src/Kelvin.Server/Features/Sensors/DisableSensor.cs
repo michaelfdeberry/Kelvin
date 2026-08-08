@@ -32,7 +32,7 @@ public class DisableSensorEndpoint : IEndpointMapper
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
     app.MapDelete(
-        "/api/sensors/{sensorId}/Enable",
+        "/api/sensors/{sensorId}/disable",
         async (Guid sensorId, IHandler<DisableSensorRequest> handler, CancellationToken ct) =>
         {
           var result = await handler.HandleAsync(new(sensorId), ct);

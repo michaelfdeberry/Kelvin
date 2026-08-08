@@ -107,4 +107,10 @@ export default css`
     justify-content: flex-end;
     gap: 0.25rem;
   }
+
+  @media (max-width: 768px) {
+    .table__actions {
+      width: 100%;
+    }
+  }
 `;

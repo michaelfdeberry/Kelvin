@@ -37,6 +37,7 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
       'import/order': [
         'error',
         {

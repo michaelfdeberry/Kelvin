@@ -15,7 +15,7 @@ public class GetSetPointsHandler(KelvinContext context) : IHandler<GetSetPointsR
 {
   public async Task<Result<GetSetPointsResponse>> HandleAsync(GetSetPointsRequest request, CancellationToken ct = default)
   {
-    var setPoints = await context.SetPoints.ToListAsync(ct);
+    var setPoints = await context.SetPoints.Where(sp => sp.DeletedAt == null).ToListAsync(ct);
     return Result<GetSetPointsResponse>.Success(
       new GetSetPointsResponse(setPoints.Select(sp => new SetPointResponse(sp.Id, sp.Type, sp.TargetTemperatureC)))
     );

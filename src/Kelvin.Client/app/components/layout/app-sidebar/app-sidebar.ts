@@ -63,6 +63,7 @@ export class AppSidebar extends LitElement {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- declaration merging requires interface
   interface HTMLElementTagNameMap {
     'app-sidebar': AppSidebar;
   }

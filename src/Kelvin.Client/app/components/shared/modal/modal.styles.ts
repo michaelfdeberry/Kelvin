@@ -10,13 +10,14 @@ const modalStyles = css`
     --modal-border-size: 1px;
     --modal-heading-border-size: var(--modal-border-size);
     --modal-actions-border-size: var(--modal-border-size);
+    --modal-backdrop-background: var(--surface-overlay-strong);
   }
 
   .modal {
     position: fixed;
     inset: 0;
     z-index: 1200;
-    background: var(--surface-overlay-strong);
+    background: var(--modal-backdrop-background);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -102,6 +103,14 @@ const modalStyles = css`
     gap: 0.5rem;
     padding: var(--modal-actions-padding);
     border-top: var(--modal-actions-border-size) solid var(--border-subtle);
+  }
+
+  :host([small]) {
+    --modal-padding: 0.5rem;
+  }
+
+  :host([small]) .modal__dialog {
+    width: min(100%, 360px);
   }
 `;
 
