@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <SensirionI2cScd4x.h>
 #include <Wire.h>
+#include "Config.h"
 #include "./SCD4XSensor.h"
 #include "../Common/SensorPayload.h"
 

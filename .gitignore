@@ -12,7 +12,6 @@ libraries/
 node_modules/
  
 scripts/
-Kelvin.Integration/
 
 # Client build output, published into the server's wwwroot
 src/Kelvin.Server/wwwroot/
