@@ -9,7 +9,7 @@ public class EnvironmentReadingsChannel(ILogger<EnvironmentReadingsChannel> logg
   : ChannelBase<EnvironmentReading>(logger),
     IEnvironmentReadingsChannel { };
 
-public class EnvironmentChannelRegistration : IRegistration
+public class EnvironmentReadingsChannelRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

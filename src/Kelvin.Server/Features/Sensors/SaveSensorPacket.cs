@@ -19,6 +19,13 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
       context.Sensors.Add(sensor);
     }
 
+    // if it was deleted, but starts sending packets again restore it, but leave it disabled.
+    if (sensor.DeletedAt is not null)
+    {
+      sensor.Enabled = false;
+      sensor.DeletedAt = null;
+    }
+
     request.SensorPacket.SensorId = sensor.Id;
     context.SensorPackets.Add(request.SensorPacket);
     await context.SaveChangesAsync(ct);

@@ -35,8 +35,8 @@ export class SettingsSensors extends LitElement {
   private readingsTask = new Task(this, {
     task: async (_, { signal }) => {
       try {
-        const results = await apiGet<{ value: { readings: SensorReading[] } }>(resources.sensors.getLatestReadings, { signal });
-        return results?.value.readings ?? ([] as SensorReading[]);
+        const results = await apiGet<{ readings: SensorReading[] }>(resources.sensors.getLatestReadings, { signal });
+        return results?.readings ?? ([] as SensorReading[]);
       } catch {
         return [] as SensorReading[];
       }

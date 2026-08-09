@@ -24,7 +24,7 @@ public class CreateSetPointTests
             .Returns(Result.Success());
 
         var result = await new CreateSetPointHandler(context, cache, validator).HandleAsync(
-            new CreateSetPointRequest(RunType.Heating, 20f, 5f)
+            new CreateSetPointRequest(RunType.Heating, 20f)
         );
 
         result.IsFailure.ShouldBeTrue();
@@ -54,7 +54,7 @@ public class CreateSetPointTests
             .Returns(Result.Success());
 
         var result = await new CreateSetPointHandler(context, cache, validator).HandleAsync(
-            new CreateSetPointRequest(RunType.Heating, 21f, 5f)
+            new CreateSetPointRequest(RunType.Heating, 21f)
         );
 
         result.IsSuccess.ShouldBeTrue();
@@ -84,7 +84,7 @@ public class CreateSetPointTests
             .Returns(Result.Failure(ValidateThermostatSafetyErrors.DuplicateSetPointType));
 
         var result = await new CreateSetPointHandler(context, cache, validator).HandleAsync(
-            new CreateSetPointRequest(RunType.Heating, 21f, 5f)
+            new CreateSetPointRequest(RunType.Heating, 21f)
         );
 
         result.IsFailure.ShouldBeTrue();

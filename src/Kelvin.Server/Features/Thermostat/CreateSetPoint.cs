@@ -6,7 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Thermostat;
 
-public record CreateSetPointRequest(RunType Type, float TargetTemperatureC, float? ActivationTemperatureC) : IRequest<CreateSetPointResponse>;
+public record CreateSetPointRequest(RunType Type, float TargetTemperatureC) : IRequest<CreateSetPointResponse>;
 
 public record CreateSetPointResponse(Guid Id, RunType Type, float TargetTemperatureC);
 

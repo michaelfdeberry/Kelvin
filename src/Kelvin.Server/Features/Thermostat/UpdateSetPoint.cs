@@ -66,9 +66,9 @@ public class UpdateSetPointEndpoint : IEndpointMapper
   {
     app.MapPut(
         "/api/thermostat/set-points/{id:guid}",
-        async (Guid id, CreateSetPointRequest request, IHandler<UpdateSetPointRequest> handler, CancellationToken ct) =>
+        async (Guid id, UpdateSetPointRequest request, IHandler<UpdateSetPointRequest> handler, CancellationToken ct) =>
         {
-          var result = await handler.HandleAsync(new UpdateSetPointRequest(id, request.Type, request.TargetTemperatureC), ct);
+          var result = await handler.HandleAsync(request, ct);
 
           if (result.IsFailure)
           {

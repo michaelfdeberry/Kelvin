@@ -7,8 +7,6 @@ namespace Kelvin.Server.Data;
 
 public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(options)
 {
-  public const string DatabasePathConfigurationKey = "Database:Path";
-
   public DbSet<Gateway> Gateways => Set<Gateway>();
 
   public DbSet<Sensor> Sensors => Set<Sensor>();
@@ -27,16 +25,12 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
 
   public static string ResolveSqliteConnectionString(IConfiguration configuration)
   {
-    var configuredPath = configuration[DatabasePathConfigurationKey];
-    var expandedPath = string.IsNullOrWhiteSpace(configuredPath) ? null : System.Environment.ExpandEnvironmentVariables(configuredPath);
-    var databasePath = string.IsNullOrWhiteSpace(expandedPath)
-      ? Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "kelvin", "kelvin.db")
-      : expandedPath;
+    var databaseDirectory = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "kelvin");
+    var databasePath = Path.Combine(databaseDirectory, "kelvin.db");
 
-    var directory = Path.GetDirectoryName(databasePath);
-    if (!string.IsNullOrWhiteSpace(directory))
+    if (!string.IsNullOrWhiteSpace(databaseDirectory))
     {
-      Directory.CreateDirectory(directory);
+      Directory.CreateDirectory(databaseDirectory);
     }
 
     return $"Data Source={databasePath}";

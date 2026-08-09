@@ -37,7 +37,8 @@ public class GetLatestReadingsEndpoint : IEndpointMapper
         "/api/sensors/readings/latest",
         async (IHandler<GetLatestReadingsRequest, GetLatestReadingsResponse> handler, CancellationToken ct) =>
         {
-          return Results.Ok(await handler.HandleAsync(new GetLatestReadingsRequest(), ct));
+          var result = await handler.HandleAsync(new GetLatestReadingsRequest(), ct);
+          return Results.Ok(result.Value);
         }
       )
       .WithName("GetLatestReadings")

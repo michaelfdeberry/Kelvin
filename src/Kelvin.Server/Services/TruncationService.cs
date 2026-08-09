@@ -6,7 +6,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Features.Sensors;
 using Microsoft.Extensions.Hosting;
 
-public class TruncationService(ILogger logger, IDispatcher dispatcher) : BackgroundService
+public class TruncationService(ILogger<TruncationService> logger, IDispatcher dispatcher) : BackgroundService
 {
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
@@ -23,7 +23,7 @@ public class TruncationService(ILogger logger, IDispatcher dispatcher) : Backgro
 
       // Any other cleanup tasks can be added here in the future
       // Runs the cleanup every 4 hours
-      await Task.Delay((int)TimeSpan.FromHours(4).TotalMilliseconds, stoppingToken);
+      await Task.Delay(TimeSpan.FromHours(4), stoppingToken);
     }
   }
 }
