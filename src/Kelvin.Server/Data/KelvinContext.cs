@@ -1,6 +1,7 @@
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Microsoft.Extensions.Configuration;
 
 namespace Kelvin.Server.Data;
 
@@ -21,6 +22,19 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
   public DbSet<Schedule> Schedules => Set<Schedule>();
 
   public DbSet<ControlStateChange> ControlStateChanges => Set<ControlStateChange>();
+
+  public static string ResolveSqliteConnectionString(IConfiguration configuration)
+  {
+    var databaseDirectory = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "kelvin");
+    var databasePath = Path.Combine(databaseDirectory, "kelvin.db");
+
+    if (!string.IsNullOrWhiteSpace(databaseDirectory))
+    {
+      Directory.CreateDirectory(databaseDirectory);
+    }
+
+    return $"Data Source={databasePath}";
+  }
 
   protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
   {

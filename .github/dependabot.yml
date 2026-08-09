@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/src/Kelvin.Client'
+    schedule:
+      interval: 'weekly'
+
+  - package-ecosystem: 'nuget'
+    directory: '/src/Kelvin.Server'
+    schedule:
+      interval: 'weekly'
+
+  - package-ecosystem: 'nuget'
+    directory: '/src/Kelvin.Server.Tests'
+    schedule:
+      interval: 'weekly'

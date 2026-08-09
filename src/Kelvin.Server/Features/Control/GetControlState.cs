@@ -82,7 +82,7 @@ public class GetControlStateEndpoint : IEndpointMapper
   }
 }
 
-public class GetControlStateFeatureRegistration : IRegistration
+public class GetControlStateRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

@@ -8,6 +8,7 @@ namespace Kelvin.Server.Features.GeoCoding;
 public record GetCurrentLocationRequest() : IRequest<GetCurrentLocationResponse>;
 
 public record GetCurrentLocationResponse(
+  long Id,
   string Name,
   double Latitude,
   double Longitude,
@@ -64,6 +65,7 @@ public class GetCurrentLocationHandler(
       }
 
       var response = new GetCurrentLocationResponse(
+        Id: location.Id,
         Name: location.Name,
         Latitude: location.Latitude,
         Longitude: location.Longitude,
@@ -98,21 +100,18 @@ public class GetCurrentLocationEndpoint : IEndpointMapper
 {
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
-    app.MapPost(
+    app.MapGet(
         "/api/locations/current",
-        async (GetCurrentLocationRequest request, IHandler<GetCurrentLocationRequest, GetCurrentLocationResponse> handler, CancellationToken ct) =>
+        async (IHandler<GetCurrentLocationRequest, GetCurrentLocationResponse> handler, CancellationToken ct) =>
         {
-          var result = await handler.HandleAsync(request, ct);
+          var result = await handler.HandleAsync(new GetCurrentLocationRequest(), ct);
           if (result.IsFailure)
           {
             if (result.Error == GetCurrentLocationErrors.LocationNotConfigured)
-            {
               return Results.Json(result.Error, statusCode: StatusCodes.Status412PreconditionFailed);
-            }
-            else if (result.Error == GetCurrentLocationErrors.LocationNotFound)
-            {
+
+            if (result.Error == GetCurrentLocationErrors.LocationNotFound)
               return Results.NotFound(result.Error);
-            }
 
             return Results.InternalServerError(result.Error);
           }
@@ -125,7 +124,7 @@ public class GetCurrentLocationEndpoint : IEndpointMapper
   }
 }
 
-public class GetCurrentLocationFeatureRegistration : IRegistration
+public class GetCurrentLocationRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

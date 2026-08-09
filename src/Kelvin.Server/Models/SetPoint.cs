@@ -14,11 +14,6 @@ public class SetPoint : Entity
   /// </summary>
   public float TargetTemperatureC { get; set; }
 
-  /// <summary>
-  /// The location temperature at which the run will be activated.
-  /// </summary>
-  public float? ActivationTemperatureC { get; set; }
-
   public Guid ThermostatId { get; set; }
 
   [ForeignKey("ThermostatId")]

@@ -2,20 +2,26 @@ namespace Kelvin.Server.Services;
 
 using System.Threading;
 using System.Threading.Tasks;
+using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
+using Kelvin.Server.Features.Sensors;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 
 public class SensingService(
   ILogger<SensingService> logger,
   ISensorPacketChannel sensorPacketChannel,
-  IEnvironmentChannel environmentChannel,
+  IEnvironmentReadingsChannel environmentReadingChannel,
+  IHubContext<EnvironmentReadingsHub, IEnvironmentReadingsClient> environmentReadingsHub,
+  IDispatcher dispatcher,
   TimeProvider time
 ) : BackgroundService
 {
   private readonly Guid subscriberId = Guid.NewGuid();
 
-  private Environment? _environment;
+  private EnvironmentReading? _environment;
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
@@ -30,15 +36,26 @@ public class SensingService(
         if (sensorPacket.SensorId is null)
           continue;
 
+        var sensorsResponse = await dispatcher.DispatchAsync<GetSensorsRequest, GetSensorsResponse>(new GetSensorsRequest(), stoppingToken);
+        sensorsResponse.EnsureSuccess();
+
         // just averaging everything for now, this may change later.
         _environment ??= new();
         _environment.Timestamp = time.GetUtcNow();
         _environment.Areas.AddOrUpdate(sensorPacket.SensorId.Value, sensorPacket, (_, _) => sensorPacket);
+
+        var disabledSensors = sensorsResponse.Value!.Sensors.Where(s => !s.Enabled).Select(s => s.Id).ToHashSet();
+        foreach (var disabledSensorId in disabledSensors)
+        {
+          _environment.Areas.TryRemove(disabledSensorId, out _);
+        }
+
         _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
         _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
         _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
 
-        await environmentChannel.WriteAsync(_environment, stoppingToken);
+        await environmentReadingChannel.WriteAsync(_environment, stoppingToken);
+        await environmentReadingsHub.Clients.All.ReadingsUpdated(_environment);
       }
       catch (OperationCanceledException)
       {

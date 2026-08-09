@@ -15,21 +15,33 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     var sensor = await context.Sensors.FirstOrDefaultAsync(s => s.MacAddress == request.SensorPacket.MacAddress, ct);
     if (sensor is null)
     {
-      sensor = new Sensor { MacAddress = request.SensorPacket.MacAddress };
+      sensor = new Sensor { MacAddress = request.SensorPacket.MacAddress, Enabled = true };
       context.Sensors.Add(sensor);
+    }
+
+    // if it was deleted, but starts sending packets again restore it, but leave it disabled.
+    if (sensor.DeletedAt is not null)
+    {
+      sensor.Enabled = false;
+      sensor.DeletedAt = null;
     }
 
     request.SensorPacket.SensorId = sensor.Id;
     context.SensorPackets.Add(request.SensorPacket);
-
     await context.SaveChangesAsync(ct);
-    await sensorPacketChannel.WriteAsync(request.SensorPacket, ct);
+
+    // always save the packet if one comes in because it contains the battery level,
+    // but if it's not enabled don't send it to the channel for processing, because we don't want data from disabled sensors to be processed
+    if (sensor.Enabled)
+    {
+      await sensorPacketChannel.WriteAsync(request.SensorPacket, ct);
+    }
 
     return Result.Success();
   }
 }
 
-public class SaveSensorPacketFeatureRegistration : IRegistration
+public class SaveSensorPacketRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

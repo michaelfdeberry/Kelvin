@@ -86,7 +86,7 @@ public class GetControlHistoryEndpoint : IEndpointMapper
   }
 }
 
-public class GetControlHistoryFeatureRegistration : IRegistration
+public class GetControlHistoryRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

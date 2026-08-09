@@ -8,8 +8,8 @@ public enum TemperatureUnit
 
 public enum TimeFormat
 {
-  Hour12,
   Hour24,
+  Hour12,
 }
 
 public class Preferences : Entity

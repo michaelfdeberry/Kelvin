@@ -22,25 +22,41 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
     if (thermostat is null)
       return Result.Failure(UpdateThermostatErrors.ThermostatNotFound);
 
+    var currentFanState = thermostat.FanEnabled;
     thermostat.Mode = request.Mode;
     thermostat.FanEnabled = request.FanEnabled;
+    await context.SaveChangesAsync(ct);
 
-    var controlContext = new ControlContext(Mode: thermostat.Mode, HysteresisC: thermostat.HysteresisC, Reason: "the thermostat was updated");
+    var controlContext = new ControlContext(
+      State: ControlState.Dwell,
+      Mode: thermostat.Mode,
+      HysteresisC: thermostat.HysteresisC,
+      Reason: "the thermostat was updated"
+    );
 
     if (thermostat.Mode == RunMode.Disabled)
     {
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable, controlContext), ct);
+      await controlChannel.WriteAsync(new ControlMessage(controlContext with { State = ControlState.Disable }), ct);
     }
     else
     {
       // any mode other than Disabled means Kelvin holds control, which is what energizes the control relay
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Enable, controlContext), ct);
+      await controlChannel.WriteAsync(new ControlMessage(controlContext with { State = ControlState.Enable }), ct);
 
       if (thermostat.Mode == RunMode.Off)
-        await controlChannel.WriteAsync(new ControlMessage(ControlState.Dwell, controlContext), ct);
+      {
+        await controlChannel.WriteAsync(new ControlMessage(controlContext with { State = ControlState.Dwell }), ct);
+      }
+
+      if (thermostat.FanEnabled != currentFanState)
+      {
+        await controlChannel.WriteAsync(
+          new ControlMessage(controlContext with { State = thermostat.FanEnabled ? ControlState.FanOn : ControlState.FanOff }),
+          ct
+        );
+      }
     }
 
-    await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
 
     return Result.Success();
@@ -72,7 +88,7 @@ public class UpdateThermostatEndpoint : IEndpointMapper
   }
 }
 
-public class UpdateThermostatFeatureRegistration : IRegistration
+public class UpdateThermostatRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

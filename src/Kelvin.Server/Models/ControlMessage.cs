@@ -40,6 +40,16 @@ public enum ControlState
   /// The system is not running the fan.
   /// </summary>
   FanOff,
+
+  /// <summary>
+  /// The control service started.
+  /// </summary>
+  Startup,
+
+  /// <summary>
+  /// The control service encountered an unrecoverable fault and stopped.
+  /// </summary>
+  Fault,
 }
 
 /// <summary>
@@ -68,6 +78,7 @@ public enum HvacCall
 /// API call has little more than the run mode, while one raised by the thermostat loop carries the full picture.
 /// </remarks>
 public record ControlContext(
+  ControlState State,
   float? EnvironmentTemperatureC = null,
   float? HumidityPercentage = null,
   float? TargetTemperatureC = null,
@@ -80,4 +91,4 @@ public record ControlContext(
   string? Reason = null
 );
 
-public record ControlMessage(ControlState State, ControlContext? Context = null);
+public record ControlMessage(ControlContext Context);

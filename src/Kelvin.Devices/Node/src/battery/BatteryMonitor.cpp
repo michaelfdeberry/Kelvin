@@ -3,21 +3,19 @@
 #include "./BatteryMonitor.h"
 
 const int voltagePin = BATTERY_PIN;
-const float referenceVoltage = BATTERY_REFERENCE_VOLTAGE;
-const int adcResolution = BATTERY_ADC_RESOLUTION;
 const int multiplicationFactor = BATTERY_MULTIPLICATION_FACTOR;
 const float deadVoltage = BATTERY_DEAD_VOLTAGE;
-const fload chargedVoltage = BATTERY_CHARGED_VOLTAGE;
+const float chargedVoltage = BATTERY_CHARGED_VOLTAGE;
 
 void BatteryMonitor::begin()
 {
   pinMode(voltagePin, INPUT);
+  analogSetPinAttenuation(voltagePin, ADC_11db);
 }
 
 float BatteryMonitor::readVoltage()
 {
-  int rawValue = analogRead(voltagePin);
-  return rawValue * (referenceVoltage / (float)adcResolution) * multiplicationFactor;
+  return (analogReadMilliVolts(voltagePin) / 1000.0f) * multiplicationFactor;
 }
 
 float BatteryMonitor::readAverageVoltage(int samples)
@@ -34,5 +32,13 @@ float BatteryMonitor::readAverageVoltage(int samples)
 int BatteryMonitor::getBatteryLevel()
 {
   float voltage = readAverageVoltage(10);
-  return (voltage - deadVoltage) / (chargedVoltage - deadVoltage) * 100;
+  float percentage = (voltage - deadVoltage) / (chargedVoltage - deadVoltage) * 100;
+
+  if (percentage < 0)
+    return 0;
+
+  if (percentage > 100)
+    return 100;
+
+  return (int)percentage;
 }

@@ -7,15 +7,7 @@ namespace Kelvin.Server.Features.Thermostat;
 
 public record GetSchedulesRequest() : IRequest<GetSchedulesResponse>;
 
-public record ScheduleResponse(
-  Guid Id,
-  RunType Type,
-  bool Enabled,
-  TimeOnly StartTime,
-  TimeOnly EndTime,
-  float TargetTemperatureC,
-  float? ActivationTemperatureC
-);
+public record ScheduleResponse(Guid Id, RunType Type, TimeOnly StartTime, TimeOnly EndTime, float TargetTemperatureC);
 
 public record GetSchedulesResponse(IEnumerable<ScheduleResponse> Schedules);
 
@@ -23,19 +15,9 @@ public class GetSchedulesHandler(KelvinContext context) : IHandler<GetSchedulesR
 {
   public async Task<Result<GetSchedulesResponse>> HandleAsync(GetSchedulesRequest request, CancellationToken ct = default)
   {
-    var schedules = await context.Schedules.ToListAsync(ct);
+    var schedules = await context.Schedules.Where(s => s.DeletedAt == null).ToListAsync(ct);
     return Result<GetSchedulesResponse>.Success(
-      new GetSchedulesResponse([
-        .. schedules.Select(s => new ScheduleResponse(
-          s.Id,
-          s.Type,
-          s.Enabled,
-          s.StartTime,
-          s.EndTime,
-          s.TargetTemperatureC,
-          s.ActivationTemperatureC
-        )),
-      ])
+      new GetSchedulesResponse([.. schedules.Select(s => new ScheduleResponse(s.Id, s.Type, s.StartTime, s.EndTime, s.TargetTemperatureC))])
     );
   }
 }
@@ -44,11 +26,11 @@ public class GetSchedulesEndpoint : IEndpointMapper
 {
   public void MapEndpoint(IEndpointRouteBuilder app)
   {
-    app.MapPost(
+    app.MapGet(
         "/api/thermostat/schedules",
-        async (GetSchedulesRequest request, IHandler<GetSchedulesRequest, GetSchedulesResponse> handler, CancellationToken ct) =>
+        async (IHandler<GetSchedulesRequest, GetSchedulesResponse> handler, CancellationToken ct) =>
         {
-          var result = await handler.HandleAsync(request, ct);
+          var result = await handler.HandleAsync(new GetSchedulesRequest(), ct);
 
           if (result.IsFailure)
           {
@@ -63,7 +45,7 @@ public class GetSchedulesEndpoint : IEndpointMapper
   }
 }
 
-public class GetSchedulesFeatureRegistration : IRegistration
+public class GetSchedulesRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

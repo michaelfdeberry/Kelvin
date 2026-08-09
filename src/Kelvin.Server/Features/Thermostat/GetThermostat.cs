@@ -10,7 +10,18 @@ public record GetThermostatRequest() : IRequest<GetThermostatResponse>;
 
 public record GetThermostatResponse(Models.Thermostat Thermostat);
 
-public record GetThermostatResponseDto(Guid Id, RunMode Mode, bool FanEnabled, float HysteresisC);
+public record GetThermostatResponseDto(
+  Guid Id,
+  RunMode Mode,
+  bool FanEnabled,
+  float HysteresisC,
+  float? HeatingLockoutC,
+  float? CoolingLockoutC,
+  float HeatingTriggerC = 0.0f,
+  float HeatingSatisfiedC = 0.0f,
+  float CoolingTriggerC = 0.0f,
+  float CoolingSatisfiedC = 0.0f
+);
 
 public static class ThermostatCache
 {
@@ -30,7 +41,7 @@ public class GetThermostatHandler(KelvinContext context, IMemoryCache cache) : I
     if (cache.TryGetValue(ThermostatCache.Key, out GetThermostatResponse? cachedResponse) && cachedResponse is not null)
       return Result<GetThermostatResponse>.Success(cachedResponse);
 
-    // TODO: this will later be changed to get by id if multiple thermostats are ever supported, but for now we just return the first one
+    // TODO: this will later be changed to get by id if multiple thermostats are ever supported, but for now just return the first one
     var thermostat = await context.Thermostats.Include(t => t.SetPoints).Include(t => t.Schedules).FirstOrDefaultAsync(ct);
     if (thermostat is null)
     {
@@ -72,7 +83,16 @@ public class GetThermostatEndpoint : IEndpointMapper
           }
 
           var thermostat = result.Value!.Thermostat!;
-          return Results.Ok(new GetThermostatResponseDto(thermostat.Id, thermostat.Mode, thermostat.FanEnabled, thermostat.HysteresisC));
+          return Results.Ok(
+            new GetThermostatResponseDto(
+              thermostat.Id,
+              thermostat.Mode,
+              thermostat.FanEnabled,
+              thermostat.HysteresisC,
+              thermostat.HeatingLockoutC,
+              thermostat.CoolingLockoutC
+            )
+          );
         }
       )
       .WithName("GetThermostat")
@@ -80,7 +100,7 @@ public class GetThermostatEndpoint : IEndpointMapper
   }
 }
 
-public class GetThermostatFeatureRegistration : IRegistration
+public class GetThermostatRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

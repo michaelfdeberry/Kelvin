@@ -1,21 +1,16 @@
 {
-  "cSpell.words": [
-    "Adafruit",
-    "Hvac",
-    "Meteo",
-    "Sensirion"
-  ],
+  "cSpell.words": ["Adafruit", "Hvac", "Meteo", "Sensirion", "Shouldly", "signalr", "unconfigured", "urlpattern", "Xunit"],
   "editor.formatOnSave": true,
   "editor.formatOnPaste": true,
   "editor.rulers": [150],
-  "prettier.configPath": "src/Kelvin.Client/prettierrc.json",
+  "prettier.configPath": "src/Kelvin.Client/.prettierrc.json",
   "prettier.singleAttributePerLine": true,
   "editor.tabSize": 2,
   "[typescript]": {
     "editor.codeActionsOnSave": {
       "source.addMissingImports.ts": "explicit",
       "source.fixAll.eslint": "always",
-      "source.organizeImports": "always",
+      "source.organizeImports": "never",
       "source.removeUnusedImports": "always"
     }
   },

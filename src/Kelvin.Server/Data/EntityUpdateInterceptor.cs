@@ -27,7 +27,7 @@ public sealed class EntityUpdateInterceptor(TimeProvider time) : SaveChangesInte
   )
   {
     UpdateEntities(eventData.Context);
-    return new ValueTask<InterceptionResult<int>>(result);
+    return base.SavingChangesAsync(eventData, result, cancellationToken);
   }
 
   private void UpdateEntities(DbContext? context)

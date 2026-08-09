@@ -18,6 +18,8 @@ public static class ThermostatFixtures
     public static Thermostat CreateThermostat(
         RunMode mode = RunMode.Automatic,
         float? hysteresisC = null,
+        float? heatingLockoutC = null,
+        float? coolingLockoutC = null,
         IEnumerable<SetPoint>? setPoints = null,
         IEnumerable<Schedule>? schedules = null
     )
@@ -26,6 +28,8 @@ public static class ThermostatFixtures
         {
             Id = Guid.NewGuid(),
             Mode = mode,
+            HeatingLockoutC = heatingLockoutC,
+            CoolingLockoutC = coolingLockoutC,
             SetPoints = (setPoints ?? []).ToList(),
             Schedules = (schedules ?? []).ToList(),
         };
@@ -38,57 +42,36 @@ public static class ThermostatFixtures
         return thermostat;
     }
 
-    public static SetPoint CreateSetPoint(
-        RunType type,
-        float targetTemperatureC,
-        float? activationTemperatureC = null
-    ) =>
+    public static SetPoint CreateSetPoint(RunType type, float targetTemperatureC) =>
         new()
         {
             Id = Guid.NewGuid(),
             Type = type,
             TargetTemperatureC = targetTemperatureC,
-            ActivationTemperatureC = activationTemperatureC,
         };
 
     public static Schedule CreateSchedule(
         RunType type,
         float targetTemperatureC,
         TimeOnly startTime,
-        TimeOnly endTime,
-        bool enabled = true,
-        float? activationTemperatureC = null
+        TimeOnly endTime
     ) =>
         new()
         {
             Id = Guid.NewGuid(),
             Type = type,
-            Enabled = enabled,
             StartTime = startTime,
             EndTime = endTime,
             TargetTemperatureC = targetTemperatureC,
-            ActivationTemperatureC = activationTemperatureC,
         };
 
     /// <summary>
     /// Builds a schedule window that is guaranteed to be currently active, bracketing <see cref="Now"/>.
     /// </summary>
-    public static Schedule CreateActiveSchedule(
-        RunType type,
-        float targetTemperatureC,
-        bool enabled = true,
-        float? activationTemperatureC = null
-    )
+    public static Schedule CreateActiveSchedule(RunType type, float targetTemperatureC)
     {
         var now = TimeOnly.FromDateTime(Now.DateTime);
-        return CreateSchedule(
-            type,
-            targetTemperatureC,
-            now.AddHours(-1),
-            now.AddHours(1),
-            enabled,
-            activationTemperatureC
-        );
+        return CreateSchedule(type, targetTemperatureC, now.AddHours(-1), now.AddHours(1));
     }
 
     /// <summary>
@@ -99,44 +82,23 @@ public static class ThermostatFixtures
     /// </summary>
     public static Schedule CreateMidnightSpanningActiveSchedule(
         RunType type,
-        float targetTemperatureC,
-        bool enabled = true,
-        float? activationTemperatureC = null
+        float targetTemperatureC
     )
     {
         var now = TimeOnly.FromDateTime(Now.DateTime);
-        return CreateSchedule(
-            type,
-            targetTemperatureC,
-            now.AddMinutes(-30),
-            now.AddMinutes(-31),
-            enabled,
-            activationTemperatureC
-        );
+        return CreateSchedule(type, targetTemperatureC, now.AddMinutes(-30), now.AddMinutes(-31));
     }
 
     /// <summary>
     /// Builds a schedule window that is guaranteed to NOT be currently active (fully in the past relative to now).
     /// </summary>
-    public static Schedule CreateInactiveSchedule(
-        RunType type,
-        float targetTemperatureC,
-        bool enabled = true,
-        float? activationTemperatureC = null
-    )
+    public static Schedule CreateInactiveSchedule(RunType type, float targetTemperatureC)
     {
         var now = TimeOnly.FromDateTime(Now.DateTime);
-        return CreateSchedule(
-            type,
-            targetTemperatureC,
-            now.AddHours(-3),
-            now.AddHours(-2),
-            enabled,
-            activationTemperatureC
-        );
+        return CreateSchedule(type, targetTemperatureC, now.AddHours(-3), now.AddHours(-2));
     }
 
-    public static Kelvin.Server.Models.Environment CreateEnvironment(
+    public static Kelvin.Server.Models.EnvironmentReading CreateEnvironment(
         float temperatureC,
         float humidityPercentage = 0f
     ) =>

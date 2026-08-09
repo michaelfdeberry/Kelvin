@@ -78,7 +78,7 @@ public class GetGatewayEndpoint : IEndpointMapper
   }
 }
 
-public class GetGatewayFeatureRegistration : IRegistration
+public class GetGatewayRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {

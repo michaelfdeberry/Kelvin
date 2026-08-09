@@ -9,9 +9,12 @@
 
 libraries/
 
-## temporarily ignore the client directory until there some real code in there. 
-src/Kelvin.Client/
+node_modules/
+ 
 scripts/
+
+# Client build output, published into the server's wwwroot
+src/Kelvin.Server/wwwroot/
 
 # Build results
 [Dd]ebug/
