@@ -10,8 +10,6 @@
 libraries/
 
 node_modules/
- 
-scripts/
 
 # Client build output, published into the server's wwwroot
 src/Kelvin.Server/wwwroot/

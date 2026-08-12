@@ -1,0 +1,17 @@
+[Unit]
+Description=Kelvin server and gateway service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/kelvin/Kelvin.Server
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5209
+ExecStart=/opt/kelvin/Kelvin.Server/start-server.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

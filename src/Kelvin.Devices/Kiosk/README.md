@@ -25,7 +25,8 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads a supported environment
 2. Install dependencies with `pip install -r requirements.txt`.
 3. Copy `.env.example` to `.env` and update the settings for your Pi.
 4. Run `python -m kelvin_kiosk.main --once` to verify sensor reads and hub submission.
-5. Install the `systemd` unit and Chromium kiosk autostart after local verification.
+5. Run `./scripts/install-pi.sh` on the Pi to install dependencies, copy the `systemd` unit, and enable startup.
+6. Reboot or start the service after local verification.
 
 ## Configuration
 
@@ -36,9 +37,12 @@ The service reads configuration from environment variables or a local `.env` fil
 - `KELVIN_SENSOR_TYPE` one of `dht11`, `sht4x`, `scd4x`, or `mock`
 - `KELVIN_POLL_INTERVAL_SECONDS` read cadence, default `30`
 - `KELVIN_HEARTBEAT_SECONDS` forced send interval, default `300`
+- `KELVIN_FAILURE_BACKOFF_SECONDS` wait time after a failed read or hub send, default `10`
+- `KELVIN_BROWSER_RESTART_SECONDS` minimum delay before relaunching Chromium after exit, default `5`
 - `KELVIN_THRESHOLD_TEMPERATURE_C` default `0.5`
 - `KELVIN_THRESHOLD_HUMIDITY_PERCENT` default `1.0`
 - `KELVIN_THRESHOLD_CO2_PPM` default `75`
+- `KELVIN_LOG_LEVEL` Python log level, default `INFO`
 - `KELVIN_BROWSER_ENABLED` set to `true` to launch Chromium automatically
 - `KELVIN_BROWSER_COMMAND` override the Chromium executable if needed
 - `KELVIN_CHROMIUM_ARGS` optional extra Chromium arguments
@@ -49,3 +53,5 @@ The service reads configuration from environment variables or a local `.env` fil
 - The server must expose the readings hub at `/hubs/readings`.
 - Battery is intentionally sent as `null` for kiosk readings.
 - The included `mock` sensor mode is useful for development without hardware.
+- The kiosk loop retries after sensor and SignalR failures instead of terminating the process.
+- Chromium is relaunched automatically if it exits unexpectedly.

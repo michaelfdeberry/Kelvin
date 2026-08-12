@@ -31,6 +31,7 @@ class ReadingsHubClient:
                 )
                 .build()
             )
+            logging.info("Connecting to SignalR hub at %s", self._hub_url)
             self._connection.start()
 
     def stop(self) -> None:
@@ -41,11 +42,19 @@ class ReadingsHubClient:
             self._connection.stop()
             self._connection = None
 
+    def reset(self) -> None:
+        logging.warning("Resetting SignalR hub connection.")
+        self.stop()
+
     def submit_reading(self, payload: dict[str, object]) -> None:
-        self.start()
+        try:
+            self.start()
 
-        with self._lock:
-            if self._connection is None:
-                raise RuntimeError("SignalR connection was not established.")
+            with self._lock:
+                if self._connection is None:
+                    raise RuntimeError("SignalR connection was not established.")
 
-            self._connection.send("SubmitReading", [payload])
+                self._connection.send("SubmitReading", [payload])
+        except Exception:
+            self.reset()
+            raise
