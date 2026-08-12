@@ -101,7 +101,11 @@ export class SettingsSensors extends LitElement {
     }
   }
 
-  private renderBattery(percentage: number): TemplateResult {
+  private renderBattery(percentage?: number): TemplateResult | typeof nothing {
+    if (percentage === undefined || percentage === null) {
+      return nothing;
+    }
+
     let levelClass = 'battery-pill--high';
     let icon = '🔋';
     if (percentage <= 20) {
@@ -141,12 +145,13 @@ export class SettingsSensors extends LitElement {
           <tbody>
             ${this.sensors.map(sensor => {
               const reading = readingsMap[sensor.id];
+              const batteryLevel = reading?.batteryLevelPercentage ?? null;
               return html`
                 <tr>
                   <td data-label="Sensor">
                     <div class="sensor-info">
                       <span class="sensor-name">${sensor.name}</span>
-                      ${sensor.hasBattery && reading ? this.renderBattery(reading.batteryLevelPercentage) : nothing}
+                      ${sensor.hasBattery && batteryLevel !== null ? this.renderBattery(batteryLevel) : nothing}
                     </div>
                   </td>
                   <td data-label="Capabilities">

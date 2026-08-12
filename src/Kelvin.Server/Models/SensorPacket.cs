@@ -12,7 +12,7 @@ public class SensorPacket : Entity
 
   public ushort CO2LevelPpm { get; set; }
 
-  public float BatteryLevelPercentage { get; set; }
+  public float? BatteryLevelPercentage { get; set; }
 
   public Guid? SensorId { get; set; }
 
@@ -21,6 +21,7 @@ public class SensorPacket : Entity
 
   public override string ToString()
   {
-    return $"MAC={MacAddress}, Temp={TemperatureC:F2}, Humidity={HumidityPercentage:F2}, CO2={CO2LevelPpm}, Battery={BatteryLevelPercentage:F2}";
+    var battery = BatteryLevelPercentage is null ? "n/a" : $"{BatteryLevelPercentage:F2}";
+    return $"MAC={MacAddress}, Temp={TemperatureC:F2}, Humidity={HumidityPercentage:F2}, CO2={CO2LevelPpm}, Battery={battery}";
   }
 }

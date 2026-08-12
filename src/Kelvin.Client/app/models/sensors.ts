@@ -25,7 +25,7 @@ export type SensorReading = {
   temperatureC: number;
   humidityPercentage: number;
   cO2LevelPpm: number;
-  batteryLevelPercentage: number;
+  batteryLevelPercentage?: number;
   createdAt: string;
   updatedAt: string;
 };
