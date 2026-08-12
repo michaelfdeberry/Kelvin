@@ -17,6 +17,21 @@ public record UpdateGatewayRequest(
 public static class UpdateGatewayErrors
 {
   public static readonly Error NotFound = new("UpdateGateway.NotFound", "The gateway hasn't been registered yet. Ensure the gateway is connected.");
+  public static readonly Error InvalidPin = new("UpdateGateway.InvalidPin", "The provided pin is invalid. Ensure the pin is a valid GPIO pin.");
+
+  public static readonly Error MinimumOffDurationTooShort = new(
+    "UpdateGateway.MinimumOffDurationTooShort",
+    "The minimum off duration is too short. Ensure the minimum off duration is at least 3 minutes."
+  );
+  public static readonly Error MinimumOnDurationTooShort = new(
+    "UpdateGateway.MinimumOnDurationTooShort",
+    "The minimum on duration is too short. Ensure the minimum on duration is at least 2 minutes."
+  );
+
+  public static readonly Error OverlappingPins = new(
+    "UpdateGateway.OverlappingPins",
+    "The provided pins overlap. Ensure that each pin is unique and not used for multiple purposes."
+  );
 }
 
 public class UpdateGatewayHandler(KelvinContext context, IMemoryCache cache) : IHandler<UpdateGatewayRequest>
@@ -26,6 +41,20 @@ public class UpdateGatewayHandler(KelvinContext context, IMemoryCache cache) : I
     var gateway = await context.Gateways.FirstOrDefaultAsync(ct);
     if (gateway is null)
       return Result.Failure(UpdateGatewayErrors.NotFound);
+
+    if (request.MinimumOffDurationMinutes.HasValue && request.MinimumOffDurationMinutes.Value < 3)
+      return Result.Failure(UpdateGatewayErrors.MinimumOffDurationTooShort);
+
+    if (request.MinimumOnDurationMinutes.HasValue && request.MinimumOnDurationMinutes.Value < 2)
+      return Result.Failure(UpdateGatewayErrors.MinimumOnDurationTooShort);
+
+    if (
+      new[] { request.HeatingPin, request.FanPin, request.CoolingPin, request.ControlPin }
+        .Where(pin => pin.HasValue)
+        .GroupBy(pin => pin.Value)
+        .Any(group => group.Count() > 1)
+    )
+      return Result.Failure(UpdateGatewayErrors.OverlappingPins);
 
     gateway.HeatingPin = request.HeatingPin;
     gateway.FanPin = request.FanPin;

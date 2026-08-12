@@ -7,6 +7,7 @@ const apiResources = {
   gateways: {
     getGateway: '/api/gateway',
     updateGateway: '/api/gateway',
+    getRelayStates: '/api/gateway/relays/states',
   },
   locations: {
     getCurrentLocation: '/api/locations/current',

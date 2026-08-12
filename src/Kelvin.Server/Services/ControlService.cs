@@ -176,7 +176,11 @@ public class ControlService(
     if (call == HvacCall.Dwell)
     {
       if (_currentCall == HvacCall.Dwell)
+      {
+        //ensure the system is in dwell
+        await TransitionToCall(HvacCall.Dwell, "the requested call is already Dwell");
         return;
+      }
 
       // already waiting to transition to Dwell
       if (_pendingDwellTask is not null)

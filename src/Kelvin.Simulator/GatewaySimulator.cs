@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.IO.Ports;
-using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Channels;
 
 namespace Kelvin.Simulator;
@@ -14,8 +14,14 @@ internal sealed class GatewaySimulator
     private const byte InfoHeaderSecond = 0x56;
     private const int MacLength = 6;
     private const int PayloadLength = 16;
+    private const float DefaultHysteresisC = 0.6f;
+
+    private const float AmbientSlewRateCPerMinute = 0.5f;
+    private const float HeatingAmbientTargetOffsetC = 1.5f;
+    private const float CoolingAmbientTargetOffsetC = -1.5f;
     private static readonly byte[] GatewayMac = [0x02, 0x11, 0x22, 0x33, 0x44, 0x55];
     private static readonly HttpClient HttpClient = new();
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly SimulatorOptions options;
     private readonly SensorFleet sensors;
@@ -25,11 +31,20 @@ internal sealed class GatewaySimulator
     private SimulatorScenario scenario = SimulatorScenario.Auto;
     private GatewayStatus gatewayStatus = new();
     private float baseTemperatureC;
+    private float ambientTemperatureC;
+    private AmbientTrend lastAmbientTrend = AmbientTrend.Neutral;
+    private float lastAmbientTargetC;
+    private string? lastLoggedCallState;
+    private string? lastLoggedMode;
+    private bool? lastLoggedFanOn;
+    private AmbientTrend? lastLoggedTrend;
+    private float? lastLoggedTargetC;
 
     public GatewaySimulator(SimulatorOptions options)
     {
         this.options = options;
         baseTemperatureC = options.BaseTemperatureC;
+        ambientTemperatureC = options.BaseTemperatureC;
         sensors = new SensorFleet(options.SensorCount, baseTemperatureC);
     }
 
@@ -154,47 +169,222 @@ internal sealed class GatewaySimulator
 
         try
         {
-            var thermostat = await HttpClient.GetFromJsonAsync<ThermostatSnapshot>(
-                new Uri(new Uri(options.ServerUrl), "/api/thermostat"),
+            var thermostat = await GetJsonAsync<ThermostatSnapshot>(
+                "/api/thermostat",
                 cancellationToken
             );
-            var control = await HttpClient.GetFromJsonAsync<ControlStateSnapshot>(
-                new Uri(new Uri(options.ServerUrl), "/api/control/state"),
+            var control = await GetJsonAsync<ControlStateSnapshot>(
+                "/api/control/state",
                 cancellationToken
             );
-            gatewayStatus = gatewayStatus with { Thermostat = thermostat, Control = control };
+            // /api/control/state's LastChange can be a newer Fan/Control-kind row with no target/hysteresis,
+            // so the active call's own target/hysteresis is fetched directly from its history axis.
+            var callHistory = await GetJsonAsync<ControlHistoryPageSnapshot>(
+                "/api/control/history?kind=Call&pageSize=1",
+                cancellationToken
+            );
+            gatewayStatus = gatewayStatus with
+            {
+                Thermostat = thermostat,
+                Control = control,
+                CallContext = callHistory?.Items?.FirstOrDefault(),
+            };
         }
-        catch
+        catch (Exception ex)
         {
             // The simulator should keep running even if Kelvin is temporarily offline.
+            LogDebug(
+                DebugLevel.Info,
+                $"RefreshServerStateAsync failed: {ex.GetType().Name}: {ex.Message}"
+            );
         }
+    }
+
+    private async Task<T?> GetJsonAsync<T>(string path, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(new Uri(options.ServerUrl), path);
+        using var response = await HttpClient.GetAsync(uri, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        LogDebug(
+            DebugLevel.Verbose,
+            $"GET {uri} -> {(int)response.StatusCode} {response.StatusCode}\n{body}"
+        );
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return default;
+        }
+
+        return JsonSerializer.Deserialize<T>(body, JsonOptions);
+    }
+
+    private void LogDebug(DebugLevel level, string message)
+    {
+        if (options.Debug < level)
+        {
+            return;
+        }
+
+        Console.WriteLine($"[debug] {message}");
     }
 
     private void ApplyScenario()
     {
-        var activeScenario = scenario == SimulatorScenario.Auto ? ResolveAutoScenario() : scenario;
-
-        sensors.StepAll(baseTemperatureC, activeScenario);
+        var directive = ResolveAmbientDirective();
+        lastAmbientTrend = directive.Trend;
+        lastAmbientTargetC = directive.TargetTemperatureC;
+        LogDirective(directive);
+        // The server averages sensor readings (ambient + each sensor's fixed room offset), so the
+        // shared ambient value must aim short/past the real target by the fleet's average offset
+        // or the call can stall just shy of the threshold forever.
+        var fleetBiasC = sensors.AverageActiveRoomOffsetC;
+        StepAmbientTemperature(directive.TargetTemperatureC - fleetBiasC);
+        sensors.StepAll(ambientTemperatureC);
     }
 
-    private SimulatorScenario ResolveAutoScenario()
+    private void LogDirective(AmbientDirective directive)
     {
+        var callState = gatewayStatus.Control?.CallState;
         var mode = gatewayStatus.Thermostat?.Mode;
+        var fanOn = gatewayStatus.Control?.FanOn;
+        var changed =
+            callState != lastLoggedCallState
+            || mode != lastLoggedMode
+            || fanOn != lastLoggedFanOn
+            || directive.Trend != lastLoggedTrend
+            || directive.TargetTemperatureC != lastLoggedTargetC;
+
+        LogDebug(
+            changed ? DebugLevel.Info : DebugLevel.Verbose,
+            $"callState={callState ?? "unknown"} mode={mode ?? "unknown"} fanOn={fanOn} "
+                + $"trend={directive.Trend} target={directive.TargetTemperatureC:F2}C ambient={ambientTemperatureC:F2}C "
+                + $"fleetBias={sensors.AverageActiveRoomOffsetC:F2}C "
+                + $"callTarget={gatewayStatus.CallContext?.TargetTemperatureC} callHysteresis={gatewayStatus.CallContext?.HysteresisC}"
+        );
+
+        if (changed)
+        {
+            lastLoggedCallState = callState;
+            lastLoggedMode = mode;
+            lastLoggedFanOn = fanOn;
+            lastLoggedTrend = directive.Trend;
+            lastLoggedTargetC = directive.TargetTemperatureC;
+        }
+    }
+
+    private AmbientDirective ResolveAmbientDirective()
+    {
+        if (scenario != SimulatorScenario.Auto)
+        {
+            var trend = scenario switch
+            {
+                SimulatorScenario.Heating => AmbientTrend.Warming,
+                SimulatorScenario.Cooling => AmbientTrend.Cooling,
+                _ => AmbientTrend.Neutral,
+            };
+
+            var target = trend switch
+            {
+                AmbientTrend.Warming => baseTemperatureC + HeatingAmbientTargetOffsetC,
+                AmbientTrend.Cooling => baseTemperatureC + CoolingAmbientTargetOffsetC,
+                _ => baseTemperatureC,
+            };
+
+            return new AmbientDirective(trend, target);
+        }
+
+        return ResolveAutoAmbientDirective();
+    }
+
+    private AmbientDirective ResolveAutoAmbientDirective()
+    {
+        var callState = gatewayStatus.Control?.CallState;
+        var mode = gatewayStatus.Thermostat?.Mode;
+        var targetTemperatureC = gatewayStatus.CallContext?.TargetTemperatureC;
+        var hysteresisC =
+            gatewayStatus.CallContext?.HysteresisC
+            ?? gatewayStatus.Thermostat?.HysteresisC
+            ?? DefaultHysteresisC;
+
+        if (callState is "Heating")
+        {
+            // Drive past the setpoint to the real turn-off threshold, or the call never satisfies.
+            return new AmbientDirective(
+                AmbientTrend.Warming,
+                (targetTemperatureC ?? baseTemperatureC) + hysteresisC
+            );
+        }
+
+        if (callState is "Cooling")
+        {
+            return new AmbientDirective(
+                AmbientTrend.Cooling,
+                (targetTemperatureC ?? baseTemperatureC) - hysteresisC
+            );
+        }
+
         return mode switch
         {
-            "Heating" => SimulatorScenario.Heating,
-            "Cooling" => SimulatorScenario.Cooling,
-            "Off" => SimulatorScenario.Idle,
-            "Disabled" => SimulatorScenario.Idle,
-            _ when gatewayStatus.Control?.CallState is "Heating" => SimulatorScenario.Heating,
-            _ when gatewayStatus.Control?.CallState is "Cooling" => SimulatorScenario.Cooling,
-            _ => SimulatorScenario.Idle,
+            // No active cooling call means the environment should drift warmer again.
+            "Cooling" => new AmbientDirective(
+                AmbientTrend.Warming,
+                (targetTemperatureC ?? baseTemperatureC) + hysteresisC
+            ),
+            // No active heating call means the environment should drift cooler again.
+            "Heating" => new AmbientDirective(
+                AmbientTrend.Cooling,
+                (targetTemperatureC ?? baseTemperatureC) - hysteresisC
+            ),
+            "Off" => new AmbientDirective(
+                AmbientTrend.Neutral,
+                targetTemperatureC ?? baseTemperatureC
+            ),
+            "Disabled" => new AmbientDirective(
+                AmbientTrend.Neutral,
+                targetTemperatureC ?? baseTemperatureC
+            ),
+            _ => new AmbientDirective(AmbientTrend.Neutral, targetTemperatureC ?? baseTemperatureC),
         };
+    }
+
+    private void StepAmbientTemperature(float targetAmbientTemperature)
+    {
+        var maxDeltaThisStep = (float)(AmbientSlewRateCPerMinute * options.Interval.TotalMinutes);
+        if (maxDeltaThisStep <= 0)
+        {
+            return;
+        }
+
+        ambientTemperatureC = MoveTowards(
+            ambientTemperatureC,
+            targetAmbientTemperature,
+            maxDeltaThisStep
+        );
+    }
+
+    private static float MoveTowards(float current, float target, float maxDelta)
+    {
+        if (Math.Abs(target - current) <= maxDelta)
+        {
+            return target;
+        }
+
+        return current + MathF.Sign(target - current) * maxDelta;
+    }
+
+    private sealed record AmbientDirective(AmbientTrend Trend, float TargetTemperatureC);
+
+    private enum AmbientTrend
+    {
+        Neutral,
+        Warming,
+        Cooling,
     }
 
     private void UpdateBaseTemperature(float temperatureC)
     {
         baseTemperatureC = temperatureC;
+        ambientTemperatureC = temperatureC;
         Console.WriteLine(
             $"Base temperature set to {temperatureC.ToString("F1", CultureInfo.InvariantCulture)}C."
         );
@@ -250,8 +440,21 @@ internal sealed class GatewaySimulator
         Console.WriteLine($"Thermostat mode: {gatewayStatus.Thermostat?.Mode ?? "unknown"}");
         Console.WriteLine($"Control call: {gatewayStatus.Control?.CallState ?? "unknown"}");
         Console.WriteLine($"Sensors: {sensors.Count}");
+        Console.WriteLine($"Ambient trend: {lastAmbientTrend}");
+        Console.WriteLine(
+            $"Ambient target: {lastAmbientTargetC.ToString("F1", CultureInfo.InvariantCulture)}C"
+        );
         Console.WriteLine(
             $"Base temperature: {baseTemperatureC.ToString("F1", CultureInfo.InvariantCulture)}C"
+        );
+        Console.WriteLine(
+            $"Ambient temperature: {ambientTemperatureC.ToString("F1", CultureInfo.InvariantCulture)}C"
+        );
+        Console.WriteLine(
+            $"Call target: {gatewayStatus.CallContext?.TargetTemperatureC?.ToString("F1", CultureInfo.InvariantCulture) ?? "unknown"}C"
+        );
+        Console.WriteLine(
+            $"Call hysteresis: {gatewayStatus.CallContext?.HysteresisC?.ToString("F2", CultureInfo.InvariantCulture) ?? "unknown"}C"
         );
     }
 

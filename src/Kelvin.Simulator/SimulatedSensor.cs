@@ -3,6 +3,7 @@ namespace Kelvin.Simulator;
 internal sealed class SimulatedSensor
 {
     private static readonly Random Random = new();
+    private const float InitialRoomOffsetRangeC = 0.6f;
 
     public required int SensorNumber { get; init; }
 
@@ -18,12 +19,16 @@ internal sealed class SimulatedSensor
 
     public required bool Enabled { get; set; }
 
-    private float targetOffsetC;
+    public float RoomOffsetC => roomOffsetC;
+
+    private float roomOffsetC;
 
     public static SimulatedSensor Create(int index, float baseTemp)
     {
         var mac = new byte[] { 0x02, 0xAA, 0x00, 0x00, 0x00, (byte)(0x10 + index) };
-        var temperatureOffset = (float)(Random.NextDouble() * 4.0 - 2.0);
+        var temperatureOffset = (float)(
+            Random.NextDouble() * (InitialRoomOffsetRangeC * 2.0f) - InitialRoomOffsetRangeC
+        );
 
         return new SimulatedSensor
         {
@@ -34,21 +39,13 @@ internal sealed class SimulatedSensor
             CO2LevelPpm = (ushort)(700 + Random.Next(0, 150)),
             BatteryLevelPercentage = 100.0f,
             Enabled = true,
-            targetOffsetC = temperatureOffset,
+            roomOffsetC = temperatureOffset,
         };
     }
 
-    public void Step(float baseTemp, SimulatorScenario scenario)
+    public void Step(float ambientTemperatureC)
     {
-        var drift = (float)(Random.NextDouble() * 0.2 - 0.1);
-        targetOffsetC = scenario switch
-        {
-            SimulatorScenario.Heating => Math.Min(targetOffsetC + 0.03f, 3.0f),
-            SimulatorScenario.Cooling => Math.Max(targetOffsetC - 0.03f, -3.0f),
-            _ => targetOffsetC * 0.98f,
-        };
-
-        TemperatureC = baseTemp + targetOffsetC + drift;
+        TemperatureC = ambientTemperatureC + roomOffsetC;
         HumidityPercentage = Math.Clamp(
             HumidityPercentage + (float)(Random.NextDouble() * 0.3 - 0.15),
             20.0f,

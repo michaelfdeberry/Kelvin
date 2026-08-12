@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Sensors;
 
@@ -10,7 +11,7 @@ public static class UpdateSensorErrors
   public static readonly Error DefaultError = new("UpdateSensor.NotFound", "The requested sensor was not found.");
 }
 
-public class UpdateSensorHandler(KelvinContext context) : IHandler<UpdateSensorRequest>
+public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache) : IHandler<UpdateSensorRequest>
 {
   public async Task<Result> HandleAsync(UpdateSensorRequest request, CancellationToken ct = default)
   {
@@ -26,6 +27,7 @@ public class UpdateSensorHandler(KelvinContext context) : IHandler<UpdateSensorR
     sensor.HasHumiditySensor = request.Update.HasHumiditySensor;
     sensor.HasCO2Sensor = request.Update.HasCO2Sensor;
     await context.SaveChangesAsync(ct);
+    cache.Remove(SensorsCache.Key);
 
     return Result.Success();
   }

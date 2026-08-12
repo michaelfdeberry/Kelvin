@@ -23,7 +23,7 @@ export class SignalRContext extends LitElement {
 
   private sensorReadingsProvider = new ContextProvider(this, {
     context: environmentReadingsContext,
-    initialValue: defaultEnvironmentReadings,
+    initialValue: defaultEnvironmentReadings as EnvironmentReading,
   });
 
   override connectedCallback(): void {

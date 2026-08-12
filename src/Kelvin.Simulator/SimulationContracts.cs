@@ -2,12 +2,24 @@ namespace Kelvin.Simulator;
 
 internal sealed record GatewayStatus(
     ThermostatSnapshot? Thermostat = null,
-    ControlStateSnapshot? Control = null
+    ControlStateSnapshot? Control = null,
+    ControlStateChangeSnapshot? CallContext = null
 );
 
 internal sealed record ThermostatSnapshot(string Mode, bool FanEnabled, float HysteresisC);
 
-internal sealed record ControlStateSnapshot(string ControlState, string CallState, bool FanOn);
+internal sealed record ControlStateSnapshot(
+    string ControlState,
+    string CallState,
+    bool FanOn,
+    ControlStateChangeSnapshot? LastChange
+);
+
+internal sealed record ControlStateChangeSnapshot(float? TargetTemperatureC, float? HysteresisC);
+
+// The /api/control/state LastChange can be a Fan/Control-kind row with no target/hysteresis, so
+// the call's own target/hysteresis is fetched separately via /api/control/history?kind=Call.
+internal sealed record ControlHistoryPageSnapshot(IReadOnlyList<ControlStateChangeSnapshot>? Items);
 
 internal abstract record SimulatorCommand;
 

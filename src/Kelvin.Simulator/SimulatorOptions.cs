@@ -1,12 +1,20 @@
 namespace Kelvin.Simulator;
 
+internal enum DebugLevel
+{
+    None,
+    Info,
+    Verbose,
+}
+
 internal sealed record SimulatorOptions(
     string ServerUrl,
     string PortName,
     int SensorCount,
     float BaseTemperatureC,
     TimeSpan Interval,
-    bool Interactive
+    bool Interactive,
+    DebugLevel Debug
 )
 {
     public static SimulatorOptions Parse(string[] args)
@@ -17,6 +25,7 @@ internal sealed record SimulatorOptions(
         var baseTemperatureC = 21.5f;
         var interval = TimeSpan.FromSeconds(30);
         var interactive = true;
+        var debug = DebugLevel.None;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -64,6 +73,21 @@ internal sealed record SimulatorOptions(
             if (current.Equals("--non-interactive", StringComparison.OrdinalIgnoreCase))
             {
                 interactive = false;
+                continue;
+            }
+
+            if (current.Equals("--debug", StringComparison.OrdinalIgnoreCase))
+            {
+                debug = DebugLevel.Info;
+                continue;
+            }
+
+            if (current.StartsWith("--debug=", StringComparison.OrdinalIgnoreCase))
+            {
+                var levelValue = current["--debug=".Length..];
+                debug = Enum.TryParse<DebugLevel>(levelValue, true, out var parsedLevel)
+                    ? parsedLevel
+                    : DebugLevel.Info;
             }
         }
 
@@ -78,7 +102,8 @@ internal sealed record SimulatorOptions(
             sensorCount,
             baseTemperatureC,
             interval,
-            interactive
+            interactive,
+            debug
         );
     }
 
