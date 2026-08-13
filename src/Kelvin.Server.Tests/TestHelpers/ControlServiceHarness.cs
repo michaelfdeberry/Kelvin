@@ -43,6 +43,7 @@ public sealed class ControlServiceHarness
     private TaskCompletionSource<ControlMessage>? _pendingRead;
     private TaskCompletionSource? _saveObserved;
     private GetLatestControlStateChangeResponse? _latestLifecycle;
+    private GetLatestControlStateChangeResponse? _latestCall;
 
     public IRelayController Relays { get; } = A.Fake<IRelayController>();
 
@@ -77,7 +78,19 @@ public sealed class ControlServiceHarness
             .Invokes(() => _stopApplicationRequested.TrySetResult());
 
         SetRecordingResult(Result.Success());
-        SetLatestLifecycleState(null);
+
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync<
+                    GetLatestControlStateChangeRequest,
+                    GetLatestControlStateChangeResponse?
+                >(A<GetLatestControlStateChangeRequest>._, A<CancellationToken>._)
+            )
+            .ReturnsLazily(
+                (GetLatestControlStateChangeRequest request, CancellationToken _) =>
+                    Result<GetLatestControlStateChangeResponse?>.Success(
+                        request.Kind == ControlChangeKind.Lifecycle ? _latestLifecycle : _latestCall
+                    )
+            );
 
         SetGateway(ControlFixtures.CreateGateway());
         var (hub, clientProxy) = CreateFakeHub();
@@ -101,20 +114,12 @@ public sealed class ControlServiceHarness
             )
             .ReturnsLazily(() => Result<GetGatewayResponse>.Success(gateway));
 
-    public void SetLatestLifecycleState(GetLatestControlStateChangeResponse? latestLifecycle)
-    {
+    public void SetLatestLifecycleState(GetLatestControlStateChangeResponse? latestLifecycle) =>
         _latestLifecycle = latestLifecycle;
 
-        A.CallTo(() =>
-                _dispatcher.DispatchAsync<
-                    GetLatestControlStateChangeRequest,
-                    GetLatestControlStateChangeResponse?
-                >(A<GetLatestControlStateChangeRequest>._, A<CancellationToken>._)
-            )
-            .ReturnsLazily(() =>
-                Result<GetLatestControlStateChangeResponse?>.Success(_latestLifecycle)
-            );
-    }
+    /// <summary>The persisted Call change the service restores its minimum off-time clock from at startup.</summary>
+    public void SetLatestCallState(GetLatestControlStateChangeResponse? latestCall) =>
+        _latestCall = latestCall;
 
     /// <summary>
     /// Captures every state change the service dispatches for recording, and controls what the save reports back.

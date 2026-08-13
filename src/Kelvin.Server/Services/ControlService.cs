@@ -54,6 +54,7 @@ public class ControlService(
   {
     relays.Initialize();
 
+    await RestoreCallClockAsync(cancellationToken);
     await RecordStartupEventAsync(cancellationToken);
     await base.StartAsync(cancellationToken);
 
@@ -506,6 +507,40 @@ public class ControlService(
     }
   }
 
+  /// <summary>
+  /// Seeds the minimum off-time clock from the last persisted call change, so a restart moments after a call ended
+  /// cannot let the guard re-energize the equipment immediately.
+  /// </summary>
+  private async Task RestoreCallClockAsync(CancellationToken cancellationToken)
+  {
+    try
+    {
+      var latest = await GetLatestChangeAsync(ControlChangeKind.Call, cancellationToken);
+      if (latest is null)
+        return;
+
+      if (latest.State == ControlState.Dwell)
+      {
+        _lastCallChangeAt = latest.ChangedAt;
+        return;
+      }
+
+      // The service went down mid-call and Initialize released the relays, so the call effectively ended just now.
+      _lastCallChangeAt = time.GetUtcNow();
+      logger.LogWarning("The service restarted while a {Call} call was active. Measuring the minimum off-time from startup.", latest.State);
+
+      // The restart released the relays with it, so the call timeline must not show the call still running.
+      RecordChange(ControlChangeKind.Call, ControlState.Dwell, latest.State, latest.ChangedAt, "the restart released the call");
+      await FlushChangesAsync(cancellationToken);
+    }
+    catch (Exception ex)
+    {
+      // Without history the safe assumption is that a call ended moments ago; enforce a full minimum off-time.
+      _lastCallChangeAt = time.GetUtcNow();
+      logger.LogError(ex, "Failed to restore the call clock from history. Measuring the minimum off-time from startup.");
+    }
+  }
+
   private async Task RecordStartupEventAsync(CancellationToken cancellationToken)
   {
     try
@@ -540,10 +575,13 @@ public class ControlService(
     }
   }
 
-  private async Task<GetLatestControlStateChangeResponse?> GetLatestLifecycleStateAsync(CancellationToken cancellationToken)
+  private Task<GetLatestControlStateChangeResponse?> GetLatestLifecycleStateAsync(CancellationToken cancellationToken) =>
+    GetLatestChangeAsync(ControlChangeKind.Lifecycle, cancellationToken);
+
+  private async Task<GetLatestControlStateChangeResponse?> GetLatestChangeAsync(ControlChangeKind kind, CancellationToken cancellationToken)
   {
     var result = await dispatcher.DispatchAsync<GetLatestControlStateChangeRequest, GetLatestControlStateChangeResponse?>(
-      new(ControlChangeKind.Lifecycle),
+      new(kind),
       cancellationToken
     );
 

@@ -76,6 +76,83 @@ public class ControlServiceTests
     }
 
     [Fact]
+    public async Task Restart_ShortlyAfterACallEnded_StillEnforcesTheMinimumOffTime()
+    {
+        var harness = new ControlServiceHarness();
+        harness.SetLatestCallState(
+            new GetLatestControlStateChangeResponse(
+                ControlState.Dwell,
+                harness.Time.GetUtcNow().AddMinutes(-1)
+            )
+        );
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        // A restart must not wipe the minimum off-time clock; the compressor stopped only a minute ago.
+        A.CallTo(() => harness.Relays.EnableHeating()).MustNotHaveHappened();
+
+        harness.Time.Advance(MinimumOff - TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Restart_LongAfterACallEnded_DoesNotBlockTheNextCall()
+    {
+        var harness = new ControlServiceHarness();
+        harness.SetLatestCallState(
+            new GetLatestControlStateChangeResponse(
+                ControlState.Dwell,
+                harness.Time.GetUtcNow() - MinimumOff
+            )
+        );
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Restart_WhileACallWasActive_RecordsItsEndAndEnforcesTheMinimumOffTime()
+    {
+        var harness = new ControlServiceHarness();
+        var callStartedAt = harness.Time.GetUtcNow().AddMinutes(-10);
+        harness.SetLatestCallState(
+            new GetLatestControlStateChangeResponse(ControlState.Heating, callStartedAt)
+        );
+
+        await harness.StartAsync(clearRecordedChanges: false);
+
+        // Initialize released the relays, so the interrupted call must be closed out on the timeline.
+        var change = harness.RecordedChanges.Single(c => c.Kind == ControlChangeKind.Call);
+        change.State.ShouldBe(ControlState.Dwell);
+        change.PreviousState.ShouldBe(ControlState.Heating);
+        change.Reason.ShouldBe("the restart released the call");
+
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        // The call effectively ended at startup, so the full minimum off-time applies from there.
+        A.CallTo(() => harness.Relays.EnableHeating()).MustNotHaveHappened();
+
+        harness.Time.Advance(MinimumOff);
+        await harness.PushAsync(new(ControlState.Heating));
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
     public async Task EachMessage_AppliesTheCurrentPinConfiguration()
     {
         var harness = new ControlServiceHarness();
