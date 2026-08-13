@@ -493,10 +493,32 @@ public class ControlServiceTests
         // Switching straight from heating to cooling is the unsafe transition that reverts control.
         await harness.PushAsync(new(ControlState.Cooling));
 
-        var change = harness.RecordedChanges.ShouldHaveSingleItem();
-        change.Kind.ShouldBe(ControlChangeKind.Control);
+        var change = harness.RecordedChanges.Single(c => c.Kind == ControlChangeKind.Control);
         change.State.ShouldBe(ControlState.Disable);
         change.Reason.ShouldBe("an unsafe call transition was requested");
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task RevertingControl_RecordsTheActiveCallEndingWithIt()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+        harness.Time.Advance(MinimumOn);
+        harness.RecordedChanges.Clear();
+
+        // DisableControl releases the heating relay too, so the call timeline must not be left showing it running.
+        await harness.PushAsync(new(ControlState.Disable));
+
+        var change = harness.RecordedChanges.Single(c => c.Kind == ControlChangeKind.Call);
+        change.State.ShouldBe(ControlState.Dwell);
+        change.PreviousState.ShouldBe(ControlState.Heating);
+        change.PreviousStateDurationSeconds.ShouldBe(MinimumOn.TotalSeconds);
+        change.Reason.ShouldBe("the control relay released the call");
 
         await harness.StopAsync();
     }

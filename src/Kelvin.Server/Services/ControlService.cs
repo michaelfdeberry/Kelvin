@@ -33,6 +33,8 @@ public class ControlService(
   private const int DEFAULT_MIN_OFF_DURATION_MINUTES = 5;
   private const int DEFAULT_MIN_ON_DURATION_MINUTES = 3;
 
+  private const int ERROR_BACKOFF_SECONDS = 5;
+
   // State tracking
   private bool _controlEnabled;
   private HvacCall _currentCall = HvacCall.Dwell;
@@ -43,8 +45,8 @@ public class ControlService(
   private CancellationTokenSource? _pendingDwellCts;
   private Task? _pendingDwellTask;
 
-  // Change recording. Records are queued by the state machine and flushed once the actuation is complete, so a
-  // slow or failing database can never delay a relay or take the control loop down with it.
+  // Change recording. Records are queued by the state machine and broadcast/persisted only after the actuation is
+  // complete, so a slow or failing hub or database can never delay a relay or take the control loop down with it.
   private readonly List<ControlStateChange> _pendingChanges = [];
   private ControlContext? _currentContext;
 
@@ -70,11 +72,6 @@ public class ControlService(
       {
         outstandingRead ??= controlChannel.ReadAsync(subscriberId, stoppingToken);
 
-        var gatewayResult = await dispatcher.DispatchAsync<GetGatewayRequest, GetGatewayResponse>(new(), stoppingToken);
-        gatewayResult.EnsureSuccess();
-
-        var gateway = gatewayResult.Value!;
-
         // A scheduled dwell never delays anything else: whichever of the two completes first is dealt with in this
         // iteration, and a message still in flight is picked up by the next one.
         if (_pendingDwellTask is not null && await Task.WhenAny(outstandingRead, _pendingDwellTask) == _pendingDwellTask)
@@ -82,7 +79,7 @@ public class ControlService(
           CancelPendingDwellTransition();
           // The transition is driven by the clock rather than by a message, so there is no producer context.
           _currentContext = null;
-          await TransitionToCall(HvacCall.Dwell, "the minimum on-time elapsed");
+          TransitionToCall(HvacCall.Dwell, "the minimum on-time elapsed");
           await FlushChangesAsync(stoppingToken);
           continue;
         }
@@ -94,15 +91,23 @@ public class ControlService(
         if (controlMessage is null)
           continue;
 
+        // Fetched only once a message has arrived: the read can stay outstanding for hours, and the guards and pin
+        // configuration must reflect the settings as they are now, not as they were when the wait began.
+        var gatewayResult = await dispatcher.DispatchAsync<GetGatewayRequest, GetGatewayResponse>(new(), stoppingToken);
+        gatewayResult.EnsureSuccess();
+
+        var gateway = gatewayResult.Value!;
+
         relays.Configure(gateway);
 
         _currentContext = controlMessage.Context;
-        await Handle(gateway, _currentContext.State);
+        Handle(gateway, _currentContext.State);
         await FlushChangesAsync(stoppingToken);
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
       {
         logger.LogInformation("ControlService is stopping due to cancellation.");
+        break;
       }
       catch (GpioUnavailableException ex)
       {
@@ -115,18 +120,32 @@ public class ControlService(
       catch (Exception ex)
       {
         logger.LogError(ex, "An error occurred in ControlService while processing control commands.");
+        // Keeps a persistent failure (e.g. an unreachable database) from spinning the loop.
+        await BackoffAfterErrorAsync(stoppingToken);
       }
     }
   }
 
+  private async Task BackoffAfterErrorAsync(CancellationToken stoppingToken)
+  {
+    try
+    {
+      await Task.Delay(TimeSpan.FromSeconds(ERROR_BACKOFF_SECONDS), time, stoppingToken);
+    }
+    catch (OperationCanceledException)
+    {
+      // Shutdown during the backoff; the loop condition handles the exit.
+    }
+  }
+
   /// <summary>Routes a requested control state to the relays, applying the hardware safety guards.</summary>
-  private async Task Handle(GetGatewayResponse gateway, ControlState requested)
+  private void Handle(GetGatewayResponse gateway, ControlState requested)
   {
     // Taking control back from the legacy thermostat is the only way out of Disable, so it is handled before the
     // guard below.
     if (requested == ControlState.Enable)
     {
-      await EnableControl();
+      EnableControl();
       return;
     }
 
@@ -134,7 +153,7 @@ public class ControlService(
     // immediately regardless of how long the current call has been running.
     if (requested == ControlState.Disable)
     {
-      await DisableControl(gateway, "Disable was requested");
+      DisableControl(gateway, "Disable was requested");
       return;
     }
 
@@ -149,7 +168,7 @@ public class ControlService(
     // The fan can be toggled independently of the current call and doesn't need to be tracked.
     if (requested is ControlState.FanOn or ControlState.FanOff)
     {
-      await ToggleFan(requested);
+      ToggleFan(requested);
       return;
     }
 
@@ -159,14 +178,14 @@ public class ControlService(
       return;
     }
 
-    await EvaluateCall(gateway, call);
+    EvaluateCall(gateway, call);
   }
 
   /// <summary>
   /// Applies the minimum on/off duration guards to a requested call. Control is known to be enabled here, and
   /// <paramref name="call" /> is the only state the guards apply to.
   /// </summary>
-  private async Task EvaluateCall(GetGatewayResponse gateway, HvacCall call)
+  private void EvaluateCall(GetGatewayResponse gateway, HvacCall call)
   {
     // make sure to use the configured minimum durations, or fall back to defaults if not set
     var minOffDuration = TimeSpan.FromMinutes(gateway.MinimumOffDurationMinutes ?? DEFAULT_MIN_OFF_DURATION_MINUTES);
@@ -198,7 +217,7 @@ public class ControlService(
 
       // No reason is supplied: the requested state is already the whole story, so the producer's explanation of
       // why it asked is the more useful thing to record.
-      await TransitionToCall(HvacCall.Dwell, null);
+      TransitionToCall(HvacCall.Dwell, null);
       return;
     }
 
@@ -218,7 +237,7 @@ public class ControlService(
         return;
       }
 
-      await TransitionToCall(call, null);
+      TransitionToCall(call, null);
     }
     else if (_currentCall == call)
     {
@@ -247,11 +266,11 @@ public class ControlService(
         _currentCall,
         call
       );
-      await DisableControl(gateway, "an unsafe call transition was requested");
+      DisableControl(gateway, "an unsafe call transition was requested");
     }
   }
 
-  private async Task EnableControl()
+  private void EnableControl()
   {
     // Re-asserted on every thermostat cycle, so taking control must not disturb an active call or restart the
     // minimum on/off clocks.
@@ -265,12 +284,12 @@ public class ControlService(
     _currentCall = HvacCall.Dwell;
     relays.EnableControl();
 
-    await RecordChange(ControlChangeKind.Control, ControlState.Enable, ControlState.Disable, _lastControlChangeAt, "control was requested");
+    RecordChange(ControlChangeKind.Control, ControlState.Enable, ControlState.Disable, _lastControlChangeAt, "control was requested");
     _lastControlChangeAt = time.GetUtcNow();
-    await RecordFanReleasedByControlRelay();
+    RecordFanReleasedByControlRelay();
   }
 
-  private async Task DisableControl(GetGatewayResponse gateway, string reason)
+  private void DisableControl(GetGatewayResponse gateway, string reason)
   {
     if (_pendingDwellTask is not null)
     {
@@ -289,32 +308,46 @@ public class ControlService(
         minOnDuration.TotalMinutes
       );
 
+    var previousCall = _currentCall;
+    var previousCallSince = _lastCallChangeAt == DateTimeOffset.MinValue ? (DateTimeOffset?)null : _lastCallChangeAt;
+
     logger.LogInformation("Deactivating HVAC relays, reverting control to Failsafe NC (Legacy Thermostat) because {Reason}.", reason);
     _controlEnabled = false;
     _currentCall = HvacCall.Dwell;
     _lastCallChangeAt = time.GetUtcNow();
     relays.DisableControl();
 
-    await RecordChange(ControlChangeKind.Control, ControlState.Disable, ControlState.Enable, _lastControlChangeAt, reason);
+    RecordChange(ControlChangeKind.Control, ControlState.Disable, ControlState.Enable, _lastControlChangeAt, reason);
     _lastControlChangeAt = time.GetUtcNow();
-    await RecordFanReleasedByControlRelay();
+
+    // The control relay released the active call with it, so the call timeline must not show it still running.
+    if (previousCall != HvacCall.Dwell)
+      RecordChange(
+        ControlChangeKind.Call,
+        ControlState.Dwell,
+        ToControlState(previousCall),
+        previousCallSince,
+        "the control relay released the call"
+      );
+
+    RecordFanReleasedByControlRelay();
   }
 
   /// <summary>
   /// Records the fan going off when taking or handing back control released its relay, so the fan timeline does
   /// not show it still running.
   /// </summary>
-  private async Task RecordFanReleasedByControlRelay()
+  private void RecordFanReleasedByControlRelay()
   {
     if (!_fanOn)
       return;
 
     _fanOn = false;
-    await RecordChange(ControlChangeKind.Fan, ControlState.FanOff, ControlState.FanOn, _lastFanChangeAt, "the control relay released the fan");
+    RecordChange(ControlChangeKind.Fan, ControlState.FanOff, ControlState.FanOn, _lastFanChangeAt, "the control relay released the fan");
     _lastFanChangeAt = time.GetUtcNow();
   }
 
-  private async Task ToggleFan(ControlState requested)
+  private void ToggleFan(ControlState requested)
   {
     var requestedFanOn = requested == ControlState.FanOn;
     if (requestedFanOn == _fanOn)
@@ -332,7 +365,7 @@ public class ControlService(
     }
 
     _fanOn = requestedFanOn;
-    await RecordChange(ControlChangeKind.Fan, requested, requestedFanOn ? ControlState.FanOff : ControlState.FanOn, _lastFanChangeAt, null);
+    RecordChange(ControlChangeKind.Fan, requested, requestedFanOn ? ControlState.FanOff : ControlState.FanOn, _lastFanChangeAt, null);
     _lastFanChangeAt = time.GetUtcNow();
   }
 
@@ -353,7 +386,7 @@ public class ControlService(
     _pendingDwellTask = null;
   }
 
-  private async Task TransitionToCall(HvacCall call, string? reason)
+  private void TransitionToCall(HvacCall call, string? reason)
   {
     var previousCall = _currentCall;
     var previousSince = _lastCallChangeAt == DateTimeOffset.MinValue ? (DateTimeOffset?)null : _lastCallChangeAt;
@@ -377,20 +410,14 @@ public class ControlService(
         break;
     }
 
-    await RecordChange(ControlChangeKind.Call, ToControlState(call), ToControlState(previousCall), previousSince, reason);
+    RecordChange(ControlChangeKind.Call, ToControlState(call), ToControlState(previousCall), previousSince, reason);
   }
 
   /// <summary>
   /// Queues a record of a relay actuation. Called after the relay has moved, so hardware that failed to actuate
   /// leaves no trace of a change that never happened.
   /// </summary>
-  private async Task RecordChange(
-    ControlChangeKind kind,
-    ControlState state,
-    ControlState? previousState,
-    DateTimeOffset? previousSince,
-    string? reason
-  )
+  private void RecordChange(ControlChangeKind kind, ControlState state, ControlState? previousState, DateTimeOffset? previousSince, string? reason)
   {
     // CreatedAt is deliberately left alone; the persistence layer stamps it from the same clock. The duration is
     // measured here instead of being derived from the stored timeline so it stays accurate if a save is delayed.
@@ -412,21 +439,11 @@ public class ControlService(
       SetPointId = _currentContext?.SetPointId,
     };
     _pendingChanges.Add(change);
-
-    try
-    {
-      await hub.Clients.All.ControlStateChanged(ControlStateChangeDto.FromEntity(change));
-    }
-    catch (Exception ex)
-    {
-      // The change is already recorded, so a client that missed the broadcast can still read the current state.
-      logger.LogError(ex, "Failed to broadcast the {Kind} state change to {State}.", change.Kind, change.State);
-    }
   }
 
   /// <summary>
-  /// Persists everything the last actuation queued up. Failures are logged and swallowed: the history is a
-  /// reporting concern and must never stop the equipment from being controlled.
+  /// Broadcasts and persists everything the last actuation queued up. Failures are logged and swallowed: both are
+  /// reporting concerns and must never stop the equipment from being controlled.
   /// </summary>
   private async Task FlushChangesAsync(CancellationToken cancellationToken)
   {
@@ -437,6 +454,16 @@ public class ControlService(
     {
       foreach (var change in _pendingChanges)
       {
+        try
+        {
+          await hub.Clients.All.ControlStateChanged(ControlStateChangeDto.FromEntity(change));
+        }
+        catch (Exception ex)
+        {
+          // The change is still persisted, so a client that missed the broadcast can read the current state.
+          logger.LogError(ex, "Failed to broadcast the {Kind} state change to {State}.", change.Kind, change.State);
+        }
+
         var result = await dispatcher.DispatchAsync(new SaveControlStateChangeRequest(change), cancellationToken);
         if (result.IsFailure)
           logger.LogError("Failed to record the {Kind} state change to {State}: {Error}", change.Kind, change.State, result.Error.Message);
@@ -487,7 +514,7 @@ public class ControlService(
       ControlState? previousState = previous?.State == ControlState.Fault ? ControlState.Fault : null;
       var previousSince = previousState is null ? null : previous?.ChangedAt;
 
-      await RecordChange(ControlChangeKind.Lifecycle, ControlState.Startup, previousState, previousSince, "control service started");
+      RecordChange(ControlChangeKind.Lifecycle, ControlState.Startup, previousState, previousSince, "control service started");
       await FlushChangesAsync(cancellationToken);
     }
     catch (Exception ex)
@@ -504,7 +531,7 @@ public class ControlService(
       ControlState? previousState = previous?.State is ControlState.Startup or ControlState.Fault ? previous.State : null;
       var previousSince = previousState is null ? null : previous?.ChangedAt;
 
-      await RecordChange(ControlChangeKind.Lifecycle, ControlState.Fault, previousState, previousSince, reason);
+      RecordChange(ControlChangeKind.Lifecycle, ControlState.Fault, previousState, previousSince, reason);
       await FlushChangesAsync(cancellationToken);
     }
     catch (Exception ex)
