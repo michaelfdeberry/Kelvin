@@ -59,6 +59,11 @@ public class ControlService(
     await base.StartAsync(cancellationToken);
 
     // TODO: this needs to check the thermostat state and restore the relays to the correct state.
+    // Thinking about this again, this may not need to be done, at least not for heating/cooling.
+    // The thought here is if the conditions for heating/cooling are still met then the system will turn on again as needed.
+    // Enable control will get called for every cycle, so if it's configured to be on it won't need to be restored.
+    // The fan is different, but if the fan doesn't restore I'm not sure if I care about that.
+    // Leaving the todo to validatie these assumptions.
   }
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -257,7 +262,7 @@ public class ControlService(
       //
       // This is being treated as a critical error because it shouldn't be possible to reach this point without a bug in the code.
       // Reverting control because going from heating to cooling may crack the heater core and going from cooling to heating may
-      // damage the AC compressor, which is a safety concern.
+      // damage the AC condenser, which is a safety concern.
       //
       // My current assumptions is that normal thermostats are dumb and the furnace control board is designed to handle this,
       // I wouldn't bet my furnace on it though.
