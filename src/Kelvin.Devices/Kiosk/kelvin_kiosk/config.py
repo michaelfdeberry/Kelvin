@@ -59,8 +59,8 @@ def load_config() -> KioskConfig:
     chromium_args = os.getenv("KELVIN_CHROMIUM_ARGS", "").split()
 
     return KioskConfig(
-        server_url=os.getenv("KELVIN_SERVER_URL", "http://localhost:5194"),
-        ui_url=os.getenv("KELVIN_UI_URL", "http://localhost:5173"),
+        server_url=os.getenv("KELVIN_SERVER_URL", "http://localhost:5209"),
+        ui_url=os.getenv("KELVIN_UI_URL", "http://localhost:5209"),
         sensor_type=os.getenv("KELVIN_SENSOR_TYPE", "mock").strip().lower(),
         poll_interval_seconds=_to_int(os.getenv("KELVIN_POLL_INTERVAL_SECONDS"), 30),
         heartbeat_seconds=_to_int(os.getenv("KELVIN_HEARTBEAT_SECONDS"), 300),

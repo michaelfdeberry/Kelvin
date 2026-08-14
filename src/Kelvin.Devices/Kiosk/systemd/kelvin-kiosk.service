@@ -8,6 +8,8 @@ Type=simple
 User=pi
 WorkingDirectory=/opt/kelvin/Kiosk
 Environment=PYTHONUNBUFFERED=1
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
 ExecStart=/opt/kelvin/Kiosk/scripts/start-kiosk.sh
 Restart=always
 RestartSec=5

@@ -32,7 +32,7 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads a supported environment
 
 The service reads configuration from environment variables or a local `.env` file.
 
-- `KELVIN_SERVER_URL` base URL for the Kelvin server, such as `http://kelvin.local:5194`
+- `KELVIN_SERVER_URL` base URL for the Kelvin server, such as `http://kelvin.local:5209`
 - `KELVIN_UI_URL` fullscreen URL to launch in Chromium
 - `KELVIN_SENSOR_TYPE` one of `dht11`, `sht4x`, `scd4x`, or `mock`
 - `KELVIN_POLL_INTERVAL_SECONDS` read cadence, default `30`

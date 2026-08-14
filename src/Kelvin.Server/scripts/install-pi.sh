@@ -6,6 +6,7 @@ if [[ "${EUID}" -eq 0 ]]; then
   exit 1
 fi
 
+TARGET_USER="$(id -un)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SRC_DIR="$(cd "${PROJECT_DIR}/.." && pwd)"
@@ -69,7 +70,7 @@ sudo mkdir -p "${INSTALL_ROOT}/app"
 sudo cp -R "${PUBLISH_DIR}/." "${INSTALL_ROOT}/app/"
 sudo cp "${PROJECT_DIR}/scripts/start-server.sh" "${INSTALL_ROOT}/start-server.sh"
 sudo chmod +x "${INSTALL_ROOT}/start-server.sh"
-sudo cp "${SERVICE_SOURCE}" "${SERVICE_TARGET}"
+sudo sed "s/^User=.*/User=${TARGET_USER}/" "${SERVICE_SOURCE}" | sudo tee "${SERVICE_TARGET}" >/dev/null
 sudo cp "${NGINX_SOURCE}" "${NGINX_TARGET}"
 sudo ln -sf "${NGINX_TARGET}" "${NGINX_ENABLED_TARGET}"
 if [[ -e "/etc/nginx/sites-enabled/default" ]]; then

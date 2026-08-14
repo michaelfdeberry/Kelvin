@@ -6,6 +6,7 @@ if [[ "${EUID}" -eq 0 ]]; then
   exit 1
 fi
 
+TARGET_USER="$(id -un)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SERVICE_SOURCE="${PROJECT_DIR}/systemd/kelvin-kiosk.service"
@@ -31,7 +32,7 @@ if [[ ! -f ".env" ]]; then
   echo "Created ${PROJECT_DIR}/.env from template. Update it before starting the service."
 fi
 
-sudo cp "${SERVICE_SOURCE}" "${SERVICE_TARGET}"
+sudo sed "s/^User=.*/User=${TARGET_USER}/" "${SERVICE_SOURCE}" | sudo tee "${SERVICE_TARGET}" >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable kelvin-kiosk.service
 
