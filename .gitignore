@@ -10,8 +10,6 @@
 libraries/
 
 node_modules/
- 
-scripts/
 
 # Client build output, published into the server's wwwroot
 src/Kelvin.Server/wwwroot/
@@ -47,6 +45,28 @@ ScaffoldingReadMe.txt
 
 # dotenv environment variables file
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+site/
+.eggs/
+*.egg-info/
 
 # Others
 ~$*

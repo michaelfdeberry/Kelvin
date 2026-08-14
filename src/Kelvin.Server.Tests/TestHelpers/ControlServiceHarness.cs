@@ -22,13 +22,15 @@ namespace Kelvin.Server.Tests.TestHelpers;
 /// <remarks>
 /// The control channel read is deliberately backed by a fresh, not-yet-completed
 /// <see cref="TaskCompletionSource{TResult}"/> per call, paired with a <see cref="SemaphoreSlim"/> that is
-/// released every time the service starts another loop iteration (observed through the gateway dispatch, which
-/// happens once per iteration - the read itself is kept outstanding across iterations). Completing a pending read
-/// via <c>TaskCompletionSource.SetResult</c> does not guarantee that the rest of that loop iteration has finished
-/// running by the time <c>SetResult</c> returns - that is an internal implementation detail of the
-/// TPL/BackgroundService that must not be relied upon. Instead <see cref="PushAsync"/> completes the current
-/// pending read and then waits for the *next* iteration to start, which can only happen once every relay call
-/// belonging to the previous one has already happened.
+/// released every time the service starts a new channel read - which it only does once the previous message's
+/// iteration has fully finished. Completing a pending read via <c>TaskCompletionSource.SetResult</c> does not
+/// guarantee that the rest of that loop iteration has finished running by the time <c>SetResult</c> returns -
+/// that is an internal implementation detail of the TPL/BackgroundService that must not be relied upon. Instead
+/// <see cref="PushAsync"/> completes the current pending read and then waits for the *next* read to start, which
+/// can only happen once every relay call belonging to the previous message has already happened. A scheduled
+/// dwell transition keeps the read outstanding, so <see cref="AdvanceAsync"/> instead waits for the transition's
+/// state change to be dispatched for recording - the last observable act of that iteration, after the relays have
+/// moved.
 /// </remarks>
 public sealed class ControlServiceHarness
 {
@@ -39,7 +41,9 @@ public sealed class ControlServiceHarness
     private readonly SemaphoreSlim _iterationStarted = new(0);
     private readonly TaskCompletionSource _stopApplicationRequested = new();
     private TaskCompletionSource<ControlMessage>? _pendingRead;
+    private TaskCompletionSource? _saveObserved;
     private GetLatestControlStateChangeResponse? _latestLifecycle;
+    private GetLatestControlStateChangeResponse? _latestCall;
 
     public IRelayController Relays { get; } = A.Fake<IRelayController>();
 
@@ -66,6 +70,7 @@ public sealed class ControlServiceHarness
                 var tcs = new TaskCompletionSource<ControlMessage>();
                 _pendingRead = tcs;
                 ReadCount++;
+                _iterationStarted.Release();
                 return tcs.Task;
             });
 
@@ -73,7 +78,19 @@ public sealed class ControlServiceHarness
             .Invokes(() => _stopApplicationRequested.TrySetResult());
 
         SetRecordingResult(Result.Success());
-        SetLatestLifecycleState(null);
+
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync<
+                    GetLatestControlStateChangeRequest,
+                    GetLatestControlStateChangeResponse?
+                >(A<GetLatestControlStateChangeRequest>._, A<CancellationToken>._)
+            )
+            .ReturnsLazily(
+                (GetLatestControlStateChangeRequest request, CancellationToken _) =>
+                    Result<GetLatestControlStateChangeResponse?>.Success(
+                        request.Kind == ControlChangeKind.Lifecycle ? _latestLifecycle : _latestCall
+                    )
+            );
 
         SetGateway(ControlFixtures.CreateGateway());
         var (hub, clientProxy) = CreateFakeHub();
@@ -95,34 +112,21 @@ public sealed class ControlServiceHarness
                     A<CancellationToken>._
                 )
             )
-            .ReturnsLazily(() =>
-            {
-                _iterationStarted.Release();
-                return Result<GetGatewayResponse>.Success(gateway);
-            });
+            .ReturnsLazily(() => Result<GetGatewayResponse>.Success(gateway));
 
-    public void SetLatestLifecycleState(GetLatestControlStateChangeResponse? latestLifecycle)
-    {
+    public void SetLatestLifecycleState(GetLatestControlStateChangeResponse? latestLifecycle) =>
         _latestLifecycle = latestLifecycle;
 
-        A.CallTo(() =>
-                _dispatcher.DispatchAsync<
-                    GetLatestControlStateChangeRequest,
-                    GetLatestControlStateChangeResponse?
-                >(A<GetLatestControlStateChangeRequest>._, A<CancellationToken>._)
-            )
-            .ReturnsLazily(() =>
-                Result<GetLatestControlStateChangeResponse?>.Success(_latestLifecycle)
-            );
-    }
+    /// <summary>The persisted Call change the service restores its minimum off-time clock from at startup.</summary>
+    public void SetLatestCallState(GetLatestControlStateChangeResponse? latestCall) =>
+        _latestCall = latestCall;
 
     /// <summary>
     /// Captures every state change the service dispatches for recording, and controls what the save reports back.
     /// </summary>
     /// <remarks>
-    /// This fake deliberately does NOT release <c>_iterationStarted</c>. That signal has to stay tied to the
-    /// gateway dispatch, which happens exactly once per loop iteration; recording happens a variable number of
-    /// times per message, so keying the harness off it would let assertions run mid-iteration.
+    /// The save is the flush's final act for a change, so <see cref="AdvanceAsync"/> keys off it to observe a
+    /// scheduled dwell transition being applied - the only kind of iteration that never starts a new channel read.
     /// </remarks>
     public void SetRecordingResult(Result result) =>
         A.CallTo(() =>
@@ -135,6 +139,7 @@ public sealed class ControlServiceHarness
                 (SaveControlStateChangeRequest request, CancellationToken _) =>
                 {
                     RecordedChanges.Add(request.Change);
+                    _saveObserved?.TrySetResult();
                     return result;
                 }
             );
@@ -176,13 +181,15 @@ public sealed class ControlServiceHarness
     }
 
     /// <summary>
-    /// Advances the clock, then waits until the service has looped back around into its next iteration - which
-    /// only happens once a scheduled dwell transition that came due has been applied.
+    /// Advances the clock, then waits until the scheduled dwell transition that came due has been applied and
+    /// dispatched for recording.
     /// </summary>
     public async Task AdvanceAsync(TimeSpan delay)
     {
+        _saveObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Time.Advance(delay);
-        await _iterationStarted.WaitAsync();
+        await _saveObserved.Task;
+        _saveObserved = null;
     }
 
     private static (
