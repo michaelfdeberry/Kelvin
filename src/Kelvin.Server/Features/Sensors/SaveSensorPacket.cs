@@ -30,8 +30,8 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     context.SensorPackets.Add(request.SensorPacket);
     await context.SaveChangesAsync(ct);
 
-    // always save the packet if one comes in because it contains the battery level,
-    // but if it's not enabled don't send it to the channel for processing, because we don't want data from disabled sensors to be processed
+    // Always save the packet if one comes in so the latest sensor state is retained,
+    // but if it's not enabled don't send it to the channel for processing, because we don't want data from disabled sensors to be processed.
     if (sensor.Enabled)
     {
       await sensorPacketChannel.WriteAsync(request.SensorPacket, ct);

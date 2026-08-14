@@ -14,14 +14,14 @@ namespace Kelvin.Server.Tests.Features.Sensors;
 /// </summary>
 public class SaveSensorPacketTests
 {
-    private static SensorPacket CreatePacket(string macAddress) =>
+    private static SensorPacket CreatePacket(string macAddress, float? batteryLevelPercentage = 90f) =>
         new()
         {
             MacAddress = macAddress,
             TemperatureC = 21.5f,
             HumidityPercentage = 45f,
             CO2LevelPpm = 600,
-            BatteryLevelPercentage = 90f,
+            BatteryLevelPercentage = batteryLevelPercentage,
         };
 
     [Fact]
@@ -84,6 +84,28 @@ public class SaveSensorPacketTests
         await new SaveSensorPacketHandler(context, channel).HandleAsync(
             new SaveSensorPacketRequest(packet)
         );
+
+        A.CallTo(() => channel.WriteAsync(packet, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task NullBattery_PersistsAndPublishesPacket()
+    {
+        using var harness = new KelvinContextHarness();
+        await using var context = harness.CreateContext();
+        var channel = A.Fake<ISensorPacketChannel>();
+
+        var packet = CreatePacket("aa:bb:cc:dd:ee:ff", null);
+        var result = await new SaveSensorPacketHandler(context, channel).HandleAsync(
+            new SaveSensorPacketRequest(packet)
+        );
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await using var readContext = harness.CreateContext();
+        var savedPacket = readContext.SensorPackets.Single();
+        savedPacket.BatteryLevelPercentage.ShouldBeNull();
 
         A.CallTo(() => channel.WriteAsync(packet, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();

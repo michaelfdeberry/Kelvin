@@ -59,8 +59,6 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
         {
           var result = await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet), stoppingToken);
           result.EnsureSuccess();
-
-          // TODO: response to the client that the packet was saved successfully  and send the users preferences
         }
 
         retryCount = 0;
