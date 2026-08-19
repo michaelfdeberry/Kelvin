@@ -1,4 +1,5 @@
 using System.Device.Gpio;
+using System.Device.Gpio.Drivers;
 using Kelvin.Server.Features.Gateways;
 using Kelvin.Server.Models;
 
@@ -48,7 +49,8 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
 
     try
     {
-      _gpio = new GpioController();
+      int gpioChip = GetRaspberryPiChipNumber();
+      _gpio = new GpioController(new LibGpiodDriver(gpioChip: gpioChip));
     }
     catch (Exception ex)
     {
@@ -198,6 +200,29 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
 
       logger.LogError(ex, "Failed to write {Value} to GPIO pin {Pin} for {PinName}.", value, pinNumber, pinName);
     }
+  }
+
+  private static int GetRaspberryPiChipNumber()
+  {
+    const string ModelFilePath = "/proc/device-tree/model";
+    if (File.Exists(ModelFilePath))
+    {
+      try
+      {
+        string modelText = File.ReadAllText(ModelFilePath).ToLower();
+        if (modelText.Contains("raspberry pi 5"))
+        {
+          return 4;
+        }
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"[WARNING] Failed to read hardware model file: {ex.Message}");
+      }
+    }
+
+    // Default fallback for older architectures
+    return 0;
   }
 
   public void Dispose()
