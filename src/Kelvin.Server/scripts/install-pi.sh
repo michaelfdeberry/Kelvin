@@ -73,9 +73,14 @@ ensure_pnpm() {
 echo "Installing Kelvin.Server dependencies from ${PROJECT_DIR}"
 
 sudo apt-get update
-sudo apt-get install -y curl ca-certificates gnupg sqlite3 nginx 
-# gpiod libgpiod3 libgpiod-dev
+sudo apt-get install -y curl ca-certificates gnupg sqlite3 nginx gpiod libgpiod3 libgpiod-dev
 
+# Grant the target user permissions to access hardware
+echo "Granting ${TARGET_USER} access to serial ports (dialout) and GPIO (gpio)"
+sudo usermod -a -G dialout,gpio "${TARGET_USER}"
+
+# I ran into an issue where my chip number is different than what the libgpiod3 package expects,
+# so I had to install the legacy libgpiod2 package instead. This is a workaround for that issue.
 # 1. Download the legacy package directly from the Debian main pool
 wget http://ftp.debian.org/debian/pool/main/libg/libgpiod/libgpiod2_1.6.3-1+b3_arm64.deb
 
