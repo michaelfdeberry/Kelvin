@@ -31,6 +31,7 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
   // On the appliance it must stay true: a thermostat that logs "Activating Heating Relay" while
   // actuating nothing looks healthy and isn't.
   private const string GpioRequiredConfigurationKey = "Gpio:Required";
+  private const string GpioChipConfigurationKey = "Gpio:Chip";
 
   // The relay board is active low: driving a pin LOW energizes the relay, HIGH releases it.
   private static readonly PinValue RelayOn = PinValue.Low;
@@ -40,16 +41,15 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
   private bool _gpioRequired;
   private GetGatewayResponse? _gateway;
 
-  // keeping the state for mostly local development, will read the pins when running on the gateway.
   private readonly RelayState _state = new();
 
   public void Initialize()
   {
     _gpioRequired = configuration.GetValue(GpioRequiredConfigurationKey, true);
+    var gpioChip = configuration.GetValue(GpioChipConfigurationKey, 0);
 
     try
     {
-      int gpioChip = GetRaspberryPiChipNumber();
       _gpio = new GpioController(new LibGpiodDriver(gpioChip: gpioChip));
     }
     catch (Exception ex)
@@ -200,29 +200,6 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
 
       logger.LogError(ex, "Failed to write {Value} to GPIO pin {Pin} for {PinName}.", value, pinNumber, pinName);
     }
-  }
-
-  private static int GetRaspberryPiChipNumber()
-  {
-    const string ModelFilePath = "/proc/device-tree/model";
-    if (File.Exists(ModelFilePath))
-    {
-      try
-      {
-        string modelText = File.ReadAllText(ModelFilePath).ToLower();
-        if (modelText.Contains("raspberry pi 5"))
-        {
-          return 4;
-        }
-      }
-      catch (Exception ex)
-      {
-        Console.WriteLine($"[WARNING] Failed to read hardware model file: {ex.Message}");
-      }
-    }
-
-    // Default fallback for older architectures
-    return 0;
   }
 
   public void Dispose()
