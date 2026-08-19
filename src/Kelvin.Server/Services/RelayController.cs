@@ -50,7 +50,7 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
 
     try
     {
-      _gpio = new GpioController();
+      _gpio = new GpioController(new LibGpiodDriver(gpioChip: gpioChip));
     }
     catch (Exception ex)
     {

@@ -73,7 +73,17 @@ ensure_pnpm() {
 echo "Installing Kelvin.Server dependencies from ${PROJECT_DIR}"
 
 sudo apt-get update
-sudo apt-get install -y curl ca-certificates gnupg sqlite3 nginx gpiod libgpiod3
+sudo apt-get install -y curl ca-certificates gnupg sqlite3 nginx 
+# gpiod libgpiod3 libgpiod-dev
+
+# 1. Download the legacy package directly from the Debian main pool
+wget http://ftp.debian.org/debian/pool/main/libg/libgpiod/libgpiod2_1.6.3-1+b3_arm64.deb
+
+# 2. Install it on your device
+sudo apt install ./libgpiod2_1.6.3-1+b3_arm64.deb
+
+# 3. Clean up the downloaded file
+rm libgpiod2_1.6.3-1+b3_arm64.deb
 
 ensure_dotnet
 ensure_node
