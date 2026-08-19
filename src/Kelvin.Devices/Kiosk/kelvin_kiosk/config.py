@@ -6,7 +6,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-
 def _to_bool(value: str | None, default: bool) -> bool:
     if value is None:
         return default
@@ -45,7 +44,7 @@ class KioskConfig:
     browser_command: str
     chromium_args: tuple[str, ...]
     mac_interface: str | None
-    dht11_pin: str
+    i2c_port: str
 
     @property
     def hub_url(self) -> str:
@@ -74,5 +73,5 @@ def load_config() -> KioskConfig:
         browser_command=os.getenv("KELVIN_BROWSER_COMMAND", "chromium-browser"),
         chromium_args=tuple(chromium_args),
         mac_interface=os.getenv("KELVIN_MAC_INTERFACE") or None,
-        dht11_pin=os.getenv("KELVIN_DHT11_PIN", "D4"),
+        i2c_port=os.getenv("KELVIN_I2C_PORT", "/dev/i2c-1"),
     )

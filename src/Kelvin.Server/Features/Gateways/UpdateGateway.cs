@@ -1,4 +1,5 @@
 using Kelvin.Server.Application;
+using Kelvin.Server.Channels;
 using Kelvin.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -34,7 +35,7 @@ public static class UpdateGatewayErrors
   );
 }
 
-public class UpdateGatewayHandler(KelvinContext context, IMemoryCache cache) : IHandler<UpdateGatewayRequest>
+public class UpdateGatewayHandler(KelvinContext context, IMemoryCache cache, IControlChannel controlChannel) : IHandler<UpdateGatewayRequest>
 {
   public async Task<Result> HandleAsync(UpdateGatewayRequest request, CancellationToken ct = default)
   {
@@ -42,16 +43,16 @@ public class UpdateGatewayHandler(KelvinContext context, IMemoryCache cache) : I
     if (gateway is null)
       return Result.Failure(UpdateGatewayErrors.NotFound);
 
-    if (request.MinimumOffDurationMinutes.HasValue && request.MinimumOffDurationMinutes.Value < 3)
+    if (request.MinimumOffDurationMinutes is int minOff && minOff < 3)
       return Result.Failure(UpdateGatewayErrors.MinimumOffDurationTooShort);
 
-    if (request.MinimumOnDurationMinutes.HasValue && request.MinimumOnDurationMinutes.Value < 2)
+    if (request.MinimumOnDurationMinutes is int minOn && minOn < 2)
       return Result.Failure(UpdateGatewayErrors.MinimumOnDurationTooShort);
 
     if (
       new[] { request.HeatingPin, request.FanPin, request.CoolingPin, request.ControlPin }
-        .Where(pin => pin.HasValue)
-        .GroupBy(pin => pin.Value)
+        .Where(pin => pin is not null)
+        .GroupBy(pin => pin!.Value)
         .Any(group => group.Count() > 1)
     )
       return Result.Failure(UpdateGatewayErrors.OverlappingPins);

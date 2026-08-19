@@ -1,14 +1,18 @@
 import '../../../shared/toggle/toggle.js';
 
+import { consume } from '@lit/context';
 import { Task } from '@lit/task';
 import { html, LitElement, TemplateResult } from 'lit';
 import { customElement, query } from 'lit/decorators.js';
 
 import settingsGatewayStyles from './settings-gateway.styles';
+import { thermostatContext } from '../../../../contexts/thermostat-context.js';
+import { events } from '../../../../events.js';
 import { Gateway, RelayStates } from '../../../../models/gateway';
+import { Thermostat } from '../../../../models/thermostat.js';
 import { apiGet, apiPut } from '../../../../services/api';
 import apiResources from '../../../../services/api-resources';
-import { dispatchToast } from '../../../../services/utilities.js';
+import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles';
 import { confirmModal } from '../../../shared/modal/modal-utilities.js';
 import { Toggle } from '../../../shared/toggle/toggle.js';
@@ -16,6 +20,9 @@ import { Toggle } from '../../../shared/toggle/toggle.js';
 @customElement('app-settings-gateway')
 export class SettingsGateway extends LitElement {
   static override styles = [sharedStyles, settingsGatewayStyles];
+
+  @consume({ context: thermostatContext, subscribe: true })
+  private thermostat!: Thermostat;
 
   @query('app-toggle')
   private toggle!: Toggle;
@@ -54,12 +61,17 @@ export class SettingsGateway extends LitElement {
   }
 
   private async handleControlChange(): Promise<void> {
+    const updatedThermostatSettings: Thermostat = {
+      ...this.thermostat,
+    };
+
     if (this.toggle.checked) {
       const result = await confirmModal('Enabling the gateway will allow the system to control your HVAC. Are you sure you want to enable it?');
       if (!result) {
         this.toggle.checked = false;
         return;
       }
+      updatedThermostatSettings.mode = 'Off';
     } else {
       const result = await confirmModal(
         `
@@ -67,12 +79,17 @@ export class SettingsGateway extends LitElement {
           Are you sure you want to disable it?
         `,
       );
-
       if (!result) {
         this.toggle.checked = true;
         return;
       }
+      updatedThermostatSettings.mode = 'Disabled';
     }
+
+    await apiPut(apiResources.thermostat.updateThermostat, {
+      body: updatedThermostatSettings,
+    });
+    dispatchCustomEvent(this, events.thermostatUpdated);
   }
 
   private renderGateway(gateway: Gateway & { relayStates: RelayStates }): TemplateResult {

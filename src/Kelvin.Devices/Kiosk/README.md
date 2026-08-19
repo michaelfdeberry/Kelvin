@@ -4,7 +4,7 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads a supported environment
 
 ## Features
 
-- Supports the same sensor families as the Node device: `dht11`, `sht4x`, and `scd4x`
+- Supports the `sht4x` and `scd4x` sensor families shared with the Node device
 - Publishes readings to `EnvironmentReadingsHub.SubmitReading`
 - Uses the Raspberry Pi network MAC address as the device identity
 - Omits battery data for mains-powered kiosk hardware
@@ -18,6 +18,7 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads a supported environment
 - `.env.example` environment configuration template
 - `scripts/start-kiosk.sh` launcher used by `systemd`
 - `systemd/kelvin-kiosk.service` sample service unit
+- `systemd/kelvin-autologin.conf` tty1 kiosk-user auto-login override
 
 ## Setup
 
@@ -25,8 +26,34 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads a supported environment
 2. Install dependencies with `pip install -r requirements.txt`.
 3. Copy `.env.example` to `.env` and update the settings for your Pi.
 4. Run `python -m kelvin_kiosk.main --once` to verify sensor reads and hub submission.
-5. Run `./scripts/install-pi.sh` on the Pi to install dependencies, copy the `systemd` unit, and enable startup.
-6. Reboot or start the service after local verification.
+5. Run `./scripts/install-pi.sh` on Raspberry Pi OS Lite to install dependencies, Chromium, Xorg, Openbox, the sensor service, and the tty1 login configuration.
+6. Reboot the Pi to start the kiosk display session.
+
+The installer configures `getty@tty1` to automatically log in the installing user. That login session runs `startx`
+and Openbox, which launches Chromium from the same user account. This gives Xorg the console session required to
+own `/dev/tty1` without enabling root Xorg access. The background `kelvin-kiosk.service` only sends sensor readings;
+it does not launch Chromium. Leave `/dev/tty1` available for the kiosk.
+
+### Display Verification
+
+After reboot, the X display runs on `:0`. From an SSH shell logged in as the kiosk user, launch the one-shot
+process with its X session variables:
+
+```bash
+DISPLAY=:0 XAUTHORITY="$HOME/.Xauthority" python -m kelvin_kiosk.main --once
+```
+
+`--once` launches Chromium before it reads and submits a sensor sample. It requires a reachable API to finish;
+when the API is unavailable it continues retrying after the browser opens. To test only the display while the API
+is offline, run:
+
+```bash
+DISPLAY=:0 XAUTHORITY="$HOME/.Xauthority" chromium --kiosk "http://192.168.1.50:5209"
+```
+
+Set `KELVIN_SERVER_URL` and `KELVIN_UI_URL` to a resolvable address before starting the service. `kelvin.local`
+only works when the Kelvin server advertises that mDNS name; use its LAN IP address (for example,
+`http://192.168.1.50:5209`) when mDNS is unavailable.
 
 ## Configuration
 
@@ -34,7 +61,7 @@ The service reads configuration from environment variables or a local `.env` fil
 
 - `KELVIN_SERVER_URL` base URL for the Kelvin server, such as `http://kelvin.local:5209`
 - `KELVIN_UI_URL` fullscreen URL to launch in Chromium
-- `KELVIN_SENSOR_TYPE` one of `dht11`, `sht4x`, `scd4x`, or `mock`
+- `KELVIN_SENSOR_TYPE` one of `sht4x`, `scd4x`, or `mock`
 - `KELVIN_POLL_INTERVAL_SECONDS` read cadence, default `30`
 - `KELVIN_HEARTBEAT_SECONDS` forced send interval, default `300`
 - `KELVIN_FAILURE_BACKOFF_SECONDS` wait time after a failed read or hub send, default `10`
@@ -47,6 +74,7 @@ The service reads configuration from environment variables or a local `.env` fil
 - `KELVIN_BROWSER_COMMAND` override the Chromium executable if needed
 - `KELVIN_CHROMIUM_ARGS` optional extra Chromium arguments
 - `KELVIN_MAC_INTERFACE` optional network interface to use for identity
+- `KELVIN_I2C_PORT` I2C device file used by the `sht4x`/`scd4x` sensors, default `/dev/i2c-1`
 
 ## Notes
 

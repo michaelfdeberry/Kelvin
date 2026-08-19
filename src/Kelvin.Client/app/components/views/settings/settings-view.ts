@@ -18,9 +18,9 @@ export class SettingsView extends LitElement {
       <section class="settings-view__panel">
         <h1 class="settings-view__title">Settings</h1>
         <p class="settings-view__description">Manage system preferences and location data.</p>
-        <app-settings-gateway></app-settings-gateway>
         <app-settings-general></app-settings-general>
         <app-settings-location></app-settings-location>
+        <app-settings-gateway></app-settings-gateway>
         <app-settings-sensors></app-settings-sensors>
       </section>
     `;

@@ -69,15 +69,7 @@ public enum HvacCall
   Cooling,
 }
 
-/// <summary>
-/// The conditions that led a producer to request a control state. Purely informational: it never influences what
-/// the control service actuates, it is only carried through so a recorded state change can explain itself.
-/// </summary>
-/// <remarks>
-/// Everything is nullable because a producer only fills in what it actually knows. A control message raised by an
-/// API call has little more than the run mode, while one raised by the thermostat loop carries the full picture.
-/// </remarks>
-public record ControlContext(
+public record ControlMessage(
   ControlState State,
   float? EnvironmentTemperatureC = null,
   float? HumidityPercentage = null,
@@ -90,5 +82,3 @@ public record ControlContext(
   Guid? SetPointId = null,
   string? Reason = null
 );
-
-public record ControlMessage(ControlContext Context);
