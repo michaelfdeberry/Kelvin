@@ -7,8 +7,10 @@ import '../../../components/features/weather/weather-forecast/weather-forecast.j
 
 import { html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
+import { when } from 'lit/directives/when.js';
 
 import dashboardViewStyles from './dashboard-view.styles.js';
+import { isKioskMode } from '../../../services/kiosk.js';
 import sharedStyles from '../../../shared.styles.js';
 
 @customElement('app-dashboard-view')
@@ -21,23 +23,35 @@ export class DashboardView extends LitElement {
   }
 
   override render() {
+    const kiosk = isKioskMode();
+
     return html`
       <div class="dashboard-view__shell">
         <section class="dashboard-view__main">
           <app-weather-forecast></app-weather-forecast>
           <app-thermostat-control></app-thermostat-control>
           <app-sensor-list></app-sensor-list>
-          <a
-            href="/settings"
-            class="dashboard-view__settings-button button button--secondary"
-          >
-            Settings
-          </a>
+          ${when(
+            !kiosk,
+            () => html`
+              <a
+                href="/settings"
+                class="dashboard-view__settings-button button button--secondary"
+              >
+                Settings
+              </a>
+            `,
+          )}
         </section>
 
-        <aside class="dashboard-view__stats">
-          <app-stats-panel></app-stats-panel>
-        </aside>
+        ${when(
+          !kiosk,
+          () => html`
+            <aside class="dashboard-view__stats">
+              <app-stats-panel></app-stats-panel>
+            </aside>
+          `,
+        )}
       </div>
     `;
   }

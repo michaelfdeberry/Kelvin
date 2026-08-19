@@ -58,6 +58,28 @@ body {
   font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
+/* Kiosk: fixed 1280x800 touch panel, no scrolling or text selection. */
+html[kiosk],
+html[kiosk] body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html[kiosk] {
+  font-size: 18px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html[kiosk] body {
+  user-select: none;
+  touch-action: manipulation;
+}
+
+html[kiosk] ::-webkit-scrollbar {
+  display: none;
+}
+
 *,
 :host,
 :host *,

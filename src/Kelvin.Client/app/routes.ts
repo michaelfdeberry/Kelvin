@@ -1,5 +1,7 @@
 import { html, HTMLTemplateResult } from 'lit';
 
+import { isKioskMode } from './services/kiosk.js';
+
 export type RouteParams = Record<string, string | undefined>;
 
 export type Route = {
@@ -26,6 +28,8 @@ export const routes: Route[] = [
       await import('./components/views/analytics/analytics-view.js');
       return html`<app-analytics-view></app-analytics-view>`;
     },
+    guard: () => !isKioskMode(),
+    redirectTo: '/',
   },
   {
     name: 'settings',
@@ -34,6 +38,8 @@ export const routes: Route[] = [
       await import('./components/views/settings/settings-view.js');
       return html`<app-settings-view></app-settings-view>`;
     },
+    guard: () => !isKioskMode(),
+    redirectTo: '/',
   },
   {
     name: 'not-found',

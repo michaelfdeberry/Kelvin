@@ -40,6 +40,10 @@ const dashboardViewStyles = css`
     overflow-y: auto;
   }
 
+  :host-context([kiosk]) .dashboard-view__shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   @media (max-width: 1024px) {
     .dashboard-view__shell {
       grid-template-columns: 1fr;

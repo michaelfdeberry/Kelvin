@@ -73,7 +73,7 @@ The service reads configuration from environment variables or a local `.env` fil
 - `KELVIN_BROWSER_ENABLED` set to `true` to launch Chromium automatically
 - `KELVIN_BROWSER_COMMAND` override the Chromium executable if needed
 - `KELVIN_CHROMIUM_ARGS` optional extra Chromium arguments
-- `KELVIN_MAC_INTERFACE` optional network interface to use for identity
+- `KELVIN_MAC_INTERFACE` optional network interface to use for identity and the kiosk UI URL
 - `KELVIN_I2C_PORT` I2C device file used by the `sht4x`/`scd4x` sensors, default `/dev/i2c-1`
 
 ## Notes
@@ -83,3 +83,6 @@ The service reads configuration from environment variables or a local `.env` fil
 - The included `mock` sensor mode is useful for development without hardware.
 - The kiosk loop retries after sensor and SignalR failures instead of terminating the process.
 - Chromium is relaunched automatically if it exits unexpectedly.
+- Chromium is launched with `?mac=<address>` appended to the UI URL. The Kelvin client uses that to enter
+  kiosk mode: it shows only the sensor with a matching MAC address, hides the sidebar and analytics, and
+  applies a layout tuned for the 1280x800 panel.

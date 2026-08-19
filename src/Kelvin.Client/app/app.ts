@@ -7,6 +7,7 @@ import './signalr/signalr-context.js';
 import { ContextProvider } from '@lit/context';
 import { html, LitElement, nothing, TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { when } from 'lit/directives/when.js';
 
 import appShellStyles from './app.styles.js';
 import './components/layout/app-sidebar/app-sidebar.js';
@@ -26,6 +27,7 @@ import './router.js';
 import { SchedulesResponse, SetPointsResponse, Thermostat } from './models/thermostat.js';
 import resources from './services/api-resources.js';
 import { apiGet, apiPut } from './services/api.js';
+import { isKioskMode } from './services/kiosk.js';
 import { dispatchToast } from './services/utilities.js';
 import sharedStyles from './shared.styles.js';
 
@@ -183,7 +185,7 @@ export class KelvinApp extends LitElement {
       <signalr-context>
         ${this.renderBanner()}
         <div class="app-shell__shell">
-          <app-sidebar></app-sidebar>
+          ${when(!isKioskMode(), () => html`<app-sidebar></app-sidebar>`)}
           <main class="app-shell__main">
             <app-router></app-router>
           </main>
