@@ -306,9 +306,9 @@ public class ThermostatServiceTests
 
         harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Heating]);
         var heating = harness.WrittenMessages.Single(message =>
-            message.Context.State == ControlState.Heating
+            message.State == ControlState.Heating
         );
-        var context = heating.Context.ShouldNotBeNull();
+        var context = heating.ShouldNotBeNull();
         context.TargetTemperatureC.ShouldBe(18f);
         context.ScheduleId.ShouldBe(schedule.Id);
         context.SetPointId.ShouldBeNull();
@@ -791,9 +791,9 @@ public class ThermostatServiceTests
         );
 
         var heating = harness.WrittenMessages.Single(message =>
-            message.Context.State == ControlState.Heating
+            message.State == ControlState.Heating
         );
-        var context = heating.Context.ShouldNotBeNull();
+        var context = heating.ShouldNotBeNull();
         context.EnvironmentTemperatureC.ShouldBe(19.0f);
         context.HumidityPercentage.ShouldBe(42.0f);
         context.TargetTemperatureC.ShouldBe(20f);
@@ -827,13 +827,13 @@ public class ThermostatServiceTests
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(25.0f));
 
         var cooling = harness.WrittenMessages.Single(message =>
-            message.Context.State == ControlState.Cooling
+            message.State == ControlState.Cooling
         );
-        var context = cooling.Context.ShouldNotBeNull();
+        cooling.ShouldNotBeNull();
         // The schedule outranks the set point, so it is the schedule that has to be credited for the call.
-        context.TargetTemperatureC.ShouldBe(24f);
-        context.ScheduleId.ShouldBe(schedule.Id);
-        context.SetPointId.ShouldBeNull();
+        cooling.TargetTemperatureC.ShouldBe(24f);
+        cooling.ScheduleId.ShouldBe(schedule.Id);
+        cooling.SetPointId.ShouldBeNull();
 
         await harness.StopAsync();
     }
@@ -847,10 +847,8 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        var dwell = harness.WrittenMessages.Single(message =>
-            message.Context.State == ControlState.Dwell
-        );
-        dwell.Context.ShouldNotBeNull().Reason.ShouldBe("the thermostat mode is Off");
+        var dwell = harness.WrittenMessages.Single(message => message.State == ControlState.Dwell);
+        dwell.ShouldNotBeNull().Reason.ShouldBe("the thermostat mode is Off");
 
         await harness.StopAsync();
     }
@@ -873,9 +871,9 @@ public class ThermostatServiceTests
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(19.0f));
 
         var heating = harness.WrittenMessages.Single(message =>
-            message.Context.State == ControlState.Heating
+            message.State == ControlState.Heating
         );
-        heating.Context.ShouldNotBeNull().ForecastTemperatureC.ShouldBe(3);
+        heating.ShouldNotBeNull().ForecastTemperatureC.ShouldBe(3);
 
         await harness.StopAsync();
     }

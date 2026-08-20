@@ -1,5 +1,4 @@
 using Kelvin.Server.Application;
-using Kelvin.Server.Channels;
 using Kelvin.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -35,7 +34,7 @@ public static class UpdateGatewayErrors
   );
 }
 
-public class UpdateGatewayHandler(KelvinContext context, IMemoryCache cache, IControlChannel controlChannel) : IHandler<UpdateGatewayRequest>
+public class UpdateGatewayHandler(KelvinContext context, IMemoryCache cache) : IHandler<UpdateGatewayRequest>
 {
   public async Task<Result> HandleAsync(UpdateGatewayRequest request, CancellationToken ct = default)
   {
