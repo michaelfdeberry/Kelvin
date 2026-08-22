@@ -184,6 +184,10 @@ const thermostatControlStyles = css`
       flex: 1;
     }
 
+    .thermostat__controls {
+      margin-top: 2rem;
+    }
+
     .thermostat__button {
       width: 140px;
       height: 60px;
