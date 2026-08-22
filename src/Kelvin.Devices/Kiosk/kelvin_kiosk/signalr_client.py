@@ -4,6 +4,7 @@ import logging
 from threading import Lock
 
 from signalrcore.hub_connection_builder import HubConnectionBuilder
+from signalrcore.types import HttpTransportType
 
 
 class ReadingsHubClient:
@@ -19,7 +20,11 @@ class ReadingsHubClient:
 
             self._connection = (
                 HubConnectionBuilder()
-                .with_url(self._hub_url)
+                # signalrcore's hand-rolled WebSocket client corrupts frame parsing when the
+                # HTTP 101 response and first frame arrive in the same TCP read (common over
+                # a local reverse proxy), surfacing as UnicodeDecodeError - long polling avoids
+                # that raw frame parser entirely.
+                .with_url(self._hub_url, options={"transport": HttpTransportType.long_polling})
                 .configure_logging(logging.WARNING)
                 .with_automatic_reconnect(
                     {
