@@ -95,8 +95,9 @@ export class ThermostatEditor extends LitElement {
               id="forecast-lockout-tab"
               slot="tab"
             >
-              Forecast</button
-            ><button
+              Forecast
+            </button>
+            <button
               id="heating-schedules-tab"
               slot="tab"
               ?hidden=${!this.isHeatingAvailable}
@@ -113,31 +114,37 @@ export class ThermostatEditor extends LitElement {
             <app-thermostat-editor-set-points
               id="set-points-panel"
               slot="panel"
-            ></app-thermostat-editor-set-points>
+            >
+            </app-thermostat-editor-set-points>
             <app-thermostat-editor-forecast
               id="forecast-lockout-panel"
               slot="panel"
-            ></app-thermostat-editor-forecast>
-            ${when(
-              this.isHeatingAvailable,
-              () => html`
-                <app-thermostat-editor-schedules
-                  id="heating-schedules-panel"
-                  slot="panel"
-                  .runType=${'Heating'}
-                ></app-thermostat-editor-schedules>
-              `,
-            )}
-            ${when(
-              this.isCoolingAvailable,
-              () => html`
-                <app-thermostat-editor-schedules
-                  id="cooling-schedules-panel"
-                  slot="panel"
-                  .runType=${'Cooling'}
-                ></app-thermostat-editor-schedules>
-              `,
-            )}
+            >
+            </app-thermostat-editor-forecast>
+            <div slot="panel">
+              ${when(
+                this.isHeatingAvailable,
+                () => html`
+                  <app-thermostat-editor-schedules
+                    id="heating-schedules-panel"
+                    .runType=${'Heating'}
+                  >
+                  </app-thermostat-editor-schedules>
+                `,
+              )}
+            </div>
+            <div slot="panel">
+              ${when(
+                this.isCoolingAvailable,
+                () => html`
+                  <app-thermostat-editor-schedules
+                    id="cooling-schedules-panel"
+                    .runType=${'Cooling'}
+                  >
+                  </app-thermostat-editor-schedules>
+                `,
+              )}
+            </div>
           </app-tabs>
         </form>
         <button

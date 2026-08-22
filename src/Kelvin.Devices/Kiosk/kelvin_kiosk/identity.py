@@ -9,12 +9,15 @@ def _format_mac(mac_value: int) -> str:
 
 
 def get_mac_address(interface_name: str | None = None) -> str:
-    if interface_name:
+    # Mirror start-browser.sh's fallback order so the reported MAC always matches the ?mac= on the kiosk URL.
+    for interface in (interface_name, "wlan0"):
+        if not interface:
+            continue
         try:
-            with open(f"/sys/class/net/{interface_name}/address", "r", encoding="utf-8") as handle:
+            with open(f"/sys/class/net/{interface}/address", "r", encoding="utf-8") as handle:
                 return handle.read().strip().lower()
         except OSError:
-            pass
+            continue
 
     mac_value = uuid.getnode()
     if (mac_value >> 40) % 2:

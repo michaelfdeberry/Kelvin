@@ -11,4 +11,8 @@ export default css`
     color: var(--text-muted);
     font-size: 0.95rem;
   }
+  .thermostat-editor-set-points__slider {
+    display: block;
+    margin-top: 1.25rem;
+  }
 `;

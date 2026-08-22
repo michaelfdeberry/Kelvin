@@ -733,7 +733,7 @@ public class ControlServiceTests
     {
         var harness = new ControlServiceHarness();
         var scheduleId = Guid.NewGuid();
-        var context = new ControlContext(
+        var context = new ControlMessage(
             State: ControlState.Heating,
             EnvironmentTemperatureC: 18.5f,
             HumidityPercentage: 41.0f,

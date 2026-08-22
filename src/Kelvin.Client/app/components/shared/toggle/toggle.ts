@@ -7,7 +7,7 @@ import toggleStyles from './toggle.styles';
 import sharedStyles from '../../../shared.styles';
 
 @customElement('app-toggle')
-export class AppToggle extends LitElement {
+export class Toggle extends LitElement {
   static override styles = [sharedStyles, toggleStyles];
   static readonly formAssociated = true;
 
