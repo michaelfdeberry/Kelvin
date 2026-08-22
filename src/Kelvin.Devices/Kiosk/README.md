@@ -79,15 +79,12 @@ The service reads configuration from environment variables or a local `.env` fil
 - `KELVIN_MAC_INTERFACE` optional network interface to use for identity and the kiosk UI URL
 - `KELVIN_I2C_PORT` I2C device file used by the `scd4x` sensor, default `/dev/i2c-1`
 
-## Notes
+## Troubleshooting
 
-- The server must expose the readings hub at `/hubs/readings`.
-- Battery is intentionally sent as `null` for kiosk readings.
-- The kiosk loop retries after sensor and HTTP failures instead of terminating the process.
-- `kelvin-kiosk-display.service` restarts automatically (`Restart=always`) if `cage` or Chromium exits.
-- Chromium is launched with `?mac=<address>` appended to the UI URL. The Kelvin client uses that to enter
-  kiosk mode: it shows only the sensor with a matching MAC address, hides the sidebar and analytics, and
-  applies a layout tuned for the 1280x800 panel.
-- `start-browser.sh` wipes `/tmp/kelvin-chromium-cache` before every Chromium launch and caps its disk/media
-  cache size, so a redeployed client build always shows up after a restart or reboot instead of a stale
-  cached page.
+Remote debugging can be enabled for the kiosk browser by adding `--remote-debugging-port=9222` to the `KELVIN_CHROMIUM_ARGS`.
+
+To get information about the site you can use curl from the ssh commandline.
+
+```
+curl -s http://localhost:9222/json
+```

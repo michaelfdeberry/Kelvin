@@ -48,5 +48,9 @@ if [[ "${mac_address}" =~ ^[0-9a-f]{12}$ ]]; then
   fi
 fi
 
+# make sure the cursor is hidden 
+XCURSOR_PATH=/dev/null 
+XCURSOR_THEME=none
+
 # cage relaunches this script (via the display service's systemd Restart=) whenever Chromium exits.
 exec "${browser_command}" "${chromium_args[@]}" "${ui_url}"
