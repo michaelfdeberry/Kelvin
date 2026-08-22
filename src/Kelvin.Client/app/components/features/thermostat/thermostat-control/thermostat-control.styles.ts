@@ -79,6 +79,20 @@ const thermostatControlStyles = css`
     flex: 1;
   }
 
+  :host-context([kiosk]) .thermostat__dial {
+    width: 370px;
+    height: 370px;
+  }
+
+  :host-context([kiosk]) .thermostat__dial-inner {
+    width: 320px;
+    height: 320px;
+  }
+
+  :host-context([kiosk]) .thermostat__current-temp {
+    font-size: 4.5rem;
+  }
+
   .thermostat__target-temp,
   .thermostat__status {
     height: 30px;

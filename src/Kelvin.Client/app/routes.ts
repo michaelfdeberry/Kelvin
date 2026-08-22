@@ -17,6 +17,11 @@ export const routes: Route[] = [
     name: 'home',
     pattern: new URLPattern({ pathname: '/' }),
     render: async () => {
+      if (isKioskMode()) {
+        await import('./components/views/kiosk/kiosk-view.js');
+        return html`<app-kiosk-view></app-kiosk-view>`;
+      }
+
       await import('./components/views/dashboard/dashboard-view.js');
       return html`<app-dashboard-view></app-dashboard-view>`;
     },
