@@ -22,6 +22,12 @@ browser_command="${KELVIN_BROWSER_COMMAND:-chromium}"
 ui_url="${KELVIN_UI_URL:-http://localhost:5209}"
 read -r -a chromium_args <<< "${KELVIN_CHROMIUM_ARGS:---kiosk --incognito --noerrdialogs --disable-session-crashed-bubble --disable-infobars --ozone-platform=wayland}"
 
+# Wipe any leftover disk cache before every launch so a redeployed client build is never served stale on restart/reboot.
+cache_dir="/tmp/kelvin-chromium-cache"
+rm -rf "${cache_dir}"
+mkdir -p "${cache_dir}"
+chromium_args+=(--disk-cache-dir="${cache_dir}" --disk-cache-size=1 --media-cache-size=1)
+
 resolve_mac_address() {
   local interface
   for interface in "${KELVIN_MAC_INTERFACE:-}" eth0 wlan0; do

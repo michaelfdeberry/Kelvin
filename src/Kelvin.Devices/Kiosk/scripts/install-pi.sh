@@ -40,6 +40,9 @@ if [[ ! -f ".env" ]]; then
   echo "Created ${PROJECT_DIR}/.env from template. Update it before starting the service."
 fi
 
+# Clear any Chromium profile/cache left over from an earlier manual run or install, so the kiosk starts clean.
+rm -rf "${HOME}/.cache/chromium" "${HOME}/.config/chromium" /tmp/kelvin-chromium-cache
+
 sudo sed \
   -e "s/^User=.*/User=${TARGET_USER}/" \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=${PROJECT_DIR}|" \

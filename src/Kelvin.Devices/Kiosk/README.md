@@ -88,3 +88,6 @@ The service reads configuration from environment variables or a local `.env` fil
 - Chromium is launched with `?mac=<address>` appended to the UI URL. The Kelvin client uses that to enter
   kiosk mode: it shows only the sensor with a matching MAC address, hides the sidebar and analytics, and
   applies a layout tuned for the 1280x800 panel.
+- `start-browser.sh` wipes `/tmp/kelvin-chromium-cache` before every Chromium launch and caps its disk/media
+  cache size, so a redeployed client build always shows up after a restart or reboot instead of a stale
+  cached page.
