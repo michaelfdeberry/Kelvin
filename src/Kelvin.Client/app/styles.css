@@ -68,6 +68,7 @@ html[kiosk] body {
 
 html[kiosk] {
   font-size: 18px;
+  cursor: none;
   -webkit-tap-highlight-color: transparent;
 }
 
