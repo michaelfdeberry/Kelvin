@@ -20,7 +20,7 @@ esac
 
 browser_command="${KELVIN_BROWSER_COMMAND:-chromium}"
 ui_url="${KELVIN_UI_URL:-http://localhost:5209}"
-read -r -a chromium_args <<< "${KELVIN_CHROMIUM_ARGS:---kiosk --incognito --noerrdialogs --disable-session-crashed-bubble --disable-infobars}"
+read -r -a chromium_args <<< "${KELVIN_CHROMIUM_ARGS:---kiosk --incognito --noerrdialogs --disable-session-crashed-bubble --disable-infobars --ozone-platform=wayland}"
 
 resolve_mac_address() {
   local interface
@@ -42,7 +42,5 @@ if [[ "${mac_address}" =~ ^[0-9a-f]{12}$ ]]; then
   fi
 fi
 
-while true; do
-  "${browser_command}" "${chromium_args[@]}" "${ui_url}"
-  sleep 5
-done
+# cage relaunches this script (via the display service's systemd Restart=) whenever Chromium exits.
+exec "${browser_command}" "${chromium_args[@]}" "${ui_url}"

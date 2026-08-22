@@ -8,7 +8,7 @@ Type=simple
 User=pi
 WorkingDirectory=/opt/kelvin/Kiosk
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/kelvin/Kiosk/scripts/start-kiosk.sh --skip-browser
+ExecStart=/opt/kelvin/Kiosk/scripts/start-kiosk.sh
 Restart=always
 RestartSec=5
 

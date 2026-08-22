@@ -1,4 +1,0 @@
-#!/bin/sh
-
-PROJECT_DIR="KELVIN_PROJECT_DIR"
-"${PROJECT_DIR}/scripts/start-browser.sh" &

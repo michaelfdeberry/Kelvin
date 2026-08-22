@@ -6,12 +6,11 @@ from sensirion_driver_adapters.i2c_adapter.i2c_channel import I2cChannel
 from sensirion_i2c_driver import CrcCalculator, I2cConnection, LinuxI2cTransceiver
 from sensirion_i2c_scd4x.device import Scd4xDevice
 
-from ..models import SensorReading
-from .base import SensorReader
+from .models import SensorReading
 
 _I2C_ADDRESS = 0x62
 
-class Scd4xSensorReader(SensorReader):
+class Scd4xSensorReader:
     def __init__(self, i2c_port: str) -> None:
         self._transceiver = LinuxI2cTransceiver(i2c_port)
         channel = I2cChannel(
