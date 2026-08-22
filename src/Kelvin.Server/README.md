@@ -34,10 +34,9 @@ For existing databases created before migrations were enabled, startup performs 
 
 From `src/Kelvin.Server` on the gateway Raspberry Pi:
 
-```bash
-chmod +x scripts/install-pi.sh scripts/start-server.sh
-./scripts/install-pi.sh
-```
+1. On the Raspberry Pi (running Raspberry Pi OS Lite), clone the repo:
+   `git clone https://github.com/michaelfdeberry/Kelvin.git`
+2. `cd Kelvin/src/Kelvin.Server` and run `./scripts/install-pi.sh`.
 
 The install script builds the Kelvin client into `Kelvin.Server/wwwroot`, publishes the ASP.NET Core server,
 copies the publish output into `/opt/kelvin/Kelvin.Server/app`, installs `systemd/kelvin-server.service`, and

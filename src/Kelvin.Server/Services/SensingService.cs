@@ -55,7 +55,7 @@ public class SensingService(
         _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
 
         await environmentReadingChannel.WriteAsync(_environment, stoppingToken);
-        await environmentReadingsHub.Clients.All.ReadingsUpdatedAsync(_environment);
+        await environmentReadingsHub.Clients.All.ReadingsUpdated(_environment);
       }
       catch (OperationCanceledException)
       {

@@ -7,17 +7,16 @@ namespace Kelvin.Server.Hubs;
 
 public interface IEnvironmentReadingsClient
 {
-  Task AcknowledgeReadingAsync(string? message = null);
-  Task ReadingsUpdatedAsync(EnvironmentReading reading);
+  Task ReadingsUpdated(EnvironmentReading reading);
 }
 
 public class EnvironmentReadingsHub(ILogger<EnvironmentReadingsHub> logger, IDispatcher dispatcher) : Hub<IEnvironmentReadingsClient>
 {
-  public async Task SubmitReading(SensorPacket packet, CancellationToken cancellationToken)
+  [HubMethodName("SubmitReading")]
+  public async Task SubmitReadingAsync(SensorPacket packet, CancellationToken cancellationToken)
   {
     logger.LogInformation("Received sensor packet from {MacAddress}", packet.MacAddress);
     await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet), cancellationToken);
-    await Clients.Caller.AcknowledgeReadingAsync("Reading received successfully.");
   }
 }
 
