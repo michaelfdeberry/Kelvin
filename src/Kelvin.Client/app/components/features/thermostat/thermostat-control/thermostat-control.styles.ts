@@ -185,8 +185,9 @@ const thermostatControlStyles = css`
     }
 
     .thermostat__button {
-      width: 120px;
+      width: 140px;
       height: 60px;
+      padding: 0;
     }
   }
 `;
