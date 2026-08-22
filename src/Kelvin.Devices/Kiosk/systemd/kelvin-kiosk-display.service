@@ -14,9 +14,6 @@ StandardOutput=journal
 StandardError=journal
 UtmpIdentifier=tty1
 UtmpMode=user
-# Cage (not Chromium) reads these to pick a cursor theme; pointing at a nonexistent theme hides the cursor.
-Environment=XCURSOR_PATH=/dev/null
-Environment=XCURSOR_THEME=none
 ExecStart=/usr/bin/cage -- /opt/kelvin/Kiosk/scripts/start-browser.sh
 Restart=always
 RestartSec=5

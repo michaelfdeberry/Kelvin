@@ -1,0 +1,2 @@
+# This is a touch-only kiosk. Without a pointer capability, Cage unsets the cursor image.
+ACTION!="remove", KERNEL=="event[0-9]*", ENV{ID_INPUT_MOUSE}=="1", ENV{ID_INPUT_TOUCHSCREEN}!="1", ENV{LIBINPUT_IGNORE_DEVICE}="1"

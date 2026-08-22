@@ -49,4 +49,4 @@ if [[ "${mac_address}" =~ ^[0-9a-f]{12}$ ]]; then
 fi
 
 # cage relaunches this script (via the display service's systemd Restart=) whenever Chromium exits.
-exec env XCURSOR_PATH=/dev/null XCURSOR_THEME=none "${browser_command}" "${chromium_args[@]}" "${ui_url}"
+exec "${browser_command}" "${chromium_args[@]}" "${ui_url}"
