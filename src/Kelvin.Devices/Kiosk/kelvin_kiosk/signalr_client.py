@@ -18,6 +18,7 @@ class ReadingsHubClient:
             if self._connection is not None:
                 return
 
+            handler = logging.StreamHandler()
             self._connection = (
                 HubConnectionBuilder()
                 # signalrcore's hand-rolled WebSocket client corrupts frame parsing when the
@@ -25,7 +26,7 @@ class ReadingsHubClient:
                 # a local reverse proxy), surfacing as UnicodeDecodeError - long polling avoids
                 # that raw frame parser entirely.
                 .with_url(self._hub_url, options={"transport": HttpTransportType.long_polling})
-                .configure_logging(logging.WARNING)
+                .configure_logging(logging.DEBUG, socket_trace=True, handler=handler)
                 .with_automatic_reconnect(
                     {
                         "type": "raw",
