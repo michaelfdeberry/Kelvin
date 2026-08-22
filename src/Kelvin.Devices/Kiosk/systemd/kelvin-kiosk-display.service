@@ -14,10 +14,7 @@ StandardOutput=journal
 StandardError=journal
 UtmpIdentifier=tty1
 UtmpMode=user
-Environment=XCURSOR_PATH=/usr/share/icons
-Environment=XCURSOR_THEME=kelvin-hidden
-Environment=XCURSOR_SIZE=24
-ExecStart=/usr/bin/cage -- /opt/kelvin/Kiosk/scripts/start-browser.sh
+ExecStart=/usr/local/bin/kelvin-cage -- /opt/kelvin/Kiosk/scripts/start-browser.sh
 Restart=always
 RestartSec=5
 

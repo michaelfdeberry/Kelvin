@@ -27,8 +27,8 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads an `scd4x` CO2/temperat
    `git clone https://github.com/michaelfdeberry/Kelvin.git`
 2. `cd Kelvin/src/Kelvin.Devices/Kiosk` and run `./scripts/install-pi.sh`. It creates the `.venv`, installs
    Python dependencies, installs `cage`, Chromium, and the Noto Color Emoji font, copies `.env.example` to
-   `.env` (if one doesn't already exist), installs both `systemd` services, and installs the transparent cursor
-   theme used by Cage and Chromium.
+   `.env` (if one doesn't already exist), installs both `systemd` services, and builds the kiosk's patched Cage
+   executable.
 3. Edit `.env` with the settings for your Pi (server URL, thresholds, etc.).
 4. Reboot the Pi to start the kiosk display.
 
@@ -37,10 +37,10 @@ The installer enables two independent services: `kelvin-kiosk.service` reads the
 unit) and launches Chromium fullscreen as its only client. Because `cage` claims `tty1` itself, the installer
 disables the console `getty@tty1.service` so the two don't compete for the same tty.
 
-The display service sets `XCURSOR_THEME=kelvin-hidden` for Cage and its Chromium child process. The installer creates
-that theme as a valid Xcursor file containing a transparent pixel, with aliases for the common cursor names. A
-nonexistent theme is not sufficient: libwayland-cursor deliberately falls back to a compiled-in arrow when a theme
-loads no cursor images.
+The display service uses `/usr/local/bin/kelvin-cage`, built from Cage 0.2.0 after
+`scripts/patch-cage-cursor.py` changes its cursor handling. The patched compositor always unsets the cursor image
+and rejects cursor surfaces submitted by Chromium, while preserving pointer and touchscreen events. The stock
+`/usr/bin/cage` remains installed and unchanged for troubleshooting.
 
 The installer also enables the I2C interface (`raspi-config nonint do_i2c 0`), which Raspberry Pi OS disables by
 default and which the `scd4x` sensor needs (`/dev/i2c-1`). This requires the reboot in step 4 to take effect; if

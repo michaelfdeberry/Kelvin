@@ -13,14 +13,17 @@ SERVICE_SOURCE="${PROJECT_DIR}/systemd/kelvin-kiosk.service"
 SERVICE_TARGET="/etc/systemd/system/kelvin-kiosk.service"
 DISPLAY_SERVICE_SOURCE="${PROJECT_DIR}/systemd/kelvin-kiosk-display.service"
 DISPLAY_SERVICE_TARGET="/etc/systemd/system/kelvin-kiosk-display.service"
-CURSOR_THEME_DIR="/usr/share/icons/kelvin-hidden"
 
 echo "Installing Kelvin kiosk dependencies from ${PROJECT_DIR}"
 
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip chromium cage i2c-tools fonts-noto-color-emoji
+sudo apt-get install -y \
+  python3-venv python3-pip chromium cage i2c-tools fonts-noto-color-emoji \
+  build-essential curl meson ninja-build pkg-config \
+  libwayland-dev wayland-protocols libwlroots-0.18-dev libxkbcommon-dev libpixman-1-dev
 sudo fc-cache -f
-sudo python3 "${SCRIPT_DIR}/install-hidden-cursor-theme.py" "${CURSOR_THEME_DIR}"
+bash "${SCRIPT_DIR}/install-kelvin-cage.sh"
+sudo rm -rf /usr/share/icons/kelvin-hidden
 sudo rm -f /etc/udev/rules.d/99-kelvin-kiosk-pointer.rules
 
 # The scd4x sensor needs /dev/i2c-1, which Raspberry Pi OS does not expose until the I2C interface is enabled.
@@ -55,7 +58,7 @@ sudo sed \
 sudo sed \
   -e "s/^User=.*/User=${TARGET_USER}/" \
   -e "s|^WorkingDirectory=.*|WorkingDirectory=${PROJECT_DIR}|" \
-  -e "s|^ExecStart=.*|ExecStart=/usr/bin/cage -- ${PROJECT_DIR}/scripts/start-browser.sh|" \
+  -e "s|^ExecStart=.*|ExecStart=/usr/local/bin/kelvin-cage -- ${PROJECT_DIR}/scripts/start-browser.sh|" \
   "${DISPLAY_SERVICE_SOURCE}" | sudo tee "${DISPLAY_SERVICE_TARGET}" >/dev/null
 
 # cage owns tty1 directly (PAMName=login + TTYPath in the unit); the console login getty would otherwise fight it for the same tty.
