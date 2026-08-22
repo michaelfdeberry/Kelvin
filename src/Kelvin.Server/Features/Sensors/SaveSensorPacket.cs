@@ -50,6 +50,28 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
   }
 }
 
+public class SaveSensorPacketEndpoint : IEndpointMapper
+{
+  public void MapEndpoint(IEndpointRouteBuilder app)
+  {
+    app.MapPost(
+        "/api/sensors/packets",
+        async (SaveSensorPacketRequest request, IHandler<SaveSensorPacketRequest> handler, CancellationToken ct) =>
+        {
+          var result = await handler.HandleAsync(request, ct);
+          if (result.IsFailure)
+          {
+            return Results.InternalServerError(result.Error);
+          }
+
+          return Results.NoContent();
+        }
+      )
+      .WithName("SaveSensorPacket")
+      .WithTags("Sensors");
+  }
+}
+
 public class SaveSensorPacketRegistration : IRegistration
 {
   public void Register(IServiceCollection services)

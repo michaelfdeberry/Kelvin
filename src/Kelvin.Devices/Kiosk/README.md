@@ -1,11 +1,11 @@
 # Kelvin Kiosk
 
-Kelvin Kiosk is a Raspberry Pi Python service that reads an `scd4x` CO2/temperature/humidity sensor, submits readings to the Kelvin SignalR readings hub, and opens the existing Kelvin web UI in fullscreen Chromium.
+Kelvin Kiosk is a Raspberry Pi Python service that reads an `scd4x` CO2/temperature/humidity sensor, submits readings to the Kelvin server's `/api/sensors/packets` REST endpoint, and opens the existing Kelvin web UI in fullscreen Chromium.
 
 ## Features
 
 - Reads the `scd4x` sensor (CO2, temperature, humidity)
-- Publishes readings to `EnvironmentReadingsHub.SubmitReading`
+- Publishes readings via HTTP POST to `/api/sensors/packets`
 - Uses the Raspberry Pi network MAC address as the device identity
 - Omits battery data for mains-powered kiosk hardware
 - Runs Chromium fullscreen under `cage`, a minimal single-application Wayland compositor
@@ -83,7 +83,7 @@ The service reads configuration from environment variables or a local `.env` fil
 
 - The server must expose the readings hub at `/hubs/readings`.
 - Battery is intentionally sent as `null` for kiosk readings.
-- The kiosk loop retries after sensor and SignalR failures instead of terminating the process.
+- The kiosk loop retries after sensor and HTTP failures instead of terminating the process.
 - `kelvin-kiosk-display.service` restarts automatically (`Restart=always`) if `cage` or Chromium exits.
 - Chromium is launched with `?mac=<address>` appended to the UI URL. The Kelvin client uses that to enter
   kiosk mode: it shows only the sensor with a matching MAC address, hides the sidebar and analytics, and

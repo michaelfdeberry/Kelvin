@@ -33,8 +33,8 @@ class KioskConfig:
     i2c_port: str
 
     @property
-    def hub_url(self) -> str:
-        return f"{self.server_url.rstrip('/')}" + "/hubs/readings"
+    def sensor_packets_url(self) -> str:
+        return f"{self.server_url.rstrip('/')}" + "/api/sensors/packets"
 
 
 def load_config() -> KioskConfig:
