@@ -23,12 +23,13 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads an `scd4x` CO2/temperat
 
 ## Setup
 
-1. Create and activate a Python 3.11+ virtual environment.
-2. Install dependencies with `pip install -r requirements.txt`.
-3. Copy `.env.example` to `.env` and update the settings for your Pi.
-4. Run `python -m kelvin_kiosk.main` to verify sensor reads and hub submission, then stop with Ctrl+C.
-5. Run `./scripts/install-pi.sh` on Raspberry Pi OS Lite to install dependencies, `cage`, Chromium, and both `systemd` services.
-6. Reboot the Pi to start the kiosk display.
+1. On the Raspberry Pi (running Raspberry Pi OS Lite), clone the repo:
+   `git clone https://github.com/michaelfdeberry/Kelvin.git`
+2. `cd Kelvin/src/Kelvin.Devices/Kiosk` and run `./scripts/install-pi.sh`. It creates the `.venv`, installs
+   Python dependencies, installs `cage` and Chromium, copies `.env.example` to `.env` (if one doesn't already
+   exist), and installs both `systemd` services.
+3. Edit `.env` with the settings for your Pi (server URL, thresholds, etc.).
+4. Reboot the Pi to start the kiosk display.
 
 The installer enables two independent services: `kelvin-kiosk.service` reads the sensor and submits readings, and
 `kelvin-kiosk-display.service` runs `cage`, which owns `tty1` directly (via `PAMName=login` and `TTYPath` in the
