@@ -4,7 +4,7 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads an `scd4x` CO2/temperat
 
 ## Features
 
-- Reads the `scd4x` sensor shared with the Node device (CO2, temperature, humidity)
+- Reads the `scd4x` sensor (CO2, temperature, humidity)
 - Publishes readings to `EnvironmentReadingsHub.SubmitReading`
 - Uses the Raspberry Pi network MAC address as the device identity
 - Omits battery data for mains-powered kiosk hardware
@@ -35,6 +35,12 @@ The installer enables two independent services: `kelvin-kiosk.service` reads the
 `kelvin-kiosk-display.service` runs `cage`, which owns `tty1` directly (via `PAMName=login` and `TTYPath` in the
 unit) and launches Chromium fullscreen as its only client. Because `cage` claims `tty1` itself, the installer
 disables the console `getty@tty1.service` so the two don't compete for the same tty.
+
+The installer also enables the I2C interface (`raspi-config nonint do_i2c 0`), which Raspberry Pi OS disables by
+default and which the `scd4x` sensor needs (`/dev/i2c-1`). This requires the reboot in step 4 to take effect; if
+`kelvin-kiosk.service` logs `FileNotFoundError: ... /dev/i2c-1` after installing, either the Pi hasn't been
+rebooted yet or I2C is still disabled - run `sudo raspi-config nonint do_i2c 0` and reboot, then confirm the
+sensor is visible with `i2cdetect -y 1` (it should show address `62`).
 
 ### Verifying the services
 
