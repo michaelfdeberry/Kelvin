@@ -47,7 +47,7 @@ const kioskViewStyles = css`
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding: 1rem;
+    padding: 2rem;
     overflow-y: auto;
   }
 `;
