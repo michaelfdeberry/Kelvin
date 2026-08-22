@@ -3,9 +3,7 @@ from __future__ import annotations
 import logging
 from threading import Lock
 
-from signalrcore.hub_connection_builder import HubConnectionBuilder
-from signalrcore.types import HttpTransportType
-
+from signalrcore.hub_connection_builder import HubConnectionBuilder 
 
 class ReadingsHubClient:
     def __init__(self, hub_url: str) -> None:
@@ -25,7 +23,7 @@ class ReadingsHubClient:
                 # HTTP 101 response and first frame arrive in the same TCP read (common over
                 # a local reverse proxy), surfacing as UnicodeDecodeError - long polling avoids
                 # that raw frame parser entirely.
-                .with_url(self._hub_url, options={"transport": HttpTransportType.long_polling})
+                .with_url(self._hub_url)
                 .configure_logging(logging.DEBUG, socket_trace=True, handler=handler)
                 .with_automatic_reconnect(
                     {
