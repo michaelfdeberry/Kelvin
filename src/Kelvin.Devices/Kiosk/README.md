@@ -56,13 +56,6 @@ The display service:
 sudo journalctl -u kelvin-kiosk-display.service -f
 ```
 
-To test the display manually, stop the service first so it isn't holding `tty1`, then run `cage` from that console:
-
-```bash
-sudo systemctl stop kelvin-kiosk-display.service
-cage -- chromium --kiosk --ozone-platform=wayland "http://192.168.1.50:5209"
-```
-
 Set `KELVIN_SERVER_URL` and `KELVIN_UI_URL` to a resolvable address before starting the service. `kelvin.local`
 only works when the Kelvin server advertises that mDNS name; use its LAN IP address (for example,
 `http://192.168.1.50:5209`) when mDNS is unavailable.
