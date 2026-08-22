@@ -79,20 +79,6 @@ const thermostatControlStyles = css`
     flex: 1;
   }
 
-  :host-context([kiosk]) .thermostat__dial {
-    width: 370px;
-    height: 370px;
-  }
-
-  :host-context([kiosk]) .thermostat__dial-inner {
-    width: 320px;
-    height: 320px;
-  }
-
-  :host-context([kiosk]) .thermostat__current-temp {
-    font-size: 4.5rem;
-  }
-
   .thermostat__target-temp,
   .thermostat__status {
     height: 30px;
@@ -176,6 +162,31 @@ const thermostatControlStyles = css`
     .thermostat__controls .thermostat__button {
       width: 100%;
       display: block;
+    }
+  }
+
+  :host-context([kiosk]) {
+    .thermostat__dial {
+      width: 370px;
+      height: 370px;
+    }
+
+    .thermostat__dial-inner {
+      width: 320px;
+      height: 320px;
+    }
+
+    .thermostat__current-temp {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4.5rem;
+      flex: 1;
+    }
+
+    .thermostat__button {
+      width: 120px;
+      height: 60px;
     }
   }
 `;
