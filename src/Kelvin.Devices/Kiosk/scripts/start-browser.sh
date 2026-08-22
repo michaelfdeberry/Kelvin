@@ -30,7 +30,7 @@ chromium_args+=(--disk-cache-dir="${cache_dir}" --disk-cache-size=1 --media-cach
 
 resolve_mac_address() {
   local interface
-  for interface in "${KELVIN_MAC_INTERFACE:-}" eth0 wlan0; do
+  for interface in "${KELVIN_MAC_INTERFACE:-}" wlan0; do
     if [[ -n "${interface}" && -r "/sys/class/net/${interface}/address" ]]; then
       cat "/sys/class/net/${interface}/address"
       return
