@@ -17,7 +17,8 @@ DISPLAY_SERVICE_TARGET="/etc/systemd/system/kelvin-kiosk-display.service"
 echo "Installing Kelvin kiosk dependencies from ${PROJECT_DIR}"
 
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip chromium cage i2c-tools
+sudo apt-get install -y python3-venv python3-pip chromium cage i2c-tools fonts-noto-color-emoji
+sudo fc-cache -f
 
 # The scd4x sensor needs /dev/i2c-1, which Raspberry Pi OS does not expose until the I2C interface is enabled.
 if command -v raspi-config >/dev/null 2>&1; then

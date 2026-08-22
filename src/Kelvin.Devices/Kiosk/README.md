@@ -26,8 +26,8 @@ Kelvin Kiosk is a Raspberry Pi Python service that reads an `scd4x` CO2/temperat
 1. On the Raspberry Pi (running Raspberry Pi OS Lite), clone the repo:
    `git clone https://github.com/michaelfdeberry/Kelvin.git`
 2. `cd Kelvin/src/Kelvin.Devices/Kiosk` and run `./scripts/install-pi.sh`. It creates the `.venv`, installs
-   Python dependencies, installs `cage` and Chromium, copies `.env.example` to `.env` (if one doesn't already
-   exist), and installs both `systemd` services.
+   Python dependencies, installs `cage`, Chromium, and the Noto Color Emoji font, copies `.env.example` to
+   `.env` (if one doesn't already exist), and installs both `systemd` services.
 3. Edit `.env` with the settings for your Pi (server URL, thresholds, etc.).
 4. Reboot the Pi to start the kiosk display.
 
