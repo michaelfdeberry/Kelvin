@@ -26,7 +26,7 @@
   --accent-warning: #facc15;
   --accent-cyan: #38bdf8;
   --accent-info: #93c5fd;
-  --accent-cyan-overlay: rgb(56 189 248 / 10%);
+  --accent-cyan-overlay: rgba(20, 25, 27, 0.1);
   --accent-cyan-overlay-strong: rgb(56 189 248 / 20%);
   --surface-overlay-light: rgb(255 255 255 / 10%);
   --text-soft: #e2e8f0;
@@ -56,6 +56,29 @@ body {
   background: var(--bg-dark);
   color: var(--text-main);
   font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* Kiosk: fixed 1280x800 touch panel, no scrolling or text selection. */
+html[kiosk],
+html[kiosk] body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html[kiosk] {
+  font-size: 18px;
+  cursor: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html[kiosk] body {
+  user-select: none;
+  touch-action: manipulation;
+}
+
+html[kiosk] ::-webkit-scrollbar {
+  display: none;
 }
 
 *,

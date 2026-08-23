@@ -1,29 +1,33 @@
 # Kelvin
 
-## Kelvin.Server Entity Framework Migrations
+Kelvin is a smart thermostat platform with remote sensor nodes.
+It monitors temperature, CO2, and humidity across the home, then helps manage HVAC behavior from one place.
 
-From `src/Kelvin.Server`:
+Built as a full-stack system, Kelvin combines:
 
-```bash
-dotnet tool restore
-dotnet dotnet-ef migrations add <MigrationName> --output-dir Data/Migrations
-dotnet dotnet-ef database update
-```
+- embedded sensor and gateway devices,
+- a backend service for automation and data handling,
+- a web app for monitoring and control,
+- and a simulator for local development/testing.
 
-Runtime startup now applies migrations automatically with `Database.Migrate()`.
-For existing databases created before migrations were enabled, startup performs a one-time baseline by creating
-`__EFMigrationsHistory` and marking the current initial migration as applied, preserving existing data.
+The goal is simple: keep indoor comfort and air quality easier to track and control.
 
-## Kelvin.Server Raspberry Pi Install
+## Kelvin Client
 
-From `src/Kelvin.Server` on the gateway Raspberry Pi:
+The web app lives in [src/Kelvin.Client/README.md](src/Kelvin.Client/README.md).
+Built with Lit + TypeScript and communicates with Kelvin.Server over REST and SignalR.
 
-```bash
-chmod +x scripts/install-pi.sh scripts/start-server.sh
-./scripts/install-pi.sh
-```
+## Kelvin Devices
 
-The install script builds the Kelvin client into `Kelvin.Server/wwwroot`, publishes the ASP.NET Core server,
-copies the publish output into `/opt/kelvin/Kelvin.Server/app`, installs `systemd/kelvin-server.service`, and
-enables the service. It also installs nginx as a reverse proxy, enables a Kelvin site configuration, and routes
-port `80` to the local ASP.NET Core process. By default Kestrel listens on `http://127.0.0.1:5209` behind nginx.
+Device firmware lives in [src/Kelvin.Devices/README.md](src/Kelvin.Devices/README.md).
+Includes ESP32 node and gateway code plus shared packet contracts.
+
+## Kelvin Server
+
+The backend lives in [src/Kelvin.Server/README.md](src/Kelvin.Server/README.md).
+It hosts APIs, runs control/sensing services, and stores data in SQLite via EF Core.
+
+## Kelvin Simulator
+
+The environment simulator lives in [src/Kelvin.Simulator/README.md](src/Kelvin.Simulator/README.md).
+Requires a working virtual serial port setup being installed and configured on the host OS.

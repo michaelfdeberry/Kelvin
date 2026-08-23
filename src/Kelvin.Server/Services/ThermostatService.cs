@@ -40,7 +40,7 @@ public class ThermostatService(
         var thermostat = thermostatResult.Value!.Thermostat;
 
         // What the loop knew when it made its decision, carried along so a recorded state change can explain itself.
-        var context = new ControlContext(
+        var context = new ControlMessage(
           State: _activeCall,
           EnvironmentTemperatureC: environment.TemperatureC,
           HumidityPercentage: environment.HumidityPercentage,
@@ -54,27 +54,18 @@ public class ThermostatService(
           logger.LogInformation("Thermostat is Disabled, skipping environment processing.");
           _activeCall = ControlState.Dwell;
           // the updating of the state will dispatch the control message, but do it here just in case.
-          await controlChannel.WriteAsync(
-            new ControlMessage(context with { State = ControlState.Disable, Reason = "the thermostat mode is Disabled" }),
-            stoppingToken
-          );
+          await controlChannel.WriteAsync(context with { State = ControlState.Disable, Reason = "the thermostat mode is Disabled" }, stoppingToken);
           continue;
         }
 
         // re-assert control every cycle so a restart re-energizes the control relay, noop if already energized.
-        await controlChannel.WriteAsync(
-          new ControlMessage(context with { State = ControlState.Enable, Reason = "the thermostat is enabled" }),
-          stoppingToken
-        );
+        await controlChannel.WriteAsync(context with { State = ControlState.Enable, Reason = "the thermostat is enabled" }, stoppingToken);
 
         if (thermostat.Mode == RunMode.Off)
         {
           logger.LogInformation("Thermostat is Off, skipping environment processing.");
           _activeCall = ControlState.Dwell;
-          await controlChannel.WriteAsync(
-            new ControlMessage(context with { State = ControlState.Dwell, Reason = "the thermostat mode is Off" }),
-            stoppingToken
-          );
+          await controlChannel.WriteAsync(context with { State = ControlState.Dwell, Reason = "the thermostat mode is Off" }, stoppingToken);
           continue;
         }
 
@@ -104,7 +95,7 @@ public class ThermostatService(
     }
   }
 
-  private ControlContext ProcessAutomatic(ControlContext context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
+  private ControlMessage ProcessAutomatic(ControlMessage context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
   {
     var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
     var heatingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Heating);
@@ -175,7 +166,8 @@ public class ThermostatService(
       isCoolingMode = coolingTargetTemp is not null && forecastTemperatureC >= thermostat.CoolingLockoutC;
     }
 
-    // shouldn't be possible given the above logic, but just in case, log a warning and return Dwell if both heating and cooling conditions are met.
+    // shouldn't be possible given the above logic, but just in case, log a warning and revert control to the failsafe thermostat
+    // if both heating and cooling conditions are met.
     if (isHeatingMode && isCoolingMode)
     {
       logger.LogCritical(
@@ -210,7 +202,7 @@ public class ThermostatService(
     };
   }
 
-  private ControlContext ProcessCooling(ControlContext context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
+  private ControlMessage ProcessCooling(ControlMessage context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
   {
     context = context with { ForecastTemperatureC = forecastTemperatureC };
 
@@ -270,7 +262,7 @@ public class ThermostatService(
     };
   }
 
-  private ControlContext ProcessHeating(ControlContext context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
+  private ControlMessage ProcessHeating(ControlMessage context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
   {
     context = context with { ForecastTemperatureC = forecastTemperatureC };
 
@@ -330,8 +322,8 @@ public class ThermostatService(
     };
   }
 
-  private async Task<ControlContext> ProcessTemperature(
-    ControlContext context,
+  private async Task<ControlMessage> ProcessTemperature(
+    ControlMessage context,
     EnvironmentReading environment,
     Thermostat thermostat,
     float? forecastTemperatureC,
@@ -347,7 +339,7 @@ public class ThermostatService(
     };
 
     _activeCall = context.State;
-    await controlChannel.WriteAsync(new ControlMessage(context), cancellationToken);
+    await controlChannel.WriteAsync(context, cancellationToken);
     return context;
   }
 

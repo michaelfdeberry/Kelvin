@@ -45,7 +45,7 @@ public sealed class ThermostatServiceHarness
     /// assert on <see cref="WrittenMessages"/> itself when the attached <see cref="ControlContext"/> matters.
     /// </summary>
     public IReadOnlyList<ControlState> WrittenStates =>
-        WrittenMessages.Select(message => message.Context.State).ToList();
+        WrittenMessages.Select(message => message.State).ToList();
 
     /// <summary>
     /// The service's clock, pinned to <see cref="ThermostatFixtures.Now"/> so the schedule windows built by

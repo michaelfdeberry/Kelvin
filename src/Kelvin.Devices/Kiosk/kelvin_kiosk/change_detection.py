@@ -6,7 +6,6 @@ from time import monotonic
 from .config import KioskConfig
 from .models import SensorReading
 
-
 @dataclass
 class ChangeDetector:
     config: KioskConfig

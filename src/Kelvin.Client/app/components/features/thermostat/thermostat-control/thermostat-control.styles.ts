@@ -56,9 +56,9 @@ const thermostatControlStyles = css`
   }
 
   .thermostat__dial-inner {
-    padding-top: 50px;
     width: 240px;
     height: 240px;
+    padding: 15px 0;
     border-radius: 50%;
     background: var(--bg-dark);
     display: flex;
@@ -69,7 +69,6 @@ const thermostatControlStyles = css`
 
   .thermostat__target-temp {
     margin: 0;
-    margin-top: 5px;
     font-size: 1.25rem;
     color: var(--thermostat-accent);
   }
@@ -77,8 +76,12 @@ const thermostatControlStyles = css`
   .thermostat__current-temp {
     margin: 0;
     font-size: 4rem;
-    height: 4rem;
-    line-height: 4rem;
+    flex: 1;
+  }
+
+  .thermostat__target-temp,
+  .thermostat__status {
+    height: 30px;
   }
 
   .thermostat__status {
@@ -86,16 +89,19 @@ const thermostatControlStyles = css`
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 40px;
   }
 
   .thermostat__status-badge {
-    margin-top: 10px;
     padding: 4px 12px;
     background: var(--thermostat-accent-overlay);
     border: 1px solid var(--thermostat-accent);
     border-radius: 20px;
     font-size: 0.75rem;
+  }
+
+  .thermostat__spacer,
+  .thermostat__edit-button-container {
+    height: 40px;
   }
 
   .thermostat__edit-button {
@@ -156,6 +162,36 @@ const thermostatControlStyles = css`
     .thermostat__controls .thermostat__button {
       width: 100%;
       display: block;
+    }
+  }
+
+  :host-context([kiosk]) {
+    .thermostat__dial {
+      width: 370px;
+      height: 370px;
+    }
+
+    .thermostat__dial-inner {
+      width: 320px;
+      height: 320px;
+    }
+
+    .thermostat__current-temp {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4.5rem;
+      flex: 1;
+    }
+
+    .thermostat__controls {
+      margin-top: 2rem;
+    }
+
+    .thermostat__button {
+      width: 140px;
+      height: 60px;
+      padding: 0;
     }
   }
 `;

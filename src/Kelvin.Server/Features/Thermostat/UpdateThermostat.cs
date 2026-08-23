@@ -27,7 +27,7 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
     thermostat.FanEnabled = request.FanEnabled;
     await context.SaveChangesAsync(ct);
 
-    var controlContext = new ControlContext(
+    var controlContext = new ControlMessage(
       State: ControlState.Dwell,
       Mode: thermostat.Mode,
       HysteresisC: thermostat.HysteresisC,
@@ -36,24 +36,21 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
 
     if (thermostat.Mode == RunMode.Disabled)
     {
-      await controlChannel.WriteAsync(new ControlMessage(controlContext with { State = ControlState.Disable }), ct);
+      await controlChannel.WriteAsync(controlContext with { State = ControlState.Disable }, ct);
     }
     else
     {
       // any mode other than Disabled means Kelvin holds control, which is what energizes the control relay
-      await controlChannel.WriteAsync(new ControlMessage(controlContext with { State = ControlState.Enable }), ct);
+      await controlChannel.WriteAsync(controlContext with { State = ControlState.Enable }, ct);
 
       if (thermostat.Mode == RunMode.Off)
       {
-        await controlChannel.WriteAsync(new ControlMessage(controlContext with { State = ControlState.Dwell }), ct);
+        await controlChannel.WriteAsync(controlContext with { State = ControlState.Dwell }, ct);
       }
 
       if (thermostat.FanEnabled != currentFanState)
       {
-        await controlChannel.WriteAsync(
-          new ControlMessage(controlContext with { State = thermostat.FanEnabled ? ControlState.FanOn : ControlState.FanOff }),
-          ct
-        );
+        await controlChannel.WriteAsync(controlContext with { State = thermostat.FanEnabled ? ControlState.FanOn : ControlState.FanOff }, ct);
       }
     }
 

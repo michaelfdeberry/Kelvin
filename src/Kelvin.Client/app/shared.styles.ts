@@ -30,6 +30,12 @@ const sharedStyles = css`
     color: var(--text-muted);
     font-size: 0.85rem;
   }
+
+  /* Kiosk touchscreen has no reactive pointer - hide it everywhere, overriding any cursor set above. */
+  :host-context([kiosk]),
+  :host-context([kiosk]) * {
+    cursor: none !important;
+  }
 `;
 
 export default sharedStyles;

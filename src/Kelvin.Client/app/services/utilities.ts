@@ -44,6 +44,12 @@ export function toPreferredUnit(temperatureUnit: TemperatureUnit, celsius?: numb
   return ((celsius * 9) / 5 + 32).toFixed(fractionDigits);
 }
 
+export function convertToPreferredUnit(temperatureUnit: TemperatureUnit, celsius?: number): number | undefined {
+  if (celsius === undefined || celsius === null) return undefined;
+  if (temperatureUnit === 'Celsius') return celsius;
+  return (celsius * 9) / 5 + 32;
+}
+
 export function fromPreferredUnit(temperatureUnit: TemperatureUnit, value: number): number {
   if (temperatureUnit === 'Celsius') return value;
   return ((value - 32) * 5) / 9;

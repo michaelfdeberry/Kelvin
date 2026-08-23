@@ -18,6 +18,8 @@ SERVICE_TARGET="/etc/systemd/system/kelvin-server.service"
 NGINX_SOURCE="${PROJECT_DIR}/nginx/kelvin-server.conf"
 NGINX_TARGET="/etc/nginx/sites-available/kelvin-server.conf"
 NGINX_ENABLED_TARGET="/etc/nginx/sites-enabled/kelvin-server.conf"
+NODE_MAJOR=22
+PNPM_VERSION="11.17.0"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -38,21 +40,58 @@ ensure_dotnet() {
   export PATH="${DOTNET_ROOT}:${PATH}"
 }
 
+ensure_node() {
+  if command -v node >/dev/null 2>&1; then
+    local major
+    major="$(node -p 'process.versions.node.split(".")[0]')"
+    if [[ "${major}" -ge "${NODE_MAJOR}" ]]; then
+      return
+    fi
+    echo "Node.js $(node -v) is too old (pnpm ${PNPM_VERSION} requires >= v${NODE_MAJOR}). Upgrading."
+  else
+    echo "node not found. Installing Node.js ${NODE_MAJOR}.x"
+  fi
+
+  curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" -o /tmp/nodesource_setup.sh
+  sudo -E bash /tmp/nodesource_setup.sh
+  # distro npm conflicts with the npm bundled in the NodeSource nodejs package
+  sudo apt-get remove -y npm || true
+  sudo apt-get install -y nodejs
+  hash -r
+}
+
 ensure_pnpm() {
-  if command -v pnpm >/dev/null 2>&1; then
+  if command -v pnpm >/dev/null 2>&1 && pnpm --version >/dev/null 2>&1; then
     return
   fi
 
-  echo "pnpm not found. Installing pnpm 11.17.0 globally."
-  sudo npm install -g pnpm@11.17.0
+  echo "Installing pnpm ${PNPM_VERSION} globally."
+  sudo npm install -g "pnpm@${PNPM_VERSION}"
+  hash -r
 }
 
 echo "Installing Kelvin.Server dependencies from ${PROJECT_DIR}"
 
 sudo apt-get update
-sudo apt-get install -y curl sqlite3 nodejs npm nginx
+sudo apt-get install -y curl ca-certificates gnupg sqlite3 nginx gpiod libgpiod3 libgpiod-dev
+
+# Grant the target user permissions to access hardware
+echo "Granting ${TARGET_USER} access to serial ports (dialout) and GPIO (gpio)"
+sudo usermod -a -G dialout,gpio "${TARGET_USER}"
+
+# I ran into an issue where my chip number is different than what the libgpiod3 package expects,
+# so I had to install the legacy libgpiod2 package instead. This is a workaround for that issue.
+# 1. Download the legacy package directly from the Debian main pool
+wget http://ftp.debian.org/debian/pool/main/libg/libgpiod/libgpiod2_1.6.3-1+b3_arm64.deb
+
+# 2. Install it on your device
+sudo apt install ./libgpiod2_1.6.3-1+b3_arm64.deb
+
+# 3. Clean up the downloaded file
+rm libgpiod2_1.6.3-1+b3_arm64.deb
 
 ensure_dotnet
+ensure_node
 ensure_pnpm
 
 require_command dotnet

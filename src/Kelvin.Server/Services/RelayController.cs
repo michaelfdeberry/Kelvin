@@ -1,5 +1,7 @@
 using System.Device.Gpio;
+using System.Device.Gpio.Drivers;
 using Kelvin.Server.Features.Gateways;
+using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Services;
 
@@ -20,6 +22,7 @@ public interface IRelayController
   void EnableFan();
   void DisableFan();
   void EnableDwell();
+  RelayState GetState();
 }
 
 public class RelayController(ILogger<RelayController> logger, IConfiguration configuration) : IRelayController, IDisposable
@@ -28,6 +31,7 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
   // On the appliance it must stay true: a thermostat that logs "Activating Heating Relay" while
   // actuating nothing looks healthy and isn't.
   private const string GpioRequiredConfigurationKey = "Gpio:Required";
+  private const string GpioChipConfigurationKey = "Gpio:Chip";
 
   // The relay board is active low: driving a pin LOW energizes the relay, HIGH releases it.
   private static readonly PinValue RelayOn = PinValue.Low;
@@ -37,13 +41,16 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
   private bool _gpioRequired;
   private GetGatewayResponse? _gateway;
 
+  private readonly RelayState _state = new();
+
   public void Initialize()
   {
     _gpioRequired = configuration.GetValue(GpioRequiredConfigurationKey, true);
+    var gpioChip = configuration.GetValue(GpioChipConfigurationKey, 0);
 
     try
     {
-      _gpio = new GpioController();
+      _gpio = new GpioController(new LibGpiodDriver(gpioChip: gpioChip));
     }
     catch (Exception ex)
     {
@@ -79,7 +86,9 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
     DisableHeating();
     DisableCooling();
     DisableFan();
+
     WritePin(_gateway?.ControlPin, RelayOn, nameof(GetGatewayResponse.ControlPin));
+    _state.Control = true;
   }
 
   public void DisableControl()
@@ -87,7 +96,9 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
     DisableHeating();
     DisableCooling();
     DisableFan();
+
     WritePin(_gateway?.ControlPin, RelayOff, nameof(GetGatewayResponse.ControlPin));
+    _state.Control = false;
   }
 
   public void EnableDwell()
@@ -96,17 +107,43 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
     DisableCooling();
   }
 
-  public void EnableHeating() => WritePin(_gateway?.HeatingPin, RelayOn, nameof(GetGatewayResponse.HeatingPin));
+  public void EnableHeating()
+  {
+    WritePin(_gateway?.HeatingPin, RelayOn, nameof(GetGatewayResponse.HeatingPin));
+    _state.Heating = true;
+  }
 
-  public void DisableHeating() => WritePin(_gateway?.HeatingPin, RelayOff, nameof(GetGatewayResponse.HeatingPin));
+  public void DisableHeating()
+  {
+    WritePin(_gateway?.HeatingPin, RelayOff, nameof(GetGatewayResponse.HeatingPin));
+    _state.Heating = false;
+  }
 
-  public void EnableCooling() => WritePin(_gateway?.CoolingPin, RelayOn, nameof(GetGatewayResponse.CoolingPin));
+  public void EnableCooling()
+  {
+    WritePin(_gateway?.CoolingPin, RelayOn, nameof(GetGatewayResponse.CoolingPin));
+    _state.Cooling = true;
+  }
 
-  public void DisableCooling() => WritePin(_gateway?.CoolingPin, RelayOff, nameof(GetGatewayResponse.CoolingPin));
+  public void DisableCooling()
+  {
+    WritePin(_gateway?.CoolingPin, RelayOff, nameof(GetGatewayResponse.CoolingPin));
+    _state.Cooling = false;
+  }
 
-  public void EnableFan() => WritePin(_gateway?.FanPin, RelayOn, nameof(GetGatewayResponse.FanPin));
+  public void EnableFan()
+  {
+    WritePin(_gateway?.FanPin, RelayOn, nameof(GetGatewayResponse.FanPin));
+    _state.Fan = true;
+  }
 
-  public void DisableFan() => WritePin(_gateway?.FanPin, RelayOff, nameof(GetGatewayResponse.FanPin));
+  public void DisableFan()
+  {
+    WritePin(_gateway?.FanPin, RelayOff, nameof(GetGatewayResponse.FanPin));
+    _state.Fan = false;
+  }
+
+  public RelayState GetState() => _state;
 
   private void ClosePinIfReplaced(int? previous, int? configured)
   {

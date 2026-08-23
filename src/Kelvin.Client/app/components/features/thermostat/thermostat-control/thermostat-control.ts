@@ -132,6 +132,7 @@ export class ThermostatControl extends LitElement {
           aria-label="Thermostat control"
         >
           <div class="thermostat__dial-inner">
+            <div class="thermostat__spacer"></div>
             <div class="thermostat__target-temp">${this.renderSetpoint()}</div>
             <div class="thermostat__current-temp">
               ${when(
@@ -149,18 +150,20 @@ export class ThermostatControl extends LitElement {
               ${when(this.controlState.state === 'Heating', () => html`<div class="thermostat__status-badge">🔥 HEATING</div>`)}
               ${when(this.controlState.state === 'Cooling', () => html`<div class="thermostat__status-badge">❄️ COOLING</div>`)}
             </div>
-            ${when(
-              this.thermostat.mode !== 'Disabled' && this.thermostat.mode !== 'Off',
-              () => html`
-                <button
-                  class="thermostat__edit-button button button--icon"
-                  aria-label="Edit Settings"
-                  @click=${() => this.thermostatEditor.open()}
-                >
-                  ${unsafeSVG(editIcon)}
-                </button>
-              `,
-            )}
+            <div class="thermostat__edit-button-container">
+              ${when(
+                this.thermostat.mode !== 'Disabled' && this.thermostat.mode !== 'Off',
+                () => html`
+                  <button
+                    class="thermostat__edit-button button button--icon"
+                    aria-label="Edit Settings"
+                    @click=${() => this.thermostatEditor.open()}
+                  >
+                    ${unsafeSVG(editIcon)}
+                  </button>
+                `,
+              )}
+            </div>
           </div>
         </div>
 

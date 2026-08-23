@@ -159,7 +159,7 @@ public sealed class ControlServiceHarness
     /// <summary>
     /// Delivers a control message carrying producer context, then waits for the next iteration.
     /// </summary>
-    public async Task PushAsync(ControlContext context)
+    public async Task PushAsync(ControlMessage context)
     {
         Deliver(context);
         await _iterationStarted.WaitAsync();
@@ -169,7 +169,7 @@ public sealed class ControlServiceHarness
     /// Delivers a control message without waiting for the next iteration, for cases where the service is not
     /// expected to loop again (an unusable GPIO stops the service).
     /// </summary>
-    public void Deliver(ControlContext context)
+    public void Deliver(ControlMessage context)
     {
         var pending =
             _pendingRead
@@ -177,7 +177,7 @@ public sealed class ControlServiceHarness
                 "The service is not currently awaiting a control message."
             );
         _pendingRead = null;
-        pending.SetResult(new ControlMessage(context));
+        pending.SetResult(context);
     }
 
     /// <summary>
@@ -186,7 +186,9 @@ public sealed class ControlServiceHarness
     /// </summary>
     public async Task AdvanceAsync(TimeSpan delay)
     {
-        _saveObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _saveObserved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
         Time.Advance(delay);
         await _saveObserved.Task;
         _saveObserved = null;

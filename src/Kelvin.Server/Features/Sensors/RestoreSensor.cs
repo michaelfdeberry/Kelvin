@@ -1,6 +1,7 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Sensors;
 
@@ -11,11 +12,12 @@ public static class RestoreSensorErrors
   public static readonly Error DefaultError = new("RestoreSensor.Failed", "An error occurred processing the request.");
 }
 
-public class RestoreSensorHandler(KelvinContext context) : IHandler<RestoreSensorRequest>
+public class RestoreSensorHandler(KelvinContext context, IMemoryCache cache) : IHandler<RestoreSensorRequest>
 {
   public async Task<Result> HandleAsync(RestoreSensorRequest request, CancellationToken ct = default)
   {
     await context.Sensors.Where(s => s.Id == request.Id).ExecuteUpdateAsync(s => s.SetProperty(s => s.DeletedAt, (DateTime?)null), ct);
+    cache.Remove(SensorsCache.Key);
     return Result.Success();
   }
 }

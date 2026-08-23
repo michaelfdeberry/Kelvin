@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build Kelvin.Server",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/src/Kelvin.Server/Kelvin.Server.csproj"],
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
+using Microsoft.Extensions.Caching.Memory;
 using Shouldly;
 using Xunit;
 
@@ -14,7 +15,10 @@ namespace Kelvin.Server.Tests.Features.Sensors;
 /// </summary>
 public class SaveSensorPacketTests
 {
-    private static SensorPacket CreatePacket(string macAddress, float? batteryLevelPercentage = 90f) =>
+    private static SensorPacket CreatePacket(
+        string macAddress,
+        float? batteryLevelPercentage = 90f
+    ) =>
         new()
         {
             MacAddress = macAddress,
@@ -30,9 +34,10 @@ public class SaveSensorPacketTests
         using var harness = new KelvinContextHarness();
         await using var context = harness.CreateContext();
         var channel = A.Fake<ISensorPacketChannel>();
+        var cache = A.Fake<IMemoryCache>();
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        var result = await new SaveSensorPacketHandler(context, channel).HandleAsync(
+        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
             new SaveSensorPacketRequest(packet)
         );
 
@@ -61,8 +66,9 @@ public class SaveSensorPacketTests
 
         await using var writeContext = harness.CreateContext();
         var channel = A.Fake<ISensorPacketChannel>();
+        var cache = A.Fake<IMemoryCache>();
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        var result = await new SaveSensorPacketHandler(writeContext, channel).HandleAsync(
+        var result = await new SaveSensorPacketHandler(writeContext, channel, cache).HandleAsync(
             new SaveSensorPacketRequest(packet)
         );
 
@@ -79,9 +85,10 @@ public class SaveSensorPacketTests
         using var harness = new KelvinContextHarness();
         await using var context = harness.CreateContext();
         var channel = A.Fake<ISensorPacketChannel>();
+        var cache = A.Fake<IMemoryCache>();
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        await new SaveSensorPacketHandler(context, channel).HandleAsync(
+        await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
             new SaveSensorPacketRequest(packet)
         );
 
@@ -95,9 +102,10 @@ public class SaveSensorPacketTests
         using var harness = new KelvinContextHarness();
         await using var context = harness.CreateContext();
         var channel = A.Fake<ISensorPacketChannel>();
+        var cache = A.Fake<IMemoryCache>();
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff", null);
-        var result = await new SaveSensorPacketHandler(context, channel).HandleAsync(
+        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
             new SaveSensorPacketRequest(packet)
         );
 

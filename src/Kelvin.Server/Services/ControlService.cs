@@ -48,7 +48,7 @@ public class ControlService(
   // Change recording. Records are queued by the state machine and broadcast/persisted only after the actuation is
   // complete, so a slow or failing hub or database can never delay a relay or take the control loop down with it.
   private readonly List<ControlStateChange> _pendingChanges = [];
-  private ControlContext? _currentContext;
+  private ControlMessage? _currentContext;
 
   public override async Task StartAsync(CancellationToken cancellationToken)
   {
@@ -63,7 +63,7 @@ public class ControlService(
     // The thought here is if the conditions for heating/cooling are still met then the system will turn on again as needed.
     // Enable control will get called for every cycle, so if it's configured to be on it won't need to be restored.
     // The fan is different, but if the fan doesn't restore I'm not sure if I care about that.
-    // Leaving the todo to validatie these assumptions.
+    // Leaving the todo to validate these assumptions.
   }
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -106,7 +106,7 @@ public class ControlService(
 
         relays.Configure(gateway);
 
-        _currentContext = controlMessage.Context;
+        _currentContext = controlMessage;
         Handle(gateway, _currentContext.State);
         await FlushChangesAsync(stoppingToken);
       }
@@ -201,7 +201,10 @@ public class ControlService(
     if (call == HvacCall.Dwell)
     {
       if (_currentCall == HvacCall.Dwell)
+      {
+        relays.EnableDwell();
         return;
+      }
 
       // already waiting to transition to Dwell
       if (_pendingDwellTask is not null)

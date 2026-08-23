@@ -1,6 +1,7 @@
 import '../../../components/features/settings/settings-general/settings-general.js';
 import '../../../components/features/settings/settings-location/settings-location.js';
 import '../../../components/features/settings/settings-sensors/settings-sensors.js';
+import '../../../components/features/settings/settings-gateway/settings-gateway.js';
 
 import { html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
@@ -17,9 +18,9 @@ export class SettingsView extends LitElement {
       <section class="settings-view__panel">
         <h1 class="settings-view__title">Settings</h1>
         <p class="settings-view__description">Manage system preferences and location data.</p>
-
         <app-settings-general></app-settings-general>
         <app-settings-location></app-settings-location>
+        <app-settings-gateway></app-settings-gateway>
         <app-settings-sensors></app-settings-sensors>
       </section>
     `;

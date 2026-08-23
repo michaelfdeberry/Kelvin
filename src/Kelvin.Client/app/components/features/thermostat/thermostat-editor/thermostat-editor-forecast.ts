@@ -43,6 +43,51 @@ export class ThermostatEditorForecast extends LitElement {
     };
   }
 
+  // override render(): TemplateResult {
+  //   return html`
+  //     <p class="thermostat-editor-forecast__description">
+  //       Locks out HVAC operation based on the outdoor temperature forecast. If the outdoor temperature is forecasted to be above the lockout
+  //       temperature, the thermostat will not allow heating or cooling to operate.
+  //     </p>
+
+  //     ${when(
+  //       this.isHeatingAvailable,
+  //       () => html`
+  //         <div class="form-control form-control">
+  //           <label class="form-control__label">
+  //             Lockout Heating if outdoor temp ≥
+  //             <input
+  //               type="number"
+  //               id="heating-lockout"
+  //               name="heating-lockout"
+  //               class="form-control__input input"
+  //               placeholder="${this.preferredUnit}"
+  //               .value=${toPreferredUnit(this.preferences.temperatureUnit, this.thermostat.heatingLockoutC)}
+  //             />
+  //           </label>
+  //         </div>
+  //       `,
+  //     )}
+  //     ${when(
+  //       this.isCoolingAvailable,
+  //       () => html`
+  //         <div class="form-control form-control">
+  //           <label class="form-control__label">
+  //             Lockout Cooling if outdoor temp ≤
+  //             <input
+  //               type="number"
+  //               id="cooling-lockout"
+  //               name="cooling-lockout"
+  //               class="form-control__input input"
+  //               placeholder="${this.preferredUnit}"
+  //               .value=${toPreferredUnit(this.preferences.temperatureUnit, this.thermostat.coolingLockoutC)}
+  //             />
+  //           </label>
+  //         </div>
+  //       `,
+  //     )}
+  //   `;
+  // }
   override render(): TemplateResult {
     return html`
       <p class="thermostat-editor-forecast__description">

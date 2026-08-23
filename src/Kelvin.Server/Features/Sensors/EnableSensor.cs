@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Sensors;
 
@@ -10,7 +11,7 @@ public static class EnableSensorErrors
   public static readonly Error NotFoundError = new("EnableSensor.NotFound", "The requested sensor was not found.");
 }
 
-public class EnableSensorHandler(KelvinContext context) : IHandler<EnableSensorRequest>
+public class EnableSensorHandler(KelvinContext context, IMemoryCache cache) : IHandler<EnableSensorRequest>
 {
   public async Task<Result> HandleAsync(EnableSensorRequest request, CancellationToken ct = default)
   {
@@ -22,7 +23,7 @@ public class EnableSensorHandler(KelvinContext context) : IHandler<EnableSensorR
 
     sensor.Enabled = true;
     await context.SaveChangesAsync(ct);
-
+    cache.Remove(SensorsCache.Key);
     return Result.Success();
   }
 }

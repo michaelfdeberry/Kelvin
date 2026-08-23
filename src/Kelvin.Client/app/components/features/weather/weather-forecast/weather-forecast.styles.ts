@@ -51,6 +51,44 @@ const weatherForecastStyles = css`
     margin-left: 4px;
   }
 
+  :host-context([kiosk]) {
+    height: 100%;
+    align-items: stretch;
+  }
+
+  :host-context([kiosk]) .weather-forecast__container {
+    flex-direction: column;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    justify-content: space-between;
+    gap: 1rem;
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  :host-context([kiosk]) .weather-forecast__day {
+    justify-content: space-between;
+    flex: 1;
+    padding: 1rem 0;
+    width: 100%;
+    min-width: 0;
+    border-radius: var(--border-radius);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 14px 34px var(--shadow-color);
+  }
+
+  :host-context([kiosk]) .weather-forecast__day-label {
+    margin-bottom: 0;
+  }
+
+  :host-context([kiosk]) .weather-forecast__icon {
+    font-size: 3rem;
+  }
+
   @media (max-width: 768px) {
     /* Hide the last child on mobile, provides only a 2 day forecast instead of 3 */
     .weather-forecast__day:nth-child(4) {

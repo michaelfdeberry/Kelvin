@@ -4,12 +4,18 @@
       "name": "C#: Kelvin.Server Debug",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "dotnet: build",
+      "preLaunchTask": "build Kelvin.Server",
       "program": "${workspaceFolder}/src/Kelvin.Server/bin/Debug/net10.0/Kelvin.Server.exe",
       "cwd": "${workspaceFolder}/src/Kelvin.Server",
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
+    },
+    {
+      "name": "C#: Kelvin.Server Attach",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}"
     }
   ]
 }

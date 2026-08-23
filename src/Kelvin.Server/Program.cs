@@ -51,7 +51,14 @@ builder.Services.AddHostedService<ControlService>();
 builder.Services.AddHostedService<GatewayService>();
 builder.Services.AddHostedService<SensingService>();
 builder.Services.AddHostedService<ThermostatService>();
-builder.Services.AddSignalR();
+builder
+  .Services.AddSignalR()
+  .AddJsonProtocol(options =>
+  {
+    options.PayloadSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.PayloadSerializerOptions.WriteIndented = false;
+  });
 builder.Services.Configure<JsonOptions>(options =>
 {
   options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;

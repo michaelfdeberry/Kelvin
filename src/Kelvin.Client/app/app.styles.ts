@@ -43,6 +43,10 @@ const appShellStyles = css`
     min-height: calc(100vh - var(--banner-height));
   }
 
+  :host-context([kiosk]) .app-shell__shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   @media (max-width: 1024px) {
     .app-shell__shell {
       grid-template-columns: 1fr;

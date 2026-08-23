@@ -7,6 +7,7 @@ const apiResources = {
   gateways: {
     getGateway: '/api/gateway',
     updateGateway: '/api/gateway',
+    getRelayStates: '/api/gateway/relays/states',
   },
   locations: {
     getCurrentLocation: '/api/locations/current',
@@ -21,7 +22,7 @@ const apiResources = {
     deleteSensor: '/api/sensors/{id}',
     disableSensor: '/api/sensors/{sensorId}/disable',
     enableSensor: '/api/sensors/{sensorId}/enable',
-    getLatestReadings: '/api/sensors/readings/latest',
+    getLatestReading: '/api/sensors/readings/latest',
     getSensors: '/api/sensors',
     restoreSensor: '/api/sensors/{id}',
     updateSensor: '/api/sensors/{id:guid}',

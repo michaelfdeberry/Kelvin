@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
 using Kelvin.Server.Models;
@@ -7,7 +8,7 @@ namespace Kelvin.Server.Features.Sensors;
 
 public record GetLatestReadingsRequest() : IRequest<GetLatestReadingsResponse>;
 
-public record GetLatestReadingsResponse(IEnumerable<SensorPacket> Readings);
+public record GetLatestReadingsResponse(EnvironmentReading Reading);
 
 public static class GetLatestReadingsErrors
 {
@@ -23,9 +24,18 @@ public class GetLatestReadingsHandler(KelvinContext context) : IHandler<GetLates
       .SensorPackets.Where(p => p.SensorId != null)
       .GroupBy(p => p.SensorId)
       .Select(g => g.OrderByDescending(p => p.CreatedAt).First())
-      .ToListAsync(ct);
+      .ToDictionaryAsync(p => p.SensorId!.Value, p => p, ct);
 
-    return Result<GetLatestReadingsResponse>.Success(new GetLatestReadingsResponse(latestPerSensor));
+    var reading = new EnvironmentReading
+    {
+      Timestamp = DateTimeOffset.UtcNow,
+      TemperatureC = latestPerSensor.Values.Average(p => p.TemperatureC),
+      HumidityPercentage = latestPerSensor.Values.Average(p => p.HumidityPercentage),
+      CO2LevelPpm = (float)latestPerSensor.Values.Average(p => p.CO2LevelPpm),
+      Areas = new ConcurrentDictionary<Guid, SensorPacket>(latestPerSensor),
+    };
+
+    return Result<GetLatestReadingsResponse>.Success(new GetLatestReadingsResponse(reading));
   }
 }
 

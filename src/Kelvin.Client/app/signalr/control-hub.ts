@@ -27,12 +27,15 @@ export class ControlHub extends SignalRHubBase {
 
   private async loadInitialState(): Promise<void> {
     try {
+      // TODO this is wrong. the last change won't represent the current state of the control
+      // The response will have the current state, but it won't have the full state. I'm not sure if this is what I
+      // really want here. I really just need the state of the relays, anything else is just noise
+      // for how this is used.
       const response = await apiGet<ControlStateResponse>(resources.control.getControlState);
       if (!response.lastChange) {
         console.warn('No control state change found in the response.');
         return;
       }
-
       dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.controlStateChanged, response.lastChange);
     } catch (error) {
       console.error('Failed to load control state:', error);

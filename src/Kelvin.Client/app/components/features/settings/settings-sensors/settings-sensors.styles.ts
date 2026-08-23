@@ -5,6 +5,10 @@ export default css`
     display: block;
   }
 
+  .table-container {
+    margin-top: 1rem;
+  }
+
   .sensor-info {
     display: flex;
     align-items: center;
