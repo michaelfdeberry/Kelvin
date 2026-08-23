@@ -74,7 +74,7 @@ function Start-DevProcess {
 $dotnet = Resolve-Executable -Name 'dotnet'
 $clientPackageManager = Resolve-Executable -Name 'pn.cmd'
 
-Start-DevProcess -DisplayName 'Kelvin Server' -FilePath $dotnet -ArgumentList @('run', '--project', $serverProject) -WorkingDirectory $serverDir
+Start-DevProcess -DisplayName 'Kelvin Server' -FilePath $dotnet -ArgumentList @('watch', '--project', $serverProject) -WorkingDirectory $serverDir
 Start-DevProcess -DisplayName 'Kelvin Client' -FilePath $clientPackageManager -ArgumentList @('dev') -WorkingDirectory $clientDir
 
 if (-not $NoSimulator) {

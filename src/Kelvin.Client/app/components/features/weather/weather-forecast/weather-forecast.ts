@@ -11,9 +11,27 @@ import resources from '../../../../services/api-resources.js';
 import { apiGet } from '../../../../services/api.js';
 import sharedStyles from '../../../../shared.styles.js';
 
+const WEATHER_UPDATE_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+
 @customElement('app-weather-forecast')
 export class WeatherForecast extends LitElement {
   static override styles = [sharedStyles, weatherForecastStyles];
+
+  private intervalId: ReturnType<typeof setInterval> | undefined;
+
+  override connectedCallback() {
+    super.connectedCallback();
+
+    this.intervalId = setInterval(() => this.getWeatherTask.run(), WEATHER_UPDATE_INTERVAL_MS);
+  }
+
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+    }
+  }
 
   private getWeatherTask = new Task(this, {
     task: async (_, { signal }) => {

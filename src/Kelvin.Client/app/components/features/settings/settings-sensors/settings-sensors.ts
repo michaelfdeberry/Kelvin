@@ -14,7 +14,7 @@ import powerIcon from '../../../../../assets/icons/power.svg?raw';
 import trashIcon from '../../../../../assets/icons/trash.svg?raw';
 import { sensorsContext } from '../../../../contexts/sensors-context.js';
 import { events } from '../../../../events.js';
-import { Sensor, SensorReading } from '../../../../models/sensors.js';
+import { EnvironmentReading, Sensor, SensorReading } from '../../../../models/sensors.js';
 import resources from '../../../../services/api-resources.js';
 import { apiDelete, apiGet, apiPost } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
@@ -35,8 +35,8 @@ export class SettingsSensors extends LitElement {
   private readingsTask = new Task(this, {
     task: async (_, { signal }) => {
       try {
-        const results = await apiGet<{ readings: SensorReading[] }>(resources.sensors.getLatestReadings, { signal });
-        return results?.readings ?? ([] as SensorReading[]);
+        const results = await apiGet<{ reading: EnvironmentReading }>(resources.sensors.getLatestReading, { signal });
+        return Object.values(results?.reading.areas) ?? ([] as SensorReading[]);
       } catch {
         return [] as SensorReading[];
       }
