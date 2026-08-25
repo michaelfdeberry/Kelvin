@@ -10,30 +10,30 @@ import { dispatchCustomEvent } from '../../../services/utilities.js';
 import sharedStyles from '../../../shared.styles.js';
 
 const titleByType: Record<AlertType, string> = {
-  information: 'Information',
-  warning: 'Warning',
-  success: 'Success',
-  error: 'Error',
+  Information: 'Information',
+  Warning: 'Warning',
+  Success: 'Success',
+  Error: 'Error',
 };
 
 const badgeByType: Record<AlertType, string> = {
-  information: 'i',
-  warning: '❢',
-  success: '✔',
-  error: '✖',
+  Information: 'i',
+  Warning: '❢',
+  Success: '✔',
+  Error: '✖',
 };
 
 @customElement('app-alert')
 export class Alert extends LitElement {
   static override styles = [sharedStyles, alertStyles];
 
-  @property({ type: String, reflect: true }) type: AlertType = 'information';
+  @property({ type: String, reflect: true }) type: AlertType = 'Information';
   @property({ type: String }) heading = '';
   @property({ type: Boolean, reflect: true }) dismissible = false;
   @property({ type: Boolean, reflect: true }) banner = false;
 
   private isValidState(value: string): value is AlertType {
-    return value === 'information' || value === 'warning' || value === 'success' || value === 'error';
+    return value === 'Information' || value === 'Warning' || value === 'Success' || value === 'Error';
   }
 
   dismiss(event?: Event) {
@@ -44,14 +44,14 @@ export class Alert extends LitElement {
 
   override willUpdate(): void {
     if (!this.isValidState(this.type)) {
-      this.type = 'information';
+      this.type = 'Information';
     }
   }
 
   override render() {
     const title = this.heading || titleByType[this.type];
     const badge = badgeByType[this.type];
-    const role = this.type === 'error' ? 'alert' : 'status';
+    const role = this.type === 'Error' ? 'alert' : 'status';
 
     return html`
       <section

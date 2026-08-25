@@ -1,15 +1,14 @@
 import './components/shared/alert/alert.js';
 import './components/shared/toaster/toaster.js';
-import './signalr/control-hub.js';
-import './signalr/readings-hub.js';
 import './signalr/signalr-context.js';
 
-import { ContextProvider } from '@lit/context';
+import { consume, ContextProvider } from '@lit/context';
 import { html, LitElement, nothing, TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 
 import appShellStyles from './app.styles.js';
+import { bannerContext } from './contexts/banner-context.js';
 import './components/layout/app-sidebar/app-sidebar.js';
 import { defaultPreferences, preferencesContext } from './contexts/preferences-context.js';
 import { defaultSensors, sensorsContext } from './contexts/sensors-context.js';
@@ -25,6 +24,7 @@ import { events } from './events.js';
 import { Sensors as SensorsResponse } from './models/sensors.js';
 import './router.js';
 import { SchedulesResponse, SetPointsResponse, Thermostat } from './models/thermostat.js';
+import { ToastDetail } from './models/toast-detail.js';
 import resources from './services/api-resources.js';
 import { apiGet, apiPut } from './services/api.js';
 import { isKioskMode } from './services/kiosk.js';
@@ -61,6 +61,9 @@ export class KelvinApp extends LitElement {
     context: schedulesContext,
     initialValue: defaultSchedules,
   });
+
+  @consume({ context: bannerContext, subscribe: true })
+  private banner?: ToastDetail;
 
   @state()
   private isThermostatDisabled: boolean | undefined = undefined;
@@ -111,7 +114,7 @@ export class KelvinApp extends LitElement {
       const preferences = await apiGet<Preferences>(resources.preferences.getPreferences);
       this.preferencesProvider.setValue(preferences);
     } catch (err) {
-      dispatchToast(this, 'error', 'Failed to load preferences.');
+      dispatchToast(this, 'Error', 'Failed to load preferences.');
       console.error('Failed to load preferences:', err);
     }
   }
@@ -121,7 +124,7 @@ export class KelvinApp extends LitElement {
       const response = await apiGet<SensorsResponse>(resources.sensors.getSensors);
       this.sensorsProvider.setValue(response.sensors);
     } catch (err) {
-      dispatchToast(this, 'error', 'Failed to load sensors.');
+      dispatchToast(this, 'Error', 'Failed to load sensors.');
       console.error('Failed to load sensors:', err);
     }
   }
@@ -138,7 +141,7 @@ export class KelvinApp extends LitElement {
       const schedulesResponse = await apiGet<SchedulesResponse>(resources.thermostat.getSchedules);
       this.schedulesProvider.setValue(schedulesResponse.schedules);
     } catch (err) {
-      dispatchToast(this, 'error', 'Failed to load thermostat.');
+      dispatchToast(this, 'Error', 'Failed to load thermostat.');
       console.error('Failed to load thermostat:', err);
     }
   }
@@ -151,33 +154,53 @@ export class KelvinApp extends LitElement {
       });
       this.loadThermostat();
     } catch (error) {
-      dispatchToast(this, 'error', 'Failed to take control of the thermostat.');
+      dispatchToast(this, 'Error', 'Failed to take control of the thermostat.');
       console.error('Failed to take control of the thermostat:', error);
     }
   }
 
   private renderBanner(): TemplateResult | typeof nothing {
-    if (this.isThermostatDisabled === undefined) return nothing;
-    if (this.thermostatProvider.value.mode !== 'Disabled') return nothing;
-
-    return html`
-      <div class="app-shell__banner">
-        <app-alert
-          banner
-          type="warning"
-          heading="Kelvin is Disabled"
-        >
-          <p>The HVAC system is being controlled by the failsafe thermostat.</p>
-          <button
-            slot="actions"
-            class="button button--warning button--small"
-            @click=${this.handleTakeControlClick}
+    // banners for the context will only be shown in extreme cases, so that's going to take precedence over the thermostat disabled banner.
+    // Currently, the only use case is when all the sensors are offline.
+    // The issue with this is nothing currently clears the banner, so it's going to be stuck on the kiosk screen.
+    // TODO: figure that out later.
+    // I'll have to send a reload command, or trigger a reload based on control state change, or something along those lines.
+    if (this.banner) {
+      return html`
+        <div class="app-shell__banner">
+          <app-alert
+            banner
+            type=${this.banner.type}
+            ?.heading=${this.banner.heading}
           >
-            Take Control
-          </button>
-        </app-alert>
-      </div>
-    `;
+            <p>${this.banner.message}</p>
+          </app-alert>
+        </div>
+      `;
+    }
+
+    if (this.isThermostatDisabled) {
+      return html`
+        <div class="app-shell__banner">
+          <app-alert
+            banner
+            type="Warning"
+            heading="Kelvin is Disabled"
+          >
+            <p>The HVAC system is being controlled by the failsafe thermostat.</p>
+            <button
+              slot="actions"
+              class="button button--warning button--small"
+              @click=${this.handleTakeControlClick}
+            >
+              Take Control
+            </button>
+          </app-alert>
+        </div>
+      `;
+    }
+
+    return nothing;
   }
 
   override render() {
@@ -190,8 +213,6 @@ export class KelvinApp extends LitElement {
             <app-router></app-router>
           </main>
           <app-toaster></app-toaster>
-          <signalr-control-hub></signalr-control-hub>
-          <signalr-readings-hub></signalr-readings-hub>
         </div>
       </signalr-context>
     `;

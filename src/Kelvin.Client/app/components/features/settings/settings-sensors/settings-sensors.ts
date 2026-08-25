@@ -57,20 +57,20 @@ export class SettingsSensors extends LitElement {
       } else {
         await apiPost<void>(resources.sensors.enableSensor, { body: undefined, routeParams: { sensorId } });
       }
-      dispatchToast(this, 'success', `Sensor ${enabled ? 'disabled' : 'enabled'} successfully`);
+      dispatchToast(this, 'Success', `Sensor ${enabled ? 'disabled' : 'enabled'} successfully`);
       dispatchCustomEvent(this, events.sensorsUpdated);
     } catch {
-      dispatchToast(this, 'error', `Failed to ${enabled ? 'disable' : 'enable'} sensor`);
+      dispatchToast(this, 'Error', `Failed to ${enabled ? 'disable' : 'enable'} sensor`);
     }
   }
 
   private async handleSensorRestore(sensor: Sensor): Promise<void> {
     try {
       await apiPost<void>(resources.sensors.restoreSensor, { body: undefined, routeParams: { id: sensor.id } });
-      dispatchToast(this, 'success', `Sensor ${sensor.name} restored successfully`);
+      dispatchToast(this, 'Success', `Sensor ${sensor.name} restored successfully`);
       dispatchCustomEvent(this, events.sensorsUpdated);
     } catch {
-      dispatchToast(this, 'error', 'Failed to restore sensor');
+      dispatchToast(this, 'Error', 'Failed to restore sensor');
     }
   }
 
@@ -83,7 +83,7 @@ export class SettingsSensors extends LitElement {
 
       await apiDelete<void>(resources.sensors.deleteSensor, { routeParams: { id: sensor.id } });
       dispatchToast(this, {
-        type: 'success',
+        type: 'Success',
         message: html`
           Sensor ${sensor.name} removed successfully.
           <button
@@ -97,7 +97,7 @@ export class SettingsSensors extends LitElement {
       dispatchCustomEvent(this, events.sensorsUpdated);
     } catch (error) {
       console.error('Failed to remove sensor:', error);
-      dispatchToast(this, 'error', 'Failed to remove sensor');
+      dispatchToast(this, 'Error', 'Failed to remove sensor');
     }
   }
 

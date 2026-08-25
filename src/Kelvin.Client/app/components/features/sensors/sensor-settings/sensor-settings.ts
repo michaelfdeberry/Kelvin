@@ -56,7 +56,7 @@ export class SensorSettings extends LitElement {
     const hasBattery = formData.get('has-battery') === 'on';
 
     if (!sensorName) {
-      dispatchToast(this, 'error', 'Sensor name is required.', { duration: 3000 });
+      dispatchToast(this, 'Error', 'Sensor name is required.', { duration: 3000 });
       return;
     }
 
@@ -73,7 +73,7 @@ export class SensorSettings extends LitElement {
       routeParams: { id: this.sensor!.id },
     });
 
-    dispatchToast(this, 'success', 'Sensor updated successfully.', { duration: 3000 });
+    dispatchToast(this, 'Success', 'Sensor updated successfully.', { duration: 3000 });
     dispatchCustomEvent(this, events.sensorsUpdated);
 
     this.isModalOpen = false;

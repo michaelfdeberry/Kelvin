@@ -9,6 +9,7 @@ public static class ControlFixtures
 {
     public const int MinimumOnMinutes = 3;
     public const int MinimumOffMinutes = 5;
+    public const int MinimumModeSwitchMinutes = 15;
 
     public static GetGatewayResponse CreateGateway(
         int? minimumOnDurationMinutes = MinimumOnMinutes,

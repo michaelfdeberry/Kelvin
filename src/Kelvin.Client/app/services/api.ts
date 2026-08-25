@@ -101,7 +101,7 @@ async function apiFetch<T>(resourcePath: ApiResourcePath, init?: RequestInit, op
 
   const error = await getErrorMessage(response);
   dispatchToast(document, {
-    type: 'error',
+    type: 'Error',
     duration: 30000,
     dismissible: true,
     message: error?.message ?? `An error occurred while processing the request to ${requestPath}. (Status: ${response.status})`,

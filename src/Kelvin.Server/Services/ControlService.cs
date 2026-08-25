@@ -32,6 +32,7 @@ public class ControlService(
   // Hardware safety configurations
   private const int DEFAULT_MIN_OFF_DURATION_MINUTES = 5;
   private const int DEFAULT_MIN_ON_DURATION_MINUTES = 3;
+  private const int DEFAULT_MIN_MODE_SWITCH_DURATION_MINUTES = 15;
 
   private const int ERROR_BACKOFF_SECONDS = 5;
 
@@ -44,6 +45,8 @@ public class ControlService(
   private DateTimeOffset? _lastFanChangeAt;
   private CancellationTokenSource? _pendingDwellCts;
   private Task? _pendingDwellTask;
+  private DateTimeOffset _lastCoolingEndedAt = DateTimeOffset.MinValue;
+  private DateTimeOffset _lastHeatingEndedAt = DateTimeOffset.MinValue;
 
   // Change recording. Records are queued by the state machine and broadcast/persisted only after the actuation is
   // complete, so a slow or failing hub or database can never delay a relay or take the control loop down with it.
@@ -57,13 +60,6 @@ public class ControlService(
     await RestoreCallClockAsync(cancellationToken);
     await RecordStartupEventAsync(cancellationToken);
     await base.StartAsync(cancellationToken);
-
-    // TODO: this needs to check the thermostat state and restore the relays to the correct state.
-    // Thinking about this again, this may not need to be done, at least not for heating/cooling.
-    // The thought here is if the conditions for heating/cooling are still met then the system will turn on again as needed.
-    // Enable control will get called for every cycle, so if it's configured to be on it won't need to be restored.
-    // The fan is different, but if the fan doesn't restore I'm not sure if I care about that.
-    // Leaving the todo to validate these assumptions.
   }
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -193,13 +189,17 @@ public class ControlService(
   /// </summary>
   private void EvaluateCall(GetGatewayResponse gateway, HvacCall call)
   {
-    // make sure to use the configured minimum durations, or fall back to defaults if not set
-    var minOffDuration = TimeSpan.FromMinutes(gateway.MinimumOffDurationMinutes ?? DEFAULT_MIN_OFF_DURATION_MINUTES);
-    var minOnDuration = TimeSpan.FromMinutes(gateway.MinimumOnDurationMinutes ?? DEFAULT_MIN_ON_DURATION_MINUTES);
+    // The durations were going to be configurable, but that's probably not going to happen
+    // TODO: remove the properties from the Gateway since they are no longer used.
+    var minOffDuration = TimeSpan.FromMinutes(DEFAULT_MIN_OFF_DURATION_MINUTES);
+    var minOnDuration = TimeSpan.FromMinutes(DEFAULT_MIN_ON_DURATION_MINUTES);
+    var minTransitionDuration = TimeSpan.FromMinutes(DEFAULT_MIN_MODE_SWITCH_DURATION_MINUTES);
+
     var timeInCurrentCall = time.GetUtcNow() - _lastCallChangeAt;
 
     if (call == HvacCall.Dwell)
     {
+      // already in Dwell, so make sure the relays are released.
       if (_currentCall == HvacCall.Dwell)
       {
         relays.EnableDwell();
@@ -232,8 +232,34 @@ public class ControlService(
 
     if (_currentCall == HvacCall.Dwell)
     {
-      // Check Minimum Off-Time
-      if (timeInCurrentCall < minOffDuration)
+      var now = time.GetUtcNow();
+
+      // if leaving dwell the min off time might need to be adjusted if the last active call was the opposite mode.
+      if (call == HvacCall.Heating && _lastCoolingEndedAt != DateTimeOffset.MinValue && now - _lastCoolingEndedAt < minTransitionDuration)
+      {
+        logger.LogInformation(
+          "Requested {RequestedCall}, but the last Cooling call ended {ElapsedSeconds}s ago, which is less than the Minimum Mode Switch Duration ({RequiredMinutes}m).",
+          call,
+          (now - _lastCoolingEndedAt).TotalSeconds,
+          minTransitionDuration.TotalMinutes
+        );
+
+        // block activation
+        return;
+      }
+      else if (call == HvacCall.Cooling && _lastHeatingEndedAt != DateTimeOffset.MinValue && now - _lastHeatingEndedAt < minTransitionDuration)
+      {
+        logger.LogInformation(
+          "Requested {RequestedCall}, but the last Heating call ended {ElapsedSeconds}s ago, which is less than the Minimum Mode Switch Duration ({RequiredMinutes}m).",
+          call,
+          (now - _lastHeatingEndedAt).TotalSeconds,
+          minTransitionDuration.TotalMinutes
+        );
+
+        // block activation
+        return;
+      }
+      else if (timeInCurrentCall < minOffDuration)
       {
         logger.LogInformation(
           "Requested {RequestedCall}, but Minimum Off-Time ({RequiredMinutes}m) has not elapsed. Blocked for {RemainingSeconds}s.",
@@ -261,21 +287,50 @@ public class ControlService(
       // Heating and Cooling are the only two active calls reachable here, so this guards against a direct
       // Heating<->Cooling switch.
       // Maybe there is some concern for this in the automatic mode, but it probably wouldn't make sense to configure it that tightly anyway.
-      // There will need to be some validation against this being configured in this way.
+      // There will need to be some validation against this being allowed to be configured in this way.
       //
-      // This is being treated as a critical error because it shouldn't be possible to reach this point without a bug in the code.
-      // Reverting control because going from heating to cooling may crack the heater core and going from cooling to heating may
-      // damage the AC condenser, which is a safety concern.
+      // This was initially being treated as a critical error because it shouldn't be possible to reach this point without a bug in the code.
+      // It previously reverted control because going from heating to cooling may crack the heat exchanger and going from cooling to heating may
+      // damage the evaporator coil.
       //
-      // My current assumptions is that normal thermostats are dumb and the furnace control board is designed to handle this,
+      // My assumptions are that normal thermostats are dumb and the furnace control board is designed to handle this,
       // I wouldn't bet my furnace on it though.
-      // TODO: research this topic more.
-      logger.LogCritical(
-        "Attempted to switch directly from {CurrentCall} to {RequestedCall} without an intermediate idle state. Ignoring the request.",
+      //
+      // Update - I looked into this more, it's a true concern and from what I've found it's not handled by the control board at all.
+      // The biggest concern is stressing the heat exchanger and causing it to crack, from what I can find the evaporator coil would have no issues
+      // with temperature swings.
+
+      // It seems the recommended approach is to have a minimum off time, which is already implemented. However, that's the typical
+      // 5 minutes between states. That might be fine, but it's at the low end of the recommended time. From what I can find, the recommendation is between
+      // 5 and 15 minutes. I'd prefer to be on the high end of that.
+      //
+      // I'd rather not support a direct switch at all. However, with the initial implementation the min off time will be at the low end of the suggested
+      // dwell time, and this could still be an indirect issue by going heating->dwell->cooling or cooling->dwell->heating.
+      // Which means it needed to be accounted for anyway, so there is no point in relinquishing control and letting the legacy thermostat handle it.
+
+      // Just having this transition to Dwell should be enough. Because, if it's in heating and then there is a call for cooling
+      // changing to dwell would force the min off time. Since that code was updated to account for the last active call, and not just the dwell time,
+      // it is safe to go heating->dwell->cooling. If cooling is really needed another call will likely come in before
+      // the min off time elapses.
+
+      // That eliminates the safety concern, the only other concern would looping through states:
+      // heating->dwell->cooling->dwell->heating->dwell->cooling...
+      // However, it's unlikely someone would manually cycle their system in such a way, and the automatic mode doesn't allow
+      // for configuring the thermostat where a switch like that would be realistically possible with the forecast lockouts and the
+      // required 2x hysteresis gap.
+      // Leaving all these notes since this might be the most critical safety concern in the system.
+      _currentContext = (_currentContext ?? new(ControlState.Dwell)) with
+      {
+        State = ControlState.Dwell,
+        Reason = $"Attempted to switch directly from {_currentCall} to {call} without an intermediate idle state. Transitioning to Dwell first.",
+      };
+
+      logger.LogWarning(
+        "Attempted to switch directly from {CurrentCall} to {RequestedCall} without an intermediate idle state. Transitioning to Dwell first.",
         _currentCall,
         call
       );
-      DisableControl(gateway, "an unsafe call transition was requested");
+      EvaluateCall(gateway, HvacCall.Dwell);
     }
   }
 
@@ -328,6 +383,12 @@ public class ControlService(
 
     RecordChange(ControlChangeKind.Control, ControlState.Disable, ControlState.Enable, _lastControlChangeAt, reason);
     _lastControlChangeAt = time.GetUtcNow();
+
+    if (previousCall == HvacCall.Cooling)
+      _lastCoolingEndedAt = time.GetUtcNow();
+
+    if (previousCall == HvacCall.Heating)
+      _lastHeatingEndedAt = time.GetUtcNow();
 
     // The control relay released the active call with it, so the call timeline must not show it still running.
     if (previousCall != HvacCall.Dwell)
@@ -406,6 +467,12 @@ public class ControlService(
     switch (call)
     {
       case HvacCall.Dwell:
+        if (previousCall == HvacCall.Heating)
+          _lastHeatingEndedAt = time.GetUtcNow();
+
+        if (previousCall == HvacCall.Cooling)
+          _lastCoolingEndedAt = time.GetUtcNow();
+
         logger.LogInformation("Deactivating HVAC relays.");
         relays.EnableDwell();
         break;

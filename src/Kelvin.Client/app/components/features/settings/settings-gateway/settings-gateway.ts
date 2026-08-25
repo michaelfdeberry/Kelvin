@@ -57,7 +57,7 @@ export class SettingsGateway extends LitElement {
     };
 
     await apiPut(apiResources.gateways.updateGateway, { body: update });
-    dispatchToast(this, 'success', 'Gateway settings saved successfully.');
+    dispatchToast(this, 'Success', 'Gateway settings saved successfully.');
   }
 
   private async handleControlChange(): Promise<void> {
