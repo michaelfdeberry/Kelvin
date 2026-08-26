@@ -594,10 +594,34 @@ public class ControlService(
       if (latest is null)
         return;
 
+      var lastCoolingEndedAt = await dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
+        new(latest.State),
+        cancellationToken
+      );
+
+      var lastHeatingEndedAt = await dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
+        new(latest.State),
+        cancellationToken
+      );
+
+      _lastCoolingEndedAt = lastCoolingEndedAt.Value?.ChangedAt ?? DateTimeOffset.MinValue;
+      _lastHeatingEndedAt = lastHeatingEndedAt.Value?.ChangedAt ?? DateTimeOffset.MinValue;
+
       if (latest.State == ControlState.Dwell)
       {
         _lastCallChangeAt = latest.ChangedAt;
         return;
+      }
+
+      if (latest.State == ControlState.Heating)
+      {
+        // last call was heating, so it ends now.
+        _lastHeatingEndedAt = time.GetUtcNow();
+      }
+      else if (latest.State == ControlState.Cooling)
+      {
+        // last call was cooling, so it ends now.
+        _lastCoolingEndedAt = time.GetUtcNow();
       }
 
       // The service went down mid-call and Initialize released the relays, so the call effectively ended just now.
