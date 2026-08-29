@@ -5,7 +5,7 @@ import { when } from 'lit/directives/when.js';
 
 import { preferencesContext } from '../../../contexts/preferences-context';
 import { Preferences } from '../../../models/preferences';
-import { getPreferredUnit, toPreferredUnit } from '../../../services/utilities';
+import { getPreferredUnit, presentAsPreferredUnit } from '../../../services/utilities';
 import sharedStyles from '../../../shared.styles';
 
 @customElement('app-temperature')
@@ -30,7 +30,7 @@ export class Temperature extends LitElement {
     if (this.temperature === undefined) return nothing;
     if (this.temperature === null) return nothing;
 
-    const temp = toPreferredUnit(this.preferences.temperatureUnit, this.temperature, 1);
+    const temp = presentAsPreferredUnit(this.preferences.temperatureUnit, this.temperature, 1);
     return html`${temp}${when(
       this.showUnit,
       () => getPreferredUnit(this.preferences.temperatureUnit),

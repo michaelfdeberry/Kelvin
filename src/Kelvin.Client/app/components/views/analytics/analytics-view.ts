@@ -8,7 +8,7 @@ import '../../shared/chart/chart.js';
 import { preferencesContext } from '../../../contexts/preferences-context.js';
 import { Preferences } from '../../../models/preferences.js';
 import { loadControlHistory } from '../../../services/control-analytics.js';
-import { getPreferredUnit, toPreferredUnit } from '../../../services/utilities.js';
+import { getPreferredUnit, presentAsPreferredUnit } from '../../../services/utilities.js';
 import sharedStyles from '../../../shared.styles.js';
 
 import type { ControlStateChange } from '../../../models/control-state-change.js';
@@ -236,14 +236,16 @@ export class AnalyticsView extends LitElement {
         points: toMeasurementPoints(measurementChanges, 'environmentTemperatureC'),
         color: 'var(--accent-primary)',
         label: 'Indoor temperature',
-        valueFormatter: value => `${toPreferredUnit(this.preferences.temperatureUnit, value)} ${getPreferredUnit(this.preferences.temperatureUnit)}`,
+        valueFormatter: value =>
+          `${presentAsPreferredUnit(this.preferences.temperatureUnit, value)} ${getPreferredUnit(this.preferences.temperatureUnit)}`,
       },
       {
         type: 'line',
         points: toMeasurementPoints(measurementChanges, 'targetTemperatureC'),
         color: 'var(--accent-success)',
         label: 'Target temperature',
-        valueFormatter: value => `${toPreferredUnit(this.preferences.temperatureUnit, value)} ${getPreferredUnit(this.preferences.temperatureUnit)}`,
+        valueFormatter: value =>
+          `${presentAsPreferredUnit(this.preferences.temperatureUnit, value)} ${getPreferredUnit(this.preferences.temperatureUnit)}`,
       },
     ];
     this.fanData = [

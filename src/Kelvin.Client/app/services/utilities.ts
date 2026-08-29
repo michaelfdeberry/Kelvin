@@ -38,7 +38,7 @@ export function dispatchToast(
   return dispatchCustomEvent<ToastDetail>(element, events.toast, detail);
 }
 
-export function toPreferredUnit(temperatureUnit: TemperatureUnit, celsius?: number, fractionDigits: number = 1): string {
+export function presentAsPreferredUnit(temperatureUnit: TemperatureUnit, celsius?: number, fractionDigits: number = 1): string {
   if (celsius === undefined || celsius === null) return '';
   if (temperatureUnit === 'Celsius') return celsius.toFixed(fractionDigits);
   return ((celsius * 9) / 5 + 32).toFixed(fractionDigits);
@@ -47,7 +47,9 @@ export function toPreferredUnit(temperatureUnit: TemperatureUnit, celsius?: numb
 export function convertToPreferredUnit(temperatureUnit: TemperatureUnit, celsius?: number): number | undefined {
   if (celsius === undefined || celsius === null) return undefined;
   if (temperatureUnit === 'Celsius') return celsius;
-  return (celsius * 9) / 5 + 32;
+
+  const value = (celsius * 9) / 5 + 32;
+  return Math.round(value * 10) / 10;
 }
 
 export function fromPreferredUnit(temperatureUnit: TemperatureUnit, value: number): number {

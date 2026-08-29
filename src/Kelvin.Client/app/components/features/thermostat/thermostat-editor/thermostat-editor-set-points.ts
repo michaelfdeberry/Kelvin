@@ -1,4 +1,4 @@
-import '../../../shared/temperature-slider/temperature-slider.js';
+import '../../../shared/number-input/number-input.js';
 
 import { consume } from '@lit/context';
 import { html, LitElement, TemplateResult } from 'lit';
@@ -11,7 +11,7 @@ import { preferencesContext } from '../../../../contexts/preferences-context.js'
 import { setPointsContext, thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { Preferences } from '../../../../models/preferences.js';
 import { SetPoint, SetPointInput, Thermostat } from '../../../../models/thermostat.js';
-import { convertToPreferredUnit, fromPreferredUnit, getPreferredUnit, toPreferredUnit } from '../../../../services/utilities.js';
+import { convertToPreferredUnit, fromPreferredUnit, getPreferredUnit } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 import { TemperatureSlider } from '../../../shared/temperature-slider/temperature-slider.js';
 
@@ -129,14 +129,13 @@ export class ThermostatEditorSetPoints extends LitElement {
             <div class="form-control form-control">
               <label class="form-control__label">
                 Heating Set Point
-                <input
-                  type="number"
+                <app-number-input
                   id="heating-setpoint"
                   name="heating-setpoint"
-                  class="form-control__input input"
+                  class="form-control__input"
                   placeholder="${this.preferredUnit}"
-                  .value=${toPreferredUnit(this.preferences.temperatureUnit, this.heatingSetPoint?.targetTemperatureC)}
-                />
+                  .value=${convertToPreferredUnit(this.preferences.temperatureUnit, this.heatingSetPoint?.targetTemperatureC)}
+                ></app-number-input>
               </label>
             </div>
           `,
@@ -147,14 +146,13 @@ export class ThermostatEditorSetPoints extends LitElement {
             <div class="form-control form-control">
               <label class="form-control__label">
                 Cooling Set Point
-                <input
-                  type="number"
+                <app-number-input
                   id="cooling-setpoint"
                   name="cooling-setpoint"
-                  class="form-control__input input"
+                  class="form-control__input"
                   placeholder="${this.preferredUnit}"
-                  .value=${toPreferredUnit(this.preferences.temperatureUnit, this.coolingSetPoint?.targetTemperatureC)}
-                />
+                  .value=${convertToPreferredUnit(this.preferences.temperatureUnit, this.coolingSetPoint?.targetTemperatureC)}
+                ></app-number-input>
               </label>
             </div>
           `,
