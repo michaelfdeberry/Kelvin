@@ -28,9 +28,17 @@ export default css`
       background-color: var(--bg-dark);
       cursor: pointer;
       font-size: 24px;
+
+      &:disabled {
+        background-color: var(--surface-overlay-panel);
+        cursor: not-allowed;
+      }
     }
 
     .number-input__input {
+      -webkit-appearance: textfield;
+      -moz-appearance: textfield;
+      appearance: textfield;
       height: 100%;
       width: 100%;
       text-align: center;
@@ -41,6 +49,11 @@ export default css`
       color: var(--text-main);
       font: inherit;
 
+      &:disabled {
+        border-color: var(--accent-idle);
+        background-color: var(--surface-overlay-panel);
+      }
+
       &:hover:not(:disabled) {
         border-color: var(--accent-idle);
         background-color: var(--surface-overlay-panel);
@@ -50,8 +63,8 @@ export default css`
         outline: none;
       }
 
-      &[type='number']::-webkit-outer-spin-button,
-      &[type='number']::-webkit-inner-spin-button {
+      &::-webkit-outer-spin-button,
+      &::-webkit-inner-spin-button {
         -webkit-appearance: none;
         margin: 0;
       }

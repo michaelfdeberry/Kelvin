@@ -105,6 +105,7 @@ export class NumberInput extends LitElement {
           class="number-input__button"
           type="button"
           aria-label="decrement"
+          ?disabled=${this.disabled}
           @click=${this.handleDecrement}
         >
           -
@@ -128,6 +129,7 @@ export class NumberInput extends LitElement {
           class="number-input__button"
           type="button"
           aria-label="increment"
+          ?disabled=${this.disabled}
           @click=${this.handleIncrement}
         >
           +
