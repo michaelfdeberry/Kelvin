@@ -117,6 +117,7 @@ export class SettingsGateway extends LitElement {
                 <app-number-input
                   id="heatingPin"
                   name="heatingPin"
+                  step="1"
                   class="form-control__input"
                   .value=${gateway.heatingPin}
                   title="${gateway.relayStates?.heating === true ? 'Heating is currently active, this pin cannot be changed.' : ''}"
@@ -130,6 +131,7 @@ export class SettingsGateway extends LitElement {
                 <app-number-input
                   id="coolingPin"
                   name="coolingPin"
+                  step="1"
                   class="form-control__input"
                   .value=${gateway.coolingPin}
                   title="${gateway.relayStates?.cooling === true ? 'Cooling is currently active, this pin cannot be changed.' : ''}"
@@ -143,6 +145,7 @@ export class SettingsGateway extends LitElement {
                 <app-number-input
                   id="fanPin"
                   name="fanPin"
+                  step="1"
                   class="form-control__input"
                   .value=${gateway.fanPin}
                   title="${gateway.relayStates?.fan === true ? 'Fan is currently active, this pin cannot be changed.' : ''}"
@@ -156,6 +159,7 @@ export class SettingsGateway extends LitElement {
                 <app-number-input
                   id="controlPin"
                   name="controlPin"
+                  step="1"
                   class="form-control__input"
                   .value=${gateway.controlPin}
                   title="${gateway.relayStates?.control === true ? 'Control is currently active, this pin cannot be changed.' : ''}"

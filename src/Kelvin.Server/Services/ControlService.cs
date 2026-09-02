@@ -247,7 +247,8 @@ public class ControlService(
         // block activation
         return;
       }
-      else if (call == HvacCall.Cooling && _lastHeatingEndedAt != DateTimeOffset.MinValue && now - _lastHeatingEndedAt < minTransitionDuration)
+
+      if (call == HvacCall.Cooling && _lastHeatingEndedAt != DateTimeOffset.MinValue && now - _lastHeatingEndedAt < minTransitionDuration)
       {
         logger.LogInformation(
           "Requested {RequestedCall}, but the last Heating call ended {ElapsedSeconds}s ago, which is less than the Minimum Mode Switch Duration ({RequiredMinutes}m).",
@@ -259,7 +260,8 @@ public class ControlService(
         // block activation
         return;
       }
-      else if (timeInCurrentCall < minOffDuration)
+
+      if (timeInCurrentCall < minOffDuration)
       {
         logger.LogInformation(
           "Requested {RequestedCall}, but Minimum Off-Time ({RequiredMinutes}m) has not elapsed. Blocked for {RemainingSeconds}s.",

@@ -236,7 +236,7 @@ export class ThermostatControl extends LitElement {
           ?disabled=${this.thermostat.mode === 'Disabled'}
           @click=${this.toggleFan}
         >
-          ${this.thermostat.fanEnabled ? 'Fan On' : 'Fan Auto'}
+          ${this.thermostat.fanEnabled ? 'Fan: On' : 'Fan: Auto'}
         </button>
       </div>
     `;

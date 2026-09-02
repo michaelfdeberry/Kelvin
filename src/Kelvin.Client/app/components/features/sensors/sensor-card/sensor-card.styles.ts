@@ -61,15 +61,19 @@ const sensorCardStyles = css`
     animation: pulse-glow 2.5s infinite;
   }
 
-  .sensor-card--low-battery {
+  .sensor-card--offline {
     --sensor-card-pulse-start: var(--accent-danger-pulse, var(--accent-heat-pulse));
     --sensor-card-pulse-end: var(--accent-danger-pulse-fade, var(--accent-heat-pulse-fade));
   }
 
+  .sensor-card--low-battery,
   .sensor-card--unconfigured {
-    cursor: pointer;
     --sensor-card-pulse-start: var(--accent-heat-pulse);
     --sensor-card-pulse-end: var(--accent-heat-pulse-fade);
+  }
+
+  .sensor-card--unconfigured {
+    cursor: pointer;
   }
 
   .sensor-card--unconfigured:hover {

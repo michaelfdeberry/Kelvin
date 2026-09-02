@@ -14,11 +14,12 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
 {
   public async Task<Result> HandleAsync(SaveSensorPacketRequest request, CancellationToken ct = default)
   {
-    var sensor = await context.Sensors.FirstOrDefaultAsync(s => s.MacAddress == request.SensorPacket.MacAddress, ct);
+    var sensorPacket = request.SensorPacket;
+    var sensor = await context.Sensors.FirstOrDefaultAsync(s => s.MacAddress == sensorPacket.MacAddress, ct);
     var clearCache = false;
     if (sensor is null)
     {
-      sensor = new Sensor { MacAddress = request.SensorPacket.MacAddress, Enabled = true };
+      sensor = new Sensor { MacAddress = sensorPacket.MacAddress, Enabled = true };
       context.Sensors.Add(sensor);
       clearCache = true;
     }
@@ -30,8 +31,20 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
       sensor.DeletedAt = null;
     }
 
-    request.SensorPacket.SensorId = sensor.Id;
-    context.SensorPackets.Add(request.SensorPacket);
+    sensorPacket.SensorId = sensor.Id;
+    sensorPacket.TemperatureC += sensor.TemperatureCOffset;
+
+    if (sensor.HasHumiditySensor)
+    {
+      sensorPacket.HumidityPercentage += sensor.HumidityPercentageOffset;
+    }
+
+    if (sensor.HasCO2Sensor)
+    {
+      sensorPacket.CO2LevelPpm = (ushort)(sensorPacket.CO2LevelPpm + sensor.CO2LevelPpmOffset);
+    }
+
+    context.SensorPackets.Add(sensorPacket);
     await context.SaveChangesAsync(ct);
 
     if (clearCache)
@@ -43,7 +56,7 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     // but if it's not enabled don't send it to the channel for processing, because we don't want data from disabled sensors to be processed.
     if (sensor.Enabled)
     {
-      await sensorPacketChannel.WriteAsync(request.SensorPacket, ct);
+      await sensorPacketChannel.WriteAsync(sensorPacket, ct);
     }
 
     return Result.Success();

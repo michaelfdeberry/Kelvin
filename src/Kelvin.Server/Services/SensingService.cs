@@ -1,5 +1,6 @@
 namespace Kelvin.Server.Services;
 
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Kelvin.Server.Application;
@@ -32,6 +33,8 @@ public class SensingService(
   private readonly Guid subscriberId = Guid.NewGuid();
 
   private EnvironmentReading? _environment;
+
+  private readonly ConcurrentDictionary<Guid, DateTimeOffset> _enabledSensorsWithoutReadings = new();
 
   private readonly SemaphoreSlim _environmentLock = new(1, 1);
 
@@ -72,7 +75,7 @@ public class SensingService(
 
         if (requiresUpdate)
         {
-          await UpdateReadingsAsync(stoppingToken);
+          await UpdateReadingsAsync(sensors, stoppingToken);
         }
       }
       catch (OperationCanceledException)
@@ -109,12 +112,12 @@ public class SensingService(
           continue;
         }
 
-        // just averaging everything for now, this may change later.
         await _environmentLock.WaitAsync(stoppingToken);
         try
         {
           _environment ??= new();
           _environment.Areas.AddOrUpdate(sensorPacket.SensorId.Value, sensorPacket, (_, _) => sensorPacket);
+          _enabledSensorsWithoutReadings.TryRemove(sensorPacket.SensorId.Value, out _);
 
           await PruneEnvironmentReadingAsync(sensors, stoppingToken);
         }
@@ -123,7 +126,7 @@ public class SensingService(
           _environmentLock.Release();
         }
 
-        await UpdateReadingsAsync(stoppingToken);
+        await UpdateReadingsAsync(sensors, stoppingToken);
       }
       catch (OperationCanceledException)
       {
@@ -136,7 +139,7 @@ public class SensingService(
     }
   }
 
-  private async Task UpdateReadingsAsync(CancellationToken stoppingToken)
+  private async Task UpdateReadingsAsync(IEnumerable<SensorResponse> sensors, CancellationToken stoppingToken)
   {
     if (_environment?.Areas.IsEmpty ?? true)
       return;
@@ -161,15 +164,29 @@ public class SensingService(
       logger.LogInformation("Removed {Count} disabled sensors from environment reading.", removedDisabled);
 
     var now = time.GetUtcNow();
-    var timedOutSensors = _environment.Areas.Where(p => (now - p.Value.CreatedAt).TotalMilliseconds > SENSOR_TIMEOUT_MS).Select(p => p.Key).ToList();
 
-    if (timedOutSensors.Count > 0)
+    // if there are enabled sensors without readings, cache them so we can check if they come back online later
+    var sensorsWithoutReadings = sensors.Where(x => x.Enabled && !_environment.Areas.ContainsKey(x.Id)).Select(x => x.Id).ToList();
+    foreach (var sensorId in sensorsWithoutReadings)
     {
-      foreach (var timedOutSensorId in timedOutSensors)
+      _enabledSensorsWithoutReadings[sensorId] = now;
+    }
+
+    var timedOutSensors = _environment.Areas.Where(p => (now - p.Value.CreatedAt).TotalMilliseconds > SENSOR_TIMEOUT_MS).Select(p => p.Key).ToList();
+    var sensorsWithoutUpdates = _enabledSensorsWithoutReadings
+      .Where(p => (now - p.Value).TotalMilliseconds > SENSOR_TIMEOUT_MS)
+      .Select(p => p.Key)
+      .ToList();
+
+    var sensorsToCleanup = timedOutSensors.Union(sensorsWithoutUpdates).ToList();
+    if (sensorsToCleanup.Count > 0)
+    {
+      foreach (var sensorId in sensorsToCleanup)
       {
-        _environment.Areas.TryRemove(timedOutSensorId, out _);
+        _enabledSensorsWithoutReadings.TryRemove(sensorId, out _);
+        _environment.Areas.TryRemove(sensorId, out _);
       }
-      logger.LogInformation("Removed {Count} timed out sensors from environment reading.", timedOutSensors.Count);
+      logger.LogInformation("Removed {Count} timed out sensors from environment reading.", sensorsToCleanup.Count);
 
       if (_environment.Areas.IsEmpty)
       {
@@ -183,6 +200,6 @@ public class SensingService(
       }
     }
 
-    return removedDisabled > 0 || timedOutSensors.Count > 0;
+    return removedDisabled > 0 || sensorsToCleanup.Count > 0;
   }
 }

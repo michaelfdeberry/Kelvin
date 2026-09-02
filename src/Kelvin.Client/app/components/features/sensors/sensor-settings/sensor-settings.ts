@@ -1,4 +1,6 @@
 import '../../../shared/modal/modal.js';
+import '../../../shared/number-input/number-input.js';
+import '../../../shared/tabs/tabs.js';
 
 import { consume } from '@lit/context';
 import { LitElement, TemplateResult, html, nothing } from 'lit';
@@ -34,6 +36,19 @@ export class SensorSettings extends LitElement {
   @state()
   private isModalOpen = false;
 
+  @state()
+  private hasHumiditySensor = false;
+
+  @state()
+  private hasCO2Sensor = false;
+
+  override updated(changes: Map<string | number | symbol, unknown>): void {
+    if (changes.has('sensorId')) {
+      this.hasHumiditySensor = this.sensor?.hasHumiditySensor ?? false;
+      this.hasCO2Sensor = this.sensor?.hasCO2Sensor ?? false;
+    }
+  }
+
   public open() {
     this.isModalOpen = true;
   }
@@ -54,6 +69,9 @@ export class SensorSettings extends LitElement {
     const hasHumiditySensor = formData.get('has-humidity-sensor') === 'on';
     const hasCO2Sensor = formData.get('has-co2-sensor') === 'on';
     const hasBattery = formData.get('has-battery') === 'on';
+    const temperatureOffset = parseFloat(formData.get('temperature-offset') as string) || 0;
+    const humidityOffset = parseFloat(formData.get('humidity-offset') as string) || 0;
+    const co2Offset = parseFloat(formData.get('co2-offset') as string) || 0;
 
     if (!sensorName) {
       dispatchToast(this, 'Error', 'Sensor name is required.', { duration: 3000 });
@@ -66,6 +84,9 @@ export class SensorSettings extends LitElement {
       hasHumiditySensor,
       hasCO2Sensor,
       hasBattery,
+      temperatureCOffset: temperatureOffset,
+      cO2LevelPpmOffset: co2Offset,
+      humidityPercentageOffset: humidityOffset,
     };
 
     await apiPut<void>(resources.sensors.updateSensor, {
@@ -84,6 +105,7 @@ export class SensorSettings extends LitElement {
 
     return html`
       <app-modal
+        tabs
         ?open=${this.isModalOpen}
         heading="Edit Sensor Configuration"
         description="Edit the configuration for the sensor with ID: ${this.sensorId}"
@@ -93,73 +115,149 @@ export class SensorSettings extends LitElement {
           this.isModalOpen,
           () => html`
             <form
-              class="form-group"
+              class="sensor-settings form-group"
               @submit=${this.saveChanges}
             >
-              <div class="form-control">
-                <label
-                  for="sensor-name"
-                  class="form-control__label"
+              <app-tabs>
+                <button
+                  id="set-points-tab"
+                  slot="tab"
                 >
-                  Sensor Name
-                  <input
-                    type="text"
-                    id="sensor-name"
-                    name="sensor-name"
-                    class="form-control__input input"
-                    placeholder="E.g. Living Room, Primary Bedroom, etc."
-                    .value=${this.sensor?.name ?? ''}
-                  />
-                </label>
-              </div>
-              <fieldset>
-                <legend>Sensor Capabilities</legend>
-                <div class="form-control">
-                  <label
-                    for="has-humidity-sensor"
-                    class="form-control__label"
-                  >
-                    <input
-                      type="checkbox"
-                      id="has-humidity-sensor"
-                      name="has-humidity-sensor"
-                      class="form-control__input checkbox"
-                      ?checked=${this.sensor?.hasHumiditySensor}
-                    />
-                    Has Humidity Sensor
-                  </label>
+                  Settings
+                </button>
+                <button
+                  id="offsets-tab"
+                  slot="tab"
+                >
+                  Offsets
+                </button>
+                <div slot="panel">
+                  <div class="form-control">
+                    <label
+                      for="sensor-name"
+                      class="form-control__label"
+                    >
+                      Sensor Name
+                      <input
+                        type="text"
+                        id="sensor-name"
+                        name="sensor-name"
+                        class="form-control__input input"
+                        placeholder="E.g. Living Room, Primary Bedroom, etc."
+                        .value=${this.sensor?.name ?? ''}
+                      />
+                    </label>
+                  </div>
+                  <fieldset>
+                    <legend>Sensor Capabilities</legend>
+                    <div class="form-control">
+                      <label
+                        for="has-humidity-sensor"
+                        class="form-control__label"
+                      >
+                        <input
+                          type="checkbox"
+                          id="has-humidity-sensor"
+                          name="has-humidity-sensor"
+                          class="form-control__input checkbox"
+                          ?checked=${this.sensor?.hasHumiditySensor}
+                          @change=${(e: Event) => (this.hasHumiditySensor = (e.target as HTMLInputElement).checked)}
+                        />
+                        Has Humidity Sensor
+                      </label>
+                    </div>
+                    <div class="form-control">
+                      <label
+                        for="has-co2-sensor"
+                        class="form-control__label"
+                      >
+                        <input
+                          type="checkbox"
+                          id="has-co2-sensor"
+                          name="has-co2-sensor"
+                          class="form-control__input checkbox"
+                          ?checked=${this.sensor?.hasCO2Sensor}
+                          @change=${(e: Event) => (this.hasCO2Sensor = (e.target as HTMLInputElement).checked)}
+                        />
+                        <span>Has CO<sub>2</sub> Sensor</span>
+                      </label>
+                    </div>
+                    <div class="form-control">
+                      <label
+                        for="has-battery"
+                        class="form-control__label"
+                      >
+                        <input
+                          type="checkbox"
+                          id="has-battery"
+                          name="has-battery"
+                          class="form-control__input checkbox"
+                          ?checked=${this.sensor?.hasBattery}
+                        />
+                        Has Battery
+                      </label>
+                    </div>
+                  </fieldset>
                 </div>
-                <div class="form-control">
-                  <label
-                    for="has-co2-sensor"
-                    class="form-control__label"
-                  >
-                    <input
-                      type="checkbox"
-                      id="has-co2-sensor"
-                      name="has-co2-sensor"
-                      class="form-control__input checkbox"
-                      ?checked=${this.sensor?.hasCO2Sensor}
-                    />
-                    Has CO2 Sensor
-                  </label>
+
+                <div slot="panel">
+                  <div class="form-control">
+                    <label
+                      for="temperature-offset"
+                      class="form-control__label"
+                    >
+                      Temperature Offset
+                      <app-number-input
+                        class="form-control__input"
+                        id="temperature-offset"
+                        name="temperature-offset"
+                        step="0.1"
+                        .value=${this.sensor?.temperatureCOffset ?? 0}
+                      ></app-number-input>
+                    </label>
+                  </div>
+                  ${when(
+                    this.hasHumiditySensor,
+                    () => html`
+                      <div class="form-control">
+                        <label
+                          for="humidity-offset"
+                          class="form-control__label"
+                        >
+                          Humidity Offset
+                          <app-number-input
+                            class="form-control__input"
+                            id="humidity-offset"
+                            name="humidity-offset"
+                            step="0.1"
+                            .value=${this.sensor?.humidityPercentageOffset ?? 0}
+                          ></app-number-input>
+                        </label>
+                      </div>
+                    `,
+                  )}
+                  ${when(
+                    this.hasCO2Sensor,
+                    () => html`
+                      <div class="form-control">
+                        <label
+                          for="co2-offset"
+                          class="form-control__label"
+                        >
+                          CO<sub>2</sub> Offset
+                          <app-number-input
+                            class="form-control__input"
+                            id="co2-offset"
+                            name="co2-offset"
+                            step="0.1"
+                            .value=${this.sensor?.cO2LevelPpmOffset ?? 0}
+                          ></app-number-input>
+                        </label>
+                      </div>
+                    `,
+                  )}
                 </div>
-                <div class="form-control">
-                  <label
-                    for="has-battery"
-                    class="form-control__label"
-                  >
-                    <input
-                      type="checkbox"
-                      id="has-battery"
-                      name="has-battery"
-                      class="form-control__input checkbox"
-                      ?checked=${this.sensor?.hasBattery}
-                    />
-                    Has Battery
-                  </label>
-                </div>
-              </fieldset>
+              </app-tabs>
             </form>
           `,
         )}

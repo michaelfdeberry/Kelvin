@@ -13,9 +13,13 @@ import { Sensor, EnvironmentReading, SensorReading } from '../../../../models/se
 import sharedStyles from '../../../../shared.styles.js';
 import { SensorSettings } from '../sensor-settings/sensor-settings.js';
 
+const FIVE_MINUTES_IN_MS = 5 * 60 * 1000;
+
 @customElement('app-sensor-card')
 export class SensorCard extends LitElement {
   static override styles = [sharedStyles, sensorCardStyles];
+
+  private startTime = Date.now();
 
   @consume({ context: sensorsContext, subscribe: true })
   sensors!: Sensor[];
@@ -84,14 +88,31 @@ export class SensorCard extends LitElement {
     return true;
   }
 
-  private renderBatteryBadge(): TemplateResult | typeof nothing {
-    if (!this.isBatteryLow()) return nothing;
+  private isOffline(): boolean {
+    if (!this.reading?.createdAt) {
+      return this.startTime + FIVE_MINUTES_IN_MS < Date.now();
+    }
 
-    const batteryLevel = this.reading?.batteryLevelPercentage ?? 0;
-    return html`<div class="badge badge--danger">LOW BATTERY (${batteryLevel}%)</div>`;
+    const lastUpdate = new Date(this.reading.createdAt);
+    const isOffline = new Date().getTime() - lastUpdate.getTime() > FIVE_MINUTES_IN_MS;
+    return isOffline;
+  }
+
+  private renderBadges(): TemplateResult | typeof nothing {
+    if (this.isOffline()) {
+      return html`<div class="badge badge--danger">OFFLINE</div>`;
+    }
+
+    if (this.isBatteryLow()) {
+      const batteryLevel = this.reading?.batteryLevelPercentage ?? 0;
+      return html`<div class="badge badge--warning">LOW BATTERY (${batteryLevel}%)</div>`;
+    }
+
+    return nothing;
   }
 
   override render() {
+    const isOffline = this.isOffline();
     const isBatteryLow = this.isBatteryLow();
     const isUnconfigured = !!this.sensor && !this.sensor?.name;
 
@@ -116,9 +137,10 @@ export class SensorCard extends LitElement {
             'sensor-card': true,
             'sensor-card--unconfigured': isUnconfigured,
             'sensor-card--low-battery': isBatteryLow,
+            'sensor-card--offline': isOffline,
           })}"
         >
-          ${when(isBatteryLow, () => this.renderBatteryBadge())} ${this.renderCardContent(isUnconfigured)}
+          ${this.renderBadges()} ${this.renderCardContent(isUnconfigured)}
         </div>
       `,
     );

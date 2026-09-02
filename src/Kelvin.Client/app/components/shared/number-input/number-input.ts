@@ -47,6 +47,12 @@ export class NumberInput extends LitElement {
   @property({ type: String })
   placeholder: string = '';
 
+  @property({ type: String })
+  inputmode: string = 'decimal';
+
+  @property({ type: String })
+  pattern: string = '^[0-9]+(.[0-9]+)?$';
+
   private label: HTMLLabelElement | null = null;
 
   override connectedCallback(): void {
@@ -114,8 +120,8 @@ export class NumberInput extends LitElement {
           id=${this.id}
           class="number-input__input"
           type="number"
-          inputmode="numeric"
-          pattern="[0-9]*"
+          inputmode=${this.inputmode}
+          pattern=${this.pattern}
           max=${this.max}
           min=${this.min}
           step=${this.step}

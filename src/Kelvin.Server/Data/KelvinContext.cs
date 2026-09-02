@@ -1,7 +1,6 @@
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Microsoft.Extensions.Configuration;
 
 namespace Kelvin.Server.Data;
 
