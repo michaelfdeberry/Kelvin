@@ -1,3 +1,7 @@
+import './control-hub.js';
+import './notifications-hub.js';
+import './readings-hub.js';
+
 import { ContextProvider } from '@lit/context';
 import { css, html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
@@ -42,6 +46,18 @@ export class SignalRContext extends LitElement {
   }
 
   override render() {
-    return html`<slot></slot>`;
+    return html`
+      <slot></slot>
+      <signalr-control-hub></signalr-control-hub>
+      <signalr-notifications-hub></signalr-notifications-hub>
+      <signalr-readings-hub></signalr-readings-hub>
+    `;
+  }
+}
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+  interface HTMLElementTagNameMap {
+    'signalr-context': SignalRContext;
   }
 }

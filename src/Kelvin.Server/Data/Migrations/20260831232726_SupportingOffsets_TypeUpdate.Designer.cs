@@ -3,6 +3,7 @@ using System;
 using Kelvin.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Kelvin.Server.Data.Migrations
 {
     [DbContext(typeof(KelvinContext))]
-    partial class KelvinContextModelSnapshot : ModelSnapshot
+    [Migration("20260831232726_SupportingOffsets_TypeUpdate")]
+    partial class SupportingOffsets_TypeUpdate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -197,7 +200,7 @@ namespace Kelvin.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<short>("CO2LevelPpmOffset")
+                    b.Property<ushort>("CO2LevelPpmOffset")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("CreatedAt")

@@ -1,3 +1,5 @@
+import '../../../shared/number-input/number-input.js';
+
 import { consume } from '@lit/context';
 import { html, LitElement, TemplateResult } from 'lit';
 import { customElement } from 'lit/decorators.js';
@@ -8,7 +10,7 @@ import { preferencesContext } from '../../../../contexts/preferences-context.js'
 import { thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { Preferences } from '../../../../models/preferences.js';
 import { Thermostat } from '../../../../models/thermostat.js';
-import { fromPreferredUnit, getPreferredUnit, toPreferredUnit } from '../../../../services/utilities.js';
+import { convertToPreferredUnit, fromPreferredUnit, getPreferredUnit } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 
 @customElement('app-thermostat-editor-forecast')
@@ -43,56 +45,11 @@ export class ThermostatEditorForecast extends LitElement {
     };
   }
 
-  // override render(): TemplateResult {
-  //   return html`
-  //     <p class="thermostat-editor-forecast__description">
-  //       Locks out HVAC operation based on the outdoor temperature forecast. If the outdoor temperature is forecasted to be above the lockout
-  //       temperature, the thermostat will not allow heating or cooling to operate.
-  //     </p>
-
-  //     ${when(
-  //       this.isHeatingAvailable,
-  //       () => html`
-  //         <div class="form-control form-control">
-  //           <label class="form-control__label">
-  //             Lockout Heating if outdoor temp ≥
-  //             <input
-  //               type="number"
-  //               id="heating-lockout"
-  //               name="heating-lockout"
-  //               class="form-control__input input"
-  //               placeholder="${this.preferredUnit}"
-  //               .value=${toPreferredUnit(this.preferences.temperatureUnit, this.thermostat.heatingLockoutC)}
-  //             />
-  //           </label>
-  //         </div>
-  //       `,
-  //     )}
-  //     ${when(
-  //       this.isCoolingAvailable,
-  //       () => html`
-  //         <div class="form-control form-control">
-  //           <label class="form-control__label">
-  //             Lockout Cooling if outdoor temp ≤
-  //             <input
-  //               type="number"
-  //               id="cooling-lockout"
-  //               name="cooling-lockout"
-  //               class="form-control__input input"
-  //               placeholder="${this.preferredUnit}"
-  //               .value=${toPreferredUnit(this.preferences.temperatureUnit, this.thermostat.coolingLockoutC)}
-  //             />
-  //           </label>
-  //         </div>
-  //       `,
-  //     )}
-  //   `;
-  // }
   override render(): TemplateResult {
     return html`
       <p class="thermostat-editor-forecast__description">
-        Locks out HVAC operation based on the outdoor temperature forecast. If the outdoor temperature is forecasted to be above the lockout
-        temperature, the thermostat will not allow heating or cooling to operate.
+        Locks out HVAC operation based on the outdoor temperature forecast. Ensures the system does not operate when the outdoor temperature is above
+        or below a certain threshold.
       </p>
 
       ${when(
@@ -101,14 +58,14 @@ export class ThermostatEditorForecast extends LitElement {
           <div class="form-control form-control">
             <label class="form-control__label">
               Lockout Heating if outdoor temp ≥
-              <input
-                type="number"
+              <app-number-input
                 id="heating-lockout"
                 name="heating-lockout"
-                class="form-control__input input"
+                class="form-control__input"
                 placeholder="${this.preferredUnit}"
-                .value=${toPreferredUnit(this.preferences.temperatureUnit, this.thermostat.heatingLockoutC)}
-              />
+                .value=${convertToPreferredUnit(this.preferences.temperatureUnit, this.thermostat.heatingLockoutC)}
+              >
+              </app-number-input>
             </label>
           </div>
         `,
@@ -119,14 +76,14 @@ export class ThermostatEditorForecast extends LitElement {
           <div class="form-control form-control">
             <label class="form-control__label">
               Lockout Cooling if outdoor temp ≤
-              <input
-                type="number"
+              <app-number-input
                 id="cooling-lockout"
                 name="cooling-lockout"
-                class="form-control__input input"
+                class="form-control__input"
                 placeholder="${this.preferredUnit}"
-                .value=${toPreferredUnit(this.preferences.temperatureUnit, this.thermostat.coolingLockoutC)}
-              />
+                .value=${convertToPreferredUnit(this.preferences.temperatureUnit, this.thermostat.coolingLockoutC)}
+              >
+              </app-number-input>
             </label>
           </div>
         `,

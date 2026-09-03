@@ -21,7 +21,7 @@ public class GetLatestReadingsHandler(KelvinContext context) : IHandler<GetLates
   {
     // Compute the latest timestamp per sensor in the database, then join back to fetch only those rows.
     var latestPerSensor = await context
-      .SensorPackets.Where(p => p.SensorId != null)
+      .SensorPackets.Where(p => p.SensorId != null && p.Sensor!.Enabled == true)
       .GroupBy(p => p.SensorId)
       .Select(g => g.OrderByDescending(p => p.CreatedAt).First())
       .ToDictionaryAsync(p => p.SensorId!.Value, p => p, ct);

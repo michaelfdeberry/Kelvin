@@ -26,6 +26,9 @@ public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache) : IH
     sensor.HasBattery = request.Update.HasBattery;
     sensor.HasHumiditySensor = request.Update.HasHumiditySensor;
     sensor.HasCO2Sensor = request.Update.HasCO2Sensor;
+    sensor.TemperatureCOffset = request.Update.TemperatureCOffset;
+    sensor.HumidityPercentageOffset = request.Update.HumidityPercentageOffset;
+    sensor.CO2LevelPpmOffset = request.Update.CO2LevelPpmOffset;
     await context.SaveChangesAsync(ct);
     cache.Remove(SensorsCache.Key);
 

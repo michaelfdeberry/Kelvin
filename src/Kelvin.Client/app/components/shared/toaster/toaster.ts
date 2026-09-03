@@ -1,6 +1,6 @@
 import '../alert/alert.js';
 
-import { html, LitElement, render, TemplateResult } from 'lit';
+import { html, LitElement, render } from 'lit';
 import { customElement, query } from 'lit/decorators.js';
 
 import toasterStyles from './toaster.styles';
@@ -14,13 +14,6 @@ export class Toaster extends LitElement {
 
   @query('.toaster')
   private toasterContainer!: HTMLDivElement;
-
-  private renderMessage(message: string | TemplateResult): string | TemplateResult {
-    if (typeof message === 'string') {
-      return html`<p>${message}</p>`;
-    }
-    return message;
-  }
 
   private renderToasts(event: Event) {
     const toastEvent = event as CustomEvent<ToastDetail>;

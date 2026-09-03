@@ -11,7 +11,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
   const int BAUD_RATE = 9600;
   const int DEFAULT_READ_DELAY = 1000;
   const int GATEWAY_INFO_READ_TIMEOUT = 2000;
-  const int GATEWAY_BOOT_DELAY = 3000;
+  const int GATEWAY_BOOT_DELAY = 5000;
   const int MAX_RETRIES = 5;
   const int MAC_SIZE = 6;
   const int PAYLOAD_SIZE = 16;
@@ -40,13 +40,13 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
         if (port is null)
         {
           var portName = await FindGateway(stoppingToken);
-          //port ??= new SerialPort(portName, BAUD_RATE, Parity.None, 8, StopBits.One) { ReadTimeout = DEFAULT_READ_DELAY };
           port ??= new SerialPort(portName, BAUD_RATE);
         }
 
         if (!port.IsOpen)
         {
           port.Open();
+          await Task.Delay(GATEWAY_BOOT_DELAY, stoppingToken);
         }
 
         if (!ReadHeader(port, PACKET_HEADER, stoppingToken))
@@ -126,7 +126,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
       SerialPort? port = null;
       try
       {
-        port = new SerialPort(portName, 9600, Parity.None, 8, StopBits.One) { ReadTimeout = GATEWAY_INFO_READ_TIMEOUT };
+        port = new SerialPort(portName, BAUD_RATE, Parity.None, 8, StopBits.One) { ReadTimeout = GATEWAY_INFO_READ_TIMEOUT };
         port.Open();
 
         // Opening the port toggles DTR, which resets the ESP32; give it time to finish setup() before probing.

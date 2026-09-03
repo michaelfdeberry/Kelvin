@@ -1,3 +1,5 @@
+import '../../../shared/number-input/number-input.js';
+
 import { consume } from '@lit/context';
 import { html, LitElement, TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -9,7 +11,7 @@ import { preferencesContext } from '../../../../contexts/preferences-context.js'
 import { schedulesContext } from '../../../../contexts/thermostat-context.js';
 import { Preferences } from '../../../../models/preferences.js';
 import { RunType, Schedule, ScheduleInput } from '../../../../models/thermostat.js';
-import { fromPreferredUnit, getPreferredUnit, toPreferredUnit } from '../../../../services/utilities.js';
+import { convertToPreferredUnit, fromPreferredUnit, getPreferredUnit } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 
 @customElement('app-thermostat-editor-schedules')
@@ -93,13 +95,12 @@ export class ThermostatEditorSchedules extends LitElement {
         <div class="form-control form-control">
           <label class="form-control__label">
             Temperature
-            <input
+            <app-number-input
               id="schedule-target-${index}"
-              type="number"
-              class="form-control__input input thermostat-editor-schedules__target-input"
+              class="form-control__input thermostat-editor-schedules__target-input"
               placeholder="${this.preferredUnit}"
-              .value=${toPreferredUnit(this.preferences.temperatureUnit, schedule.targetTemperatureC)}
-            />
+              .value=${convertToPreferredUnit(this.preferences.temperatureUnit, schedule.targetTemperatureC)}
+            ></app-number-input>
           </label>
         </div>
         <div class="thermostat-editor-schedules__schedule-actions">

@@ -14,3 +14,8 @@ updates:
     directory: '/src/Kelvin.Server.Tests'
     schedule:
       interval: 'weekly'
+
+  - package-ecosystem: 'pip'
+    directory: '/src/Kelvin.Devices/Kiosk'
+    schedule:
+      interval: 'weekly'

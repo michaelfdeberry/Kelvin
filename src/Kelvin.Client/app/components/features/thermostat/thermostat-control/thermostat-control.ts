@@ -113,7 +113,7 @@ export class ThermostatControl extends LitElement {
 
     if (requiresHeatingConfiguration || requiresCoolingConfiguration) {
       this.thermostatEditor.open();
-      dispatchToast(this, 'information', 'Configuration is required before this mode can be used. Please configure the thermostat settings.');
+      dispatchToast(this, 'Information', 'Configuration is required before this mode can be used. Please configure the thermostat settings.');
     }
   }
 
@@ -236,7 +236,7 @@ export class ThermostatControl extends LitElement {
           ?disabled=${this.thermostat.mode === 'Disabled'}
           @click=${this.toggleFan}
         >
-          ${this.thermostat.fanEnabled ? 'Fan On' : 'Fan Off'}
+          ${this.thermostat.fanEnabled ? 'Fan: On' : 'Fan: Auto'}
         </button>
       </div>
     `;

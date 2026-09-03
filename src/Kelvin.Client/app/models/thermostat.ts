@@ -53,3 +53,10 @@ export type UpdateThermostatSettingsRequest = {
   setPoints: SetPointInput[];
   schedules: ScheduleInput[];
 };
+
+export type ThermostatStateChange = {
+  id: string;
+  mode: RunMode;
+  fanEnabled: boolean;
+  changedAt: string;
+};

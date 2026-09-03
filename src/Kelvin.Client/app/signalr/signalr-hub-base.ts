@@ -50,8 +50,16 @@ export abstract class SignalRHubBase extends LitElement {
     }
   }
 
-  protected registerHubHandler<T>(handlerName: string, eventName: string): void {
+  protected registerHubHandler<T>(handlerName: string, eventName: string, payloadProcessor?: (payload: T) => T | undefined): void {
     this.connection?.on(handlerName, (payload: T) => {
+      if (payloadProcessor) {
+        const processedPayload = payloadProcessor(payload);
+        if (processedPayload === undefined) {
+          return;
+        }
+        payload = processedPayload;
+      }
+
       dispatchCustomEvent<T>(this, eventName, payload);
     });
   }

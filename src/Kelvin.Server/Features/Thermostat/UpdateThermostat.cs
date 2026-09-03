@@ -1,7 +1,9 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Data;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -14,7 +16,12 @@ public static class UpdateThermostatErrors
   public static readonly Error ThermostatNotFound = new("UpdateThermostat.ThermostatNotFound", "The thermostat with the specified ID was not found.");
 }
 
-public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, IControlChannel controlChannel) : IHandler<UpdateThermostatRequest>
+public class UpdateThermostatHandler(
+  KelvinContext context,
+  IMemoryCache cache,
+  IControlChannel controlChannel,
+  IHubContext<ControlHub, IControlClient> controlHub
+) : IHandler<UpdateThermostatRequest>
 {
   public async Task<Result> HandleAsync(UpdateThermostatRequest request, CancellationToken ct = default)
   {
@@ -55,6 +62,7 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
     }
 
     cache.Remove(ThermostatCache.Key);
+    await controlHub.Clients.All.ThermostatStateChanged(ThermostatStateChangeDto.FromEntity(thermostat));
 
     return Result.Success();
   }

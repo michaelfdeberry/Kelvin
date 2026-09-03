@@ -10,6 +10,9 @@ export type Sensor = {
   hasCO2Sensor: boolean;
   hasHumiditySensor: boolean;
   enabled: boolean;
+  temperatureCOffset: number;
+  humidityPercentageOffset: number;
+  cO2LevelPpmOffset: number;
 };
 
 export type EnvironmentReading = {

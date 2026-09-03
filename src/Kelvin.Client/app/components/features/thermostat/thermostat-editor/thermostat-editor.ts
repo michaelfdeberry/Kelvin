@@ -68,7 +68,7 @@ export class ThermostatEditor extends LitElement {
     try {
       await apiPut<void>(resources.thermostat.updateThermostatSettings, { body: request });
       dispatchCustomEvent(this, events.thermostatUpdated);
-      dispatchToast(this, 'success', 'Thermostat settings saved successfully.');
+      dispatchToast(this, 'Success', 'Thermostat settings saved successfully.');
       this.modal.hide();
     } catch {
       // apiPut already surfaces an error toast - keep the modal open so the user can correct the input.

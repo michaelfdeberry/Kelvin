@@ -1,3 +1,4 @@
+import '../../../shared/number-input/number-input.js';
 import '../../../shared/toggle/toggle.js';
 
 import { consume } from '@lit/context';
@@ -57,7 +58,7 @@ export class SettingsGateway extends LitElement {
     };
 
     await apiPut(apiResources.gateways.updateGateway, { body: update });
-    dispatchToast(this, 'success', 'Gateway settings saved successfully.');
+    dispatchToast(this, 'Success', 'Gateway settings saved successfully.');
   }
 
   private async handleControlChange(): Promise<void> {
@@ -113,57 +114,57 @@ export class SettingsGateway extends LitElement {
             <div class="form-control">
               <label class="form-control__label">
                 Heating Pin
-                <input
+                <app-number-input
                   id="heatingPin"
                   name="heatingPin"
-                  class="form-control__input input"
-                  type="number"
+                  step="1"
+                  class="form-control__input"
+                  .value=${gateway.heatingPin}
                   title="${gateway.relayStates?.heating === true ? 'Heating is currently active, this pin cannot be changed.' : ''}"
                   ?disabled=${gateway.heatingPin != null && gateway.relayStates?.heating === true}
-                  .value=${gateway.heatingPin?.toString() ?? ''}
-                />
+                ></app-number-input>
               </label>
             </div>
             <div class="form-control">
               <label class="form-control__label">
                 Cooling Pin
-                <input
+                <app-number-input
                   id="coolingPin"
                   name="coolingPin"
-                  class="form-control__input input"
-                  type="number"
+                  step="1"
+                  class="form-control__input"
+                  .value=${gateway.coolingPin}
                   title="${gateway.relayStates?.cooling === true ? 'Cooling is currently active, this pin cannot be changed.' : ''}"
                   ?disabled=${gateway.coolingPin != null && gateway.relayStates?.cooling === true}
-                  .value=${gateway.coolingPin?.toString() ?? ''}
-                />
+                ></app-number-input>
               </label>
             </div>
             <div class="form-control">
               <label class="form-control__label">
                 Fan Pin
-                <input
+                <app-number-input
                   id="fanPin"
                   name="fanPin"
-                  class="form-control__input input"
-                  type="number"
+                  step="1"
+                  class="form-control__input"
+                  .value=${gateway.fanPin}
                   title="${gateway.relayStates?.fan === true ? 'Fan is currently active, this pin cannot be changed.' : ''}"
                   ?disabled=${gateway.fanPin != null && gateway.relayStates?.fan === true}
-                  .value=${gateway.fanPin?.toString() ?? ''}
-                />
+                ></app-number-input>
               </label>
             </div>
             <div class="form-control">
               <label class="form-control__label">
                 Control Pin
-                <input
+                <app-number-input
                   id="controlPin"
                   name="controlPin"
-                  class="form-control__input input"
-                  type="number"
+                  step="1"
+                  class="form-control__input"
+                  .value=${gateway.controlPin}
                   title="${gateway.relayStates?.control === true ? 'Control is currently active, this pin cannot be changed.' : ''}"
                   ?disabled=${gateway.controlPin != null && gateway.relayStates?.control === true}
-                  .value=${gateway.controlPin?.toString() ?? ''}
-                />
+                ></app-number-input>
               </label>
             </div>
           </div>

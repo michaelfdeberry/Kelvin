@@ -27,6 +27,10 @@ public class ControlServiceTests
         ControlFixtures.MinimumOffMinutes
     );
 
+    private static readonly TimeSpan MinimumModeSwitch = TimeSpan.FromMinutes(
+        ControlFixtures.MinimumModeSwitchMinutes
+    );
+
     [Fact]
     public async Task StartAsync_InitializesTheRelays()
     {
@@ -469,7 +473,7 @@ public class ControlServiceTests
     }
 
     [Fact]
-    public async Task SwitchingDirectlyFromHeatingToCooling_RevertsControl()
+    public async Task SwitchingDirectlyFromHeatingToCooling_IsBlockedUntilFifteenMinutesHavePassed()
     {
         var harness = new ControlServiceHarness();
 
@@ -481,7 +485,93 @@ public class ControlServiceTests
         await harness.PushAsync(new(ControlState.Cooling));
 
         A.CallTo(() => harness.Relays.EnableCooling()).MustNotHaveHappened();
-        A.CallTo(() => harness.Relays.DisableControl()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => harness.Relays.EnableDwell()).MustHaveHappenedOnceExactly();
+
+        harness.Time.Advance(MinimumModeSwitch - TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Cooling));
+
+        A.CallTo(() => harness.Relays.EnableCooling()).MustNotHaveHappened();
+
+        harness.Time.Advance(TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Cooling));
+
+        A.CallTo(() => harness.Relays.EnableCooling()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task SwitchingDirectlyFromCoolingToHeating_IsBlockedUntilFifteenMinutesHavePassed()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Cooling));
+        harness.Time.Advance(MinimumOn);
+
+        await harness.PushAsync(new(ControlState.Heating));
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustNotHaveHappened();
+        A.CallTo(() => harness.Relays.EnableDwell()).MustHaveHappenedOnceExactly();
+
+        harness.Time.Advance(MinimumModeSwitch - TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustNotHaveHappened();
+
+        harness.Time.Advance(TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Cooling_AfterAHeatingCall_IsBlockedUntilFifteenMinutesHavePassed()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        harness.Time.Advance(MinimumModeSwitch - TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Cooling));
+
+        A.CallTo(() => harness.Relays.EnableCooling()).MustNotHaveHappened();
+
+        harness.Time.Advance(TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Cooling));
+
+        A.CallTo(() => harness.Relays.EnableCooling()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Heating_AfterACoolingCall_IsBlockedUntilFifteenMinutesHavePassed()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Cooling));
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        harness.Time.Advance(MinimumModeSwitch - TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustNotHaveHappened();
+
+        harness.Time.Advance(TimeSpan.FromMinutes(1));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
 
         await harness.StopAsync();
     }
@@ -552,27 +642,6 @@ public class ControlServiceTests
         await harness.PushAsync(new(ControlState.Enable));
 
         harness.RecordedChanges.ShouldBeEmpty();
-
-        await harness.StopAsync();
-    }
-
-    [Fact]
-    public async Task Disable_RecordsTheReasonItWasReverted()
-    {
-        var harness = new ControlServiceHarness();
-
-        await harness.StartAsync();
-        await harness.PushAsync(new(ControlState.Enable));
-        await harness.PushAsync(new(ControlState.Heating));
-        harness.Time.Advance(MinimumOn);
-        harness.RecordedChanges.Clear();
-
-        // Switching straight from heating to cooling is the unsafe transition that reverts control.
-        await harness.PushAsync(new(ControlState.Cooling));
-
-        var change = harness.RecordedChanges.Single(c => c.Kind == ControlChangeKind.Control);
-        change.State.ShouldBe(ControlState.Disable);
-        change.Reason.ShouldBe("an unsafe call transition was requested");
 
         await harness.StopAsync();
     }

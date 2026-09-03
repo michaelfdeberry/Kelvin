@@ -36,7 +36,7 @@ export class SettingsGeneral extends LitElement {
     });
 
     dispatchCustomEvent(this, events.preferencesSaved, preferences);
-    dispatchToast(this, 'success', 'Preferences saved successfully.', { dismissible: true, duration: 3000 });
+    dispatchToast(this, 'Success', 'Preferences saved successfully.', { dismissible: true, duration: 3000 });
   }
 
   override render() {

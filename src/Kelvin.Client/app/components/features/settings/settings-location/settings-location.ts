@@ -82,7 +82,7 @@ export class SettingsLocationTab extends LitElement {
       this.isEditing = false;
       this.currentLocationTask.run();
 
-      dispatchToast(this, 'success', 'Location updated successfully.', { dismissible: true, duration: 3000 });
+      dispatchToast(this, 'Success', 'Location updated successfully.', { dismissible: true, duration: 3000 });
 
       this.searchInput!.value = '';
       this.searchLocationsTask.run();
