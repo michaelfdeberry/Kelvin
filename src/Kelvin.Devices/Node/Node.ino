@@ -12,12 +12,17 @@ Display display;
 String macAddress;
 
 unsigned long lastUpdate = 0;
-
 volatile bool buttonPressedFlag = true;
+
+#define SDA_PIN 47
+#define SCL_PIN 48
 
 // The ISR function (keep this as short as possible)
 void IRAM_ATTR handleButtonInterrupt()
 {
+#if defined(DEBUG)
+  Serial.println("handling click");
+#endif
   buttonPressedFlag = true;
 }
 
@@ -31,7 +36,7 @@ void setup()
   }
 #endif
 
-  Wire.begin();
+  Wire.begin(SDA_PIN, SCL_PIN);
 
   pinMode(CONTEXT_BUTTON_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(CONTEXT_BUTTON_PIN), handleButtonInterrupt, FALLING);

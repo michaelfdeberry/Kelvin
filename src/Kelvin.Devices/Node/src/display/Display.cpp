@@ -11,23 +11,23 @@
 LGFX::LGFX(void)
 {
   auto b_cfg = _bus_instance.config();
-  b_cfg.spi_host = VSPI_HOST;
+  b_cfg.spi_host = SPI3_HOST;
   b_cfg.spi_mode = 0;
   b_cfg.freq_write = 40000000;
   b_cfg.freq_read = 16000000;
   b_cfg.spi_3wire = true;
   b_cfg.use_lock = true;
   b_cfg.dma_channel = SPI_DMA_CH_AUTO;
-  b_cfg.pin_sclk = 18;
-  b_cfg.pin_mosi = 23;
+  b_cfg.pin_sclk = DISPLAY_SCLK_PIN;
+  b_cfg.pin_mosi = DISPLAY_MOSI_PIN;
   b_cfg.pin_miso = -1;
-  b_cfg.pin_dc = 2;
+  b_cfg.pin_dc = DISPLAY_DC_PIN;
   _bus_instance.config(b_cfg);
   _panel_instance.setBus(&_bus_instance);
 
   auto p_cfg = _panel_instance.config();
-  p_cfg.pin_cs = 15;
-  p_cfg.pin_rst = 4;
+  p_cfg.pin_cs = DISPLAY_CS_PIN;
+  p_cfg.pin_rst = DISPLAY_RST_PIN;
   p_cfg.pin_busy = -1;
   p_cfg.memory_width = 240;
   p_cfg.memory_height = 320;
@@ -40,7 +40,7 @@ LGFX::LGFX(void)
   _panel_instance.config(p_cfg);
 
   auto l_cfg = _light_instance.config();
-  l_cfg.pin_bl = 32; // When connected directly to 3.3V use -1
+  l_cfg.pin_bl = DISPLAY_BL_PIN; // When connected directly to 3.3V use -1
   l_cfg.invert = false;
   l_cfg.freq = 44100;
   l_cfg.pwm_channel = 7;
@@ -238,22 +238,7 @@ void Display::updateDisplay(const String &macAddress, const sensor_payload &payl
     lastTemp = displayTemp;
   }
 
-  // 4. Update Humidity / CO2 (Bottom)
-#if ENV_SENSOR_TYPE == ENV_SENSOR_SCD4X
-  if (abs(payload.humidity - lastHum) > 0.05 || payload.co2 != lastCo2)
-  {
-    String bottomStr = String(payload.humidity, 1) + "% RH  -  " + String(payload.co2) + "ppm CO2";
-
-    tft.setTextPadding(tft.textWidth(String(bottomStr, 1), &fonts::Font4) + 10);
-    tft.setTextDatum(BC_DATUM);
-    tft.setTextColor(THEME_MUTED, THEME_BG);
-    tft.drawString(bottomStr, tft.width() / 2, tft.height() - 20, &fonts::Font4);
-
-    lastHum = payload.humidity;
-    lastCo2 = payload.co2;
-    tft.setTextPadding(0);
-  }
-#else
+  // 4. Update Humidity (Bottom)
   if (abs(payload.humidity - lastHum) > 0.05)
   {
     String humStr = String(payload.humidity, 1) + "% RH";
@@ -266,7 +251,6 @@ void Display::updateDisplay(const String &macAddress, const sensor_payload &payl
     lastHum = payload.humidity;
     tft.setTextPadding(0);
   }
-#endif
 
   tft.endWrite();
 }

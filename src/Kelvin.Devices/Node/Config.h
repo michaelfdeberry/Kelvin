@@ -1,25 +1,22 @@
 #pragma once
 
-// Sensors Types
-#define ENV_SENSOR_DHT11 1
-#define ENV_SENSOR_SCD4X 2
-#define ENV_SENSOR_SHT4X 3
-#define ENV_SENSOR_TYPE ENV_SENSOR_SHT4X
-
-// DHT11 Configuration
-#define DHT11_PIN 14
-
 // Misc
-#define CONTEXT_BUTTON_PIN 33
+#define CONTEXT_BUTTON_PIN 15 // 33 on WROOM
 
 // Battery Configuration
-#define BATTERY_PIN 34
-#define BATTERY_MULTIPLICATION_FACTOR 2
-#define BATTERY_DEAD_VOLTAGE 3.0
-#define BATTERY_CHARGED_VOLTAGE 4.2
+#define BATTERY_CAPACITY_MAH 1000
+#define BATTERY_CHARGING_CURRENT_MA 100
+
+// Display Configuration
+#define DISPLAY_SCLK_PIN 39
+#define DISPLAY_MOSI_PIN 40
+#define DISPLAY_DC_PIN 45
+#define DISPLAY_CS_PIN 12
+#define DISPLAY_RST_PIN 18
+#define DISPLAY_BL_PIN 11
 
 // EspNow Configuration
-#define GATEWAY_MAC_ADDRESS_BYTES {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // replace with your gateway MAC address
+#define GATEWAY_MAC_ADDRESS_BYTES {0x30, 0x76, 0xF5, 0xF7, 0x0B, 0xB8} // replace with your gateway MAC address
 
 // uncomment to print debug messages to serial
-// #define DEBUG 1
+#define DEBUG 1
