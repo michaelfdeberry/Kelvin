@@ -71,7 +71,7 @@ export class SensorSettings extends LitElement {
     const hasBattery = formData.get('has-battery') === 'on';
     const temperatureOffset = parseFloat(formData.get('temperature-offset') as string) || 0;
     const humidityOffset = parseFloat(formData.get('humidity-offset') as string) || 0;
-    const co2Offset = parseFloat(formData.get('co2-offset') as string) || 0;
+    const co2Offset = parseInt(String(formData.get('co2-offset') ?? '0'), 10) || 0;
 
     if (!sensorName) {
       dispatchToast(this, 'Error', 'Sensor name is required.', { duration: 3000 });

@@ -596,18 +596,18 @@ public class ControlService(
       if (latest is null)
         return;
 
-      var lastCoolingEndedAt = await dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
-        new(latest.State),
+      var lastCoolingEndedAtResult = await dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
+        new(ControlState.Cooling),
         cancellationToken
       );
 
-      var lastHeatingEndedAt = await dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
-        new(latest.State),
+      var lastHeatingEndedAtResult = await dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
+        new(ControlState.Heating),
         cancellationToken
       );
 
-      _lastCoolingEndedAt = lastCoolingEndedAt.Value?.ChangedAt ?? DateTimeOffset.MinValue;
-      _lastHeatingEndedAt = lastHeatingEndedAt.Value?.ChangedAt ?? DateTimeOffset.MinValue;
+      _lastCoolingEndedAt = lastCoolingEndedAtResult.Value?.ChangedAt ?? DateTimeOffset.MinValue;
+      _lastHeatingEndedAt = lastHeatingEndedAtResult.Value?.ChangedAt ?? DateTimeOffset.MinValue;
 
       if (latest.State == ControlState.Dwell)
       {

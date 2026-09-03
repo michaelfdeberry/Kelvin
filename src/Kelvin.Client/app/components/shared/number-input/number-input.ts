@@ -91,12 +91,25 @@ export class NumberInput extends LitElement {
   }
 
   private handleInputChange(): void {
-    this.value = this.inputElement.valueAsNumber;
+    const raw = this.inputElement.value;
+    if (raw.trim() === '') {
+      this.value = undefined;
+      this.syncFormValue();
+      return;
+    }
+    const parsed = this.inputElement.valueAsNumber;
+    this.value = Number.isFinite(parsed) ? parsed : undefined;
+
     this.syncFormValue();
   }
 
   private syncFormValue(): void {
     if (this.disabled) {
+      this.internals.setFormValue(null);
+      return;
+    }
+
+    if (this.value === undefined || !Number.isFinite(this.value)) {
       this.internals.setFormValue(null);
       return;
     }

@@ -171,7 +171,7 @@ export class KelvinApp extends LitElement {
           <app-alert
             banner
             type=${this.banner.type}
-            ?.heading=${this.banner.heading}
+            heading=${this.banner.heading ?? ''}
           >
             <p>${this.banner.message}</p>
           </app-alert>

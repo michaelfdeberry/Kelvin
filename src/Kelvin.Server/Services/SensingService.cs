@@ -54,9 +54,6 @@ public class SensingService(
       {
         await Task.Delay(TimeSpan.FromMilliseconds(SENSOR_HEARTBEAT_INTERVAL_MS), time, stoppingToken);
 
-        if (_environment is null)
-          continue;
-
         var sensorsResponse = await dispatcher.DispatchAsync<GetSensorsRequest, GetSensorsResponse>(new GetSensorsRequest(), stoppingToken);
         sensorsResponse.EnsureSuccess();
 
@@ -66,6 +63,7 @@ public class SensingService(
         var requiresUpdate = false;
         try
         {
+          _environment ??= new();
           requiresUpdate = await PruneEnvironmentReadingAsync(sensors, stoppingToken);
         }
         finally
@@ -169,7 +167,7 @@ public class SensingService(
     var sensorsWithoutReadings = sensors.Where(x => x.Enabled && !_environment.Areas.ContainsKey(x.Id)).Select(x => x.Id).ToList();
     foreach (var sensorId in sensorsWithoutReadings)
     {
-      _enabledSensorsWithoutReadings[sensorId] = now;
+      _enabledSensorsWithoutReadings.TryAdd(sensorId, now);
     }
 
     var timedOutSensors = _environment.Areas.Where(p => (now - p.Value.CreatedAt).TotalMilliseconds > SENSOR_TIMEOUT_MS).Select(p => p.Key).ToList();
