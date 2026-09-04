@@ -4,10 +4,6 @@
 
 class EnvironmentMonitor
 {
-private:
-  sensor_payload lastPayload{};
-  unsigned long lastUpdateSent = 0;
-
 public:
   void begin();
   bool read(sensor_payload &payload);

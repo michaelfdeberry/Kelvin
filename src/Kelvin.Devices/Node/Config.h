@@ -1,7 +1,7 @@
 #pragma once
 
 // Misc
-#define CONTEXT_BUTTON_PIN 15 // 33 on WROOM
+#define CONTEXT_BUTTON_PIN 15
 
 // Battery Configuration
 #define BATTERY_CAPACITY_MAH 1000
@@ -16,7 +16,8 @@
 #define DISPLAY_BL_PIN 11
 
 // EspNow Configuration
-#define GATEWAY_MAC_ADDRESS_BYTES {0x30, 0x76, 0xF5, 0xF7, 0x0B, 0xB8} // replace with your gateway MAC address
+#define GATEWAY_MAC_ADDRESS_BYTES {0x30, 0x76, 0xF5, 0xF7, 0x0B, 0xB8}
+// #define GATEWAY_MAC_ADDRESS_BYTES {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // replace with your gateway MAC address
 
 // uncomment to print debug messages to serial
 #define DEBUG 1

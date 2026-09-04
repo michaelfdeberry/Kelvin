@@ -1,28 +1,19 @@
 #include <Arduino.h>
 #include <PowerFeather.h>
 #include "Config.h"
+#include "Logger.h"
 #include "./BatteryMonitor.h"
 
 using namespace PowerFeather;
 
-const int voltagePin = BATTERY_PIN;
-const int multiplicationFactor = BATTERY_MULTIPLICATION_FACTOR;
-const float deadVoltage = BATTERY_DEAD_VOLTAGE;
-const float chargedVoltage = BATTERY_CHARGED_VOLTAGE;
 bool initialized = false;
 
 void BatteryMonitor::begin()
 {
-  Result initResult = Board.init(BATTERY_CAPACITY_MAH);
-  if (initResult == Result::Ok)
-  {
-#if defined(DEBUG)
-    Serial.println("Board initialized successfully\n\n");
-#endif
-    Board.setBatteryChargingMaxCurrent(BATTERY_CHARGING_CURRENT_MA);
-    Board.enableBatteryCharging(true);
-    initialized = true;
-  }
+  // Board.init() is called once in Node.ino's setup(), before VSQT/STEMMA power is on
+  Board.setBatteryChargingMaxCurrent(BATTERY_CHARGING_CURRENT_MA);
+  Board.enableBatteryCharging(true);
+  initialized = true;
 }
 
 int BatteryMonitor::getBatteryLevel()
@@ -30,9 +21,7 @@ int BatteryMonitor::getBatteryLevel()
   // uses the PowerFeather library to get battery voltage directly
   if (!initialized)
   {
-#if defined(DEBUG)
-    Serial.println("Board not initialized. Call begin() first.\n");
-#endif
+    LOG_PRINTLN("Board not initialized. Call begin() first.");
     return -1; // Indicate an error
   }
 
@@ -41,22 +30,16 @@ int BatteryMonitor::getBatteryLevel()
 
   if (res == Result::Ok)
   {
-#if defined(DEBUG)
-    Serial.println("Charge: %d %%\n", batteryCharge);
-#endif
+    LOG_PRINTF("Charge: %d %%\n", batteryCharge);
     return batteryCharge;
   }
   else if (res == Result::InvalidState)
   {
-#if defined(DEBUG)
-    Serial.println("Charge: <no battery configured>\n");
-#endif
+    LOG_PRINTLN("Charge: <no battery configured>");
   }
   else
   {
-#if defined(DEBUG)
-    Serial.println("Charge: <battery not detected>\n");
-#endif
+    LOG_PRINTLN("Charge: <battery not detected>");
   }
   return -1; // Indicate an error
 }

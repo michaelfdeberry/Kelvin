@@ -9,5 +9,3 @@ typedef struct sensor_payload
   uint16_t co2;
   float batteryLevel;
 } sensor_payload;
-
-extern sensor_payload payload;

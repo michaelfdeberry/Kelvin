@@ -63,7 +63,7 @@ Display::Display(unsigned long timeoutMs)
       showFahrenheit(false)
 #if ENV_SENSOR_TYPE == ENV_SENSOR_SCD4X
       ,
-      _lastCo2(0)
+      lastCo2(0)
 #endif
 {
   buttonPin = CONTEXT_BUTTON_PIN;

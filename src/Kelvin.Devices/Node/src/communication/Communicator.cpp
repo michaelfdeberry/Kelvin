@@ -6,21 +6,18 @@
 #include <Wire.h>
 #include "../Common/SensorPayload.h"
 #include "Communicator.h"
+#include "Logger.h"
 
 void Communicator::begin()
 {
-#if defined(DEBUG)
-  Serial.println("Initializing ESP-NOW...");
-#endif
+  LOG_PRINTLN("Initializing ESP-NOW...");
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
   if (esp_now_init() != ESP_OK)
   {
-#if defined(DEBUG)
-    Serial.println("Error initializing ESP-NOW");
-#endif
+    LOG_PRINTLN("Error initializing ESP-NOW");
     return;
   }
 
@@ -34,9 +31,7 @@ void Communicator::begin()
 
   if (esp_now_add_peer(&peerInfo) != ESP_OK)
   {
-#if defined(DEBUG)
-    Serial.println("Failed to add peer");
-#endif
+    LOG_PRINTLN("Failed to add peer");
     return;
   }
 }
@@ -48,10 +43,14 @@ bool Communicator::send(const void *payload)
 
   if (result != ESP_OK)
   {
-#if defined(DEBUG)
-    Serial.println("Radio transmission failed");
-#endif
+    LOG_PRINTLN("Radio transmission failed");
     return false;
   }
   return true;
+}
+
+void Communicator::end()
+{
+  esp_now_deinit();
+  WiFi.mode(WIFI_OFF);
 }
