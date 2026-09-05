@@ -1,5 +1,7 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Kelvin.Server.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Sensors;
@@ -11,7 +13,8 @@ public static class UpdateSensorErrors
   public static readonly Error DefaultError = new("UpdateSensor.NotFound", "The requested sensor was not found.");
 }
 
-public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache) : IHandler<UpdateSensorRequest>
+public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IHubContext<ControlHub, IControlClient> controlHub)
+  : IHandler<UpdateSensorRequest>
 {
   public async Task<Result> HandleAsync(UpdateSensorRequest request, CancellationToken ct = default)
   {
@@ -30,6 +33,7 @@ public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache) : IH
     sensor.HumidityPercentageOffset = request.Update.HumidityPercentageOffset;
     sensor.CO2LevelPpmOffset = request.Update.CO2LevelPpmOffset;
     await context.SaveChangesAsync(ct);
+    await controlHub.Clients.All.SensorsStateChanged();
     cache.Remove(SensorsCache.Key);
 
     return Result.Success();

@@ -1,6 +1,8 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -25,8 +27,12 @@ public static class UpdateThermostatSettingsErrors
   );
 }
 
-public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache cache, IHandler<ValidateThermostatSafetyRequest> safetyValidator)
-  : IHandler<UpdateThermostatSettingsRequest>
+public class UpdateThermostatSettingsHandler(
+  KelvinContext context,
+  IMemoryCache cache,
+  IHandler<ValidateThermostatSafetyRequest> safetyValidator,
+  IHubContext<ControlHub, IControlClient> controlHub
+) : IHandler<UpdateThermostatSettingsRequest>
 {
   public async Task<Result> HandleAsync(UpdateThermostatSettingsRequest request, CancellationToken ct = default)
   {
@@ -64,6 +70,7 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
     ApplySchedules(context, thermostat, request.Schedules);
 
     await context.SaveChangesAsync(ct);
+    await controlHub.Clients.All.ThermostatStateChanged();
     cache.Remove(ThermostatCache.Key);
 
     return Result.Success();

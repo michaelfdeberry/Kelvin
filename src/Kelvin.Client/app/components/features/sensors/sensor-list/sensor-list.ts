@@ -29,7 +29,7 @@ export class SensorList extends LitElement {
         })}"
         aria-label="Sensor readings"
       >
-        ${sensors.map(sensor => html`<app-sensor-card .sensorId=${sensor.id}></app-sensor-card>`)}
+        ${sensors.filter(sensor => sensor.enabled).map(sensor => html`<app-sensor-card .sensorId=${sensor.id}></app-sensor-card>`)}
       </div>
     `;
   }

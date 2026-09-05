@@ -116,7 +116,6 @@ static void BaselineExistingDatabase(KelvinContext context)
   }
 
   var productVersion = typeof(DbContext).Assembly.GetName().Version?.ToString() ?? "10.0.10";
-
   context.Database.ExecuteSqlRaw(
     """
     CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (

@@ -3,7 +3,6 @@ import { customElement } from 'lit/decorators.js';
 import { events, signalrEvents } from '../events.js';
 import { SignalRHubBase } from './signalr-hub-base.js';
 import { ControlStateChange } from '../models/control-state-change.js';
-import { ThermostatStateChange } from '../models/thermostat.js';
 import resources from '../services/api-resources.js';
 import { apiGet } from '../services/api.js';
 import { dispatchCustomEvent } from '../services/utilities.js';
@@ -12,6 +11,7 @@ import type { ControlStateResponse } from '../models/control-state.js';
 
 const CONTROL_STATE_CHANGED_HANDLER = 'ControlStateChanged';
 const THERMOSTAT_STATE_CHANGED_HANDLER = 'ThermostatStateChanged';
+const SENSORS_STATE_CHANGED_HANDLER = 'SensorsStateChanged';
 
 @customElement('signalr-control-hub')
 export class ControlHub extends SignalRHubBase {
@@ -25,7 +25,8 @@ export class ControlHub extends SignalRHubBase {
 
   protected override onSignalrConnected(): void {
     this.registerHubHandler<ControlStateChange>(CONTROL_STATE_CHANGED_HANDLER, signalrEvents.controlHub.controlStateChanged);
-    this.registerHubHandler<ThermostatStateChange>(THERMOSTAT_STATE_CHANGED_HANDLER, events.thermostatUpdated);
+    this.registerHubHandler<void>(THERMOSTAT_STATE_CHANGED_HANDLER, events.thermostatUpdated);
+    this.registerHubHandler<void>(SENSORS_STATE_CHANGED_HANDLER, events.sensorsUpdated);
   }
 
   private async loadInitialState(): Promise<void> {

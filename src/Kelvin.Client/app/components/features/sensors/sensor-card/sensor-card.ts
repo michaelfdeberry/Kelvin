@@ -66,14 +66,15 @@ export class SensorCard extends LitElement {
       </div>
       <div class="sensor-card__subtitle">
         ${when(
-          !!this.reading,
+          !isUnconfigured && !!this.reading,
           () => html`
             ${when(this.sensor?.hasHumiditySensor, () => html`<div>${this.reading?.humidityPercentage.toFixed(1) ?? 0}% RH</div>`)}
             ${when(this.sensor?.hasCO2Sensor, () => html`<div>${this.reading?.cO2LevelPpm ?? 0}ppm CO<sub>2</sub></div>`)}
           `,
-          () =>
-            html`<div>--</div>
-              <div>--</div>`,
+          () => html`
+            <div>--</div>
+            <div>--</div>
+          `,
         )}
       </div>
     `;
@@ -89,12 +90,15 @@ export class SensorCard extends LitElement {
   }
 
   private isOffline(): boolean {
+    // add a 1 minute buffer to account for clock drift, otherwise sensors will flash offline every now and then
+    const timeout = 60 * 1000 + FIVE_MINUTES_IN_MS;
     if (!this.reading?.createdAt) {
-      return this.startTime + FIVE_MINUTES_IN_MS < Date.now();
+      // if there hasn't been an update in the last ~5 minutes since page load, consider the sensor offline
+      return this.startTime + timeout < Date.now();
     }
 
     const lastUpdate = new Date(this.reading.createdAt);
-    const isOffline = new Date().getTime() - lastUpdate.getTime() > FIVE_MINUTES_IN_MS;
+    const isOffline = new Date().getTime() - lastUpdate.getTime() > timeout;
     return isOffline;
   }
 
@@ -135,7 +139,6 @@ export class SensorCard extends LitElement {
         <div
           class="${classMap({
             'sensor-card': true,
-            'sensor-card--unconfigured': isUnconfigured,
             'sensor-card--low-battery': isBatteryLow,
             'sensor-card--offline': isOffline,
           })}"
