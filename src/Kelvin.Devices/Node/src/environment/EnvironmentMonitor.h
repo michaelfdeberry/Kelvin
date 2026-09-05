@@ -8,4 +8,5 @@ public:
   void begin();
   bool read(sensor_payload &payload);
   bool shouldSendUpdate(const sensor_payload &newPayload);
+  void enterShutdownMode();
 };

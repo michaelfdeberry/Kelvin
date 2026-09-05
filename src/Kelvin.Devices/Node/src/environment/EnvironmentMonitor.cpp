@@ -17,18 +17,20 @@ static char errorMessage[64];
 static int16_t error;
 
 BatteryMonitor batteryMonitor;
-TwoWire StemmaWire = TwoWire(1);
 SensirionI2cSht4x sht4x;
 
 // Ticks are counted in units of the timer-wake interval; survives deep sleep in RTC memory.
-#define HEARTBEAT_TICKS 10
+#define HEARTBEAT_TICKS (HEARTBEAT_INTERVAL_S / TIMER_WAKE_INTERVAL_S)
+
+static_assert(HEARTBEAT_TICKS >= 1, "HEARTBEAT_INTERVAL_S must be at least one wake interval");
+static_assert(HEARTBEAT_TICKS * TIMER_WAKE_INTERVAL_S == HEARTBEAT_INTERVAL_S, "HEARTBEAT_INTERVAL_S must be a whole multiple of TIMER_WAKE_INTERVAL_S");
 
 RTC_DATA_ATTR static sensor_payload lastPayload{};
 RTC_DATA_ATTR static uint32_t heartbeatTicks = HEARTBEAT_TICKS; // force a send on the first reading after power-up
 
 void EnvironmentMonitor::begin()
 {
-  sht4x.begin(StemmaWire, SHT40_I2C_ADDR_44);
+  sht4x.begin(Wire1, SHT40_I2C_ADDR_44);
   sht4x.softReset();
 
   batteryMonitor.begin();
@@ -36,8 +38,6 @@ void EnvironmentMonitor::begin()
 
 bool EnvironmentMonitor::read(sensor_payload &payload)
 {
-  delay(100);
-
   float temperature = 0.0;
   float relativeHumidity = 0.0;
 
@@ -77,4 +77,9 @@ bool EnvironmentMonitor::shouldSendUpdate(const sensor_payload &newPayload)
   }
 
   return shouldUpdate;
+}
+
+void EnvironmentMonitor::enterShutdownMode()
+{
+  batteryMonitor.enterShutdownMode();
 }

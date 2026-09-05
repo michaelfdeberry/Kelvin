@@ -10,9 +10,18 @@ bool initialized = false;
 
 void BatteryMonitor::begin()
 {
-  // Board.init() is called once in Node.ino's setup(), before VSQT/STEMMA power is on
-  Board.setBatteryChargingMaxCurrent(BATTERY_CHARGING_CURRENT_MA);
-  Board.enableBatteryCharging(true);
+  Result res = Board.setBatteryChargingMaxCurrent(BATTERY_CHARGING_CURRENT_MA);
+  if (res != Result::Ok)
+  {
+    LOG_PRINTLN("Failed to set battery charging max current.");
+  }
+
+  res = Board.enableBatteryCharging(true);
+  if (res != Result::Ok)
+  {
+    LOG_PRINTLN("Failed to enable battery charging.");
+  }
+
   initialized = true;
 }
 
@@ -42,4 +51,34 @@ int BatteryMonitor::getBatteryLevel()
     LOG_PRINTLN("Charge: <battery not detected>");
   }
   return -1; // Indicate an error
+}
+
+void BatteryMonitor::enterShutdownMode()
+{
+  if (!initialized)
+  {
+    LOG_PRINTLN("Board not initialized. Call begin() first.");
+    return;
+  }
+
+  bool supplyGood = false;
+  Result res = Board.checkSupplyGood(supplyGood);
+  if (res != Result::Ok)
+  {
+    LOG_PRINTLN("Unable to determine whether external power is connected.");
+    return;
+  }
+
+  if (supplyGood)
+  {
+    LOG_PRINTLN("Shutdown rejected while external power is connected.");
+    return;
+  }
+
+  LOG_PRINTLN("Entering shutdown mode.");
+  res = Board.enterShutdownMode();
+  if (res != Result::Ok)
+  {
+    LOG_PRINTLN("Failed to enter shutdown mode.");
+  }
 }
