@@ -59,7 +59,7 @@ Display::Display(unsigned long timeoutMs)
       timeoutMs(timeoutMs),
       lastTemp(-999.0),
       lastHum(-999.0),
-      lastBatteryLevel(-1),
+      lastBatteryLevel(BATTERY_LEVEL_UNSET),
       showFahrenheit(false)
 #if ENV_SENSOR_TYPE == ENV_SENSOR_SCD4X
       ,
@@ -95,7 +95,7 @@ void Display::wakeUp()
     isAwake = true;
     lastTemp = -999.0;
     lastHum = -999.0;
-    lastBatteryLevel = -1;
+    lastBatteryLevel = BATTERY_LEVEL_UNSET;
     lastMac = "";
 #if ENV_SENSOR_TYPE == ENV_SENSOR_SCD4X
     lastCo2 = 0;
@@ -186,17 +186,10 @@ void Display::updateDisplay(const String &macAddress, const sensor_payload &payl
     tft.setTextPadding(0);
   }
 
-  // 2. Update Low Battery Icon (Top Right)
+  // 2. Update Battery Icon (Top Right)
   if (currentBattery != lastBatteryLevel)
   {
-    if (currentBattery <= 20)
-    {
-      drawBatteryIcon(currentBattery);
-    }
-    else if (lastBatteryLevel <= 20 && currentBattery > 20)
-    {
-      clearBatteryIcon();
-    }
+    drawBatteryIcon(currentBattery);
     lastBatteryLevel = currentBattery;
   }
 
@@ -257,23 +250,34 @@ void Display::updateDisplay(const String &macAddress, const sensor_payload &payl
 
 void Display::drawBatteryIcon(int level)
 {
-  int x = tft.width() - 35;
-  int y = 15;
+  const int x = tft.width() - 35;
+  const int y = 15;
+  const int bodyWidth = 24;
+  const int bodyHeight = 12;
+  const int innerWidth = bodyWidth - 4;
+  const int innerHeight = bodyHeight - 4;
 
-  tft.drawRect(x, y, 24, 12, THEME_ALERT);
-  tft.fillRect(x + 24, y + 3, 3, 6, THEME_ALERT);
+  int charge = constrain(level, 0, 100);
+  uint16_t color = THEME_ALERT;
+  if (charge >= BATTERY_OK_PERCENT)
+  {
+    color = THEME_OK;
+  }
+  else if (charge >= BATTERY_WARN_PERCENT)
+  {
+    color = THEME_WARN;
+  }
 
-  int fillWidth = (20 * level) / 100;
-  if (fillWidth < 1)
-    fillWidth = 1;
+  tft.drawRect(x, y, bodyWidth, bodyHeight, color);
+  tft.fillRect(x + bodyWidth, y + 3, 3, 6, color);
 
-  tft.fillRect(x + 2, y + 2, fillWidth, 8, THEME_ALERT);
-  tft.fillRect(x + 2 + fillWidth, y + 2, 20 - fillWidth, 8, THEME_BG);
-}
-
-void Display::clearBatteryIcon()
-{
-  int x = tft.width() - 35;
-  int y = 15;
-  tft.fillRect(x, y, 28, 12, THEME_BG);
+  int fillWidth = (innerWidth * charge) / 100;
+  if (fillWidth > 0)
+  {
+    tft.fillRect(x + 2, y + 2, fillWidth, innerHeight, color);
+  }
+  if (fillWidth < innerWidth)
+  {
+    tft.fillRect(x + 2 + fillWidth, y + 2, innerWidth - fillWidth, innerHeight, THEME_BG);
+  }
 }

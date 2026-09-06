@@ -60,14 +60,14 @@ The node enables `VSQT` before initializing and reading the SHT40 sensor. `VSQT`
 
 The display is a 240x320 ST7789 panel configured in `src/display/Display.cpp`:
 
-| Function      |      GPIO |
-| ------------- | --------: |
-| Backlight PWM |  11 (D13) |
-| Display CS    |  12 (D12) |
-| Display DC    |  17 (D09) |
-| Display reset |  18 (D10) |
-| SPI MOSI      | 40 (MOSI) |
-| SPI SCLK      |  39 (SCK) |
+| Function      |     GPIO |
+| ------------- | -------: |
+| Backlight PWM | 11 (D13) |
+| Display CS    | 12 (D12) |
+| Display DC    | 17 (D09) |
+| Display reset | 18 (D10) |
+| SPI MOSI      | 06 (D08) |
+| SPI SCLK      | 16 (D06) |
 
 The display uses SPI3, 40 MHz write frequency, rotation 1, and LovyanGFX. It is powered from the `3V3` header pin, enabled only while the display is in use.
 

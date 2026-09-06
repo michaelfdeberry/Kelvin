@@ -121,8 +121,6 @@ void setup()
 
   setCpuFrequencyMhz(CPU_FREQUENCY_MHZ);
 
-  // Only a cold boot can plausibly have a USB host attached; waiting on any other wake burns a
-  // full second of awake time every cycle on battery.
   LOG_BEGIN(9600, coldBoot);
 
   pinMode(CONTEXT_BUTTON_PIN, INPUT_PULLUP);
@@ -137,9 +135,8 @@ void setup()
 
   Board.init(BATTERY_CAPACITY_MAH, Mainboard::BatteryType::Generic_3V7);
   Board.enableVSQT(true);
-  Board.enable3V3(true);
 
-  // wait for the 3.3V rail to stabilize before initializing components
+  // wait for the Stemma V rail to stabilize before initializing components
   delay(25);
 
   environmentMonitor.begin();
@@ -168,6 +165,8 @@ void setup()
     delay(25);
 
     display.begin();
+    delay(25);
+
     buttonPressedFlag = true; // the wake counts as the initial press
     attachInterrupt(digitalPinToInterrupt(CONTEXT_BUTTON_PIN), handleButtonInterrupt, FALLING);
 
