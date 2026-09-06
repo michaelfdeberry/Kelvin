@@ -18,8 +18,7 @@
 #define DISPLAY_BL_PIN 11
 
 // EspNow Configuration
-// #define GATEWAY_MAC_ADDRESS_BYTES {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // replace with your gateway MAC address
-#define GATEWAY_MAC_ADDRESS_BYTES {0x30, 0x76, 0xF5, 0xF7, 0x0B, 0xB8}
+#define GATEWAY_MAC_ADDRESS_BYTES {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // replace with your gateway MAC address
 
 // Wake cadence for the periodic sensor read. Longer intervals cut the fixed per-wake
 // boot/radio overhead proportionally, which dominates this device's battery budget.
