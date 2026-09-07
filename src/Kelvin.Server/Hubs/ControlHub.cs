@@ -1,6 +1,5 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Features.Control;
-using Kelvin.Server.Features.Thermostat;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Kelvin.Server.Hubs;
@@ -13,7 +12,9 @@ public interface IControlClient
   /// <summary>Raised every time the control service actuates a relay.</summary>
   Task ControlStateChanged(ControlStateChangeDto change);
 
-  Task ThermostatStateChanged(ThermostatStateChangeDto change);
+  Task ThermostatStateChanged();
+
+  Task SensorsStateChanged();
 }
 
 /// <summary>

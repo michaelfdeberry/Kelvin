@@ -1,44 +1,84 @@
 #include <Arduino.h>
+#include <PowerFeather.h>
 #include "Config.h"
+#include "Logger.h"
 #include "./BatteryMonitor.h"
 
-const int voltagePin = BATTERY_PIN;
-const int multiplicationFactor = BATTERY_MULTIPLICATION_FACTOR;
-const float deadVoltage = BATTERY_DEAD_VOLTAGE;
-const float chargedVoltage = BATTERY_CHARGED_VOLTAGE;
+using namespace PowerFeather;
+
+bool initialized = false;
 
 void BatteryMonitor::begin()
 {
-  pinMode(voltagePin, INPUT);
-  analogSetPinAttenuation(voltagePin, ADC_11db);
-}
-
-float BatteryMonitor::readVoltage()
-{
-  return (analogReadMilliVolts(voltagePin) / 1000.0f) * multiplicationFactor;
-}
-
-float BatteryMonitor::readAverageVoltage(int samples)
-{
-  float sum = 0.0;
-  for (int i = 0; i < samples; i++)
+  Result res = Board.setBatteryChargingMaxCurrent(BATTERY_CHARGING_CURRENT_MA);
+  if (res != Result::Ok)
   {
-    sum += readVoltage();
-    delay(10);
+    LOG_PRINTLN("Failed to set battery charging max current.");
   }
-  return sum / samples;
+
+  res = Board.enableBatteryCharging(true);
+  if (res != Result::Ok)
+  {
+    LOG_PRINTLN("Failed to enable battery charging.");
+  }
+
+  initialized = true;
 }
 
 int BatteryMonitor::getBatteryLevel()
 {
-  float voltage = readAverageVoltage(10);
-  float percentage = (voltage - deadVoltage) / (chargedVoltage - deadVoltage) * 100;
+  // uses the PowerFeather library to get battery voltage directly
+  if (!initialized)
+  {
+    LOG_PRINTLN("Board not initialized. Call begin() first.");
+    return -1; // Indicate an error
+  }
 
-  if (percentage < 0)
-    return 0;
+  uint8_t batteryCharge = 0;
+  Result res = Board.getBatteryCharge(batteryCharge);
 
-  if (percentage > 100)
-    return 100;
+  if (res == Result::Ok)
+  {
+    LOG_PRINTF("Charge: %d %%\n", batteryCharge);
+    return batteryCharge;
+  }
+  else if (res == Result::InvalidState)
+  {
+    LOG_PRINTLN("Charge: <no battery configured>");
+  }
+  else
+  {
+    LOG_PRINTLN("Charge: <battery not detected>");
+  }
+  return -1; // Indicate an error
+}
 
-  return (int)percentage;
+void BatteryMonitor::enterShutdownMode()
+{
+  if (!initialized)
+  {
+    LOG_PRINTLN("Board not initialized. Call begin() first.");
+    return;
+  }
+
+  bool supplyGood = false;
+  Result res = Board.checkSupplyGood(supplyGood);
+  if (res != Result::Ok)
+  {
+    LOG_PRINTLN("Unable to determine whether external power is connected.");
+    return;
+  }
+
+  if (supplyGood)
+  {
+    LOG_PRINTLN("Shutdown rejected while external power is connected.");
+    return;
+  }
+
+  LOG_PRINTLN("Entering shutdown mode.");
+  res = Board.enterShutdownMode();
+  if (res != Result::Ok)
+  {
+    LOG_PRINTLN("Failed to enter shutdown mode.");
+  }
 }

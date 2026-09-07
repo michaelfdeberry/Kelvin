@@ -33,8 +33,6 @@ const apiResources = {
     getSchedules: '/api/thermostat/schedules',
     getSetPoints: '/api/thermostat/set-points',
     getThermostat: '/api/thermostat',
-    updateSchedule: '/api/thermostat/schedules/{id:guid}',
-    updateSetPoint: '/api/thermostat/set-points/{id:guid}',
     updateThermostat: '/api/thermostat',
     updateThermostatSettings: '/api/thermostat/settings',
   },

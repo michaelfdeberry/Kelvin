@@ -62,8 +62,8 @@ public class UpdateThermostatHandler(
     }
 
     cache.Remove(ThermostatCache.Key);
-    await controlHub.Clients.All.ThermostatStateChanged(ThermostatStateChangeDto.FromEntity(thermostat));
 
+    await controlHub.Clients.All.ThermostatStateChanged();
     return Result.Success();
   }
 }

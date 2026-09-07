@@ -26,6 +26,11 @@ public class GetLatestReadingsHandler(KelvinContext context) : IHandler<GetLates
       .Select(g => g.OrderByDescending(p => p.CreatedAt).First())
       .ToDictionaryAsync(p => p.SensorId!.Value, p => p, ct);
 
+    if (latestPerSensor.Count == 0)
+    {
+      return Result<GetLatestReadingsResponse>.Success(new GetLatestReadingsResponse(new EnvironmentReading { Timestamp = DateTimeOffset.UtcNow }));
+    }
+
     var reading = new EnvironmentReading
     {
       Timestamp = DateTimeOffset.UtcNow,

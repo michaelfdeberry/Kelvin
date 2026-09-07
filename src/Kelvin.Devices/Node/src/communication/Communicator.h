@@ -9,6 +9,7 @@ class Communicator
 {
 public:
   void begin();
+  void end();
   bool send(const void *payload);
 
 private:

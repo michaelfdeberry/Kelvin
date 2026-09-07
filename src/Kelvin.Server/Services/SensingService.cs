@@ -1,5 +1,3 @@
-namespace Kelvin.Server.Services;
-
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +8,8 @@ using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
+
+namespace Kelvin.Server.Services;
 
 public class SensingService(
   ILogger<SensingService> logger,
@@ -27,7 +27,8 @@ public class SensingService(
   private const int SENSOR_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
   // If we haven't received a packet from a sensor in 15 minutes, we consider it offline and remove it from the environment reading.
-  // For now, this will be 3 times the check-in interval.
+  // For now, this will be 3 times the check-in interval. The UI will show the sensor offline if the last update was more than 5 minutes ago,
+  // but it's kept enabled just in case it comes back.
   private const int SENSOR_TIMEOUT_MS = 3 * SENSOR_HEARTBEAT_INTERVAL_MS;
 
   private readonly Guid subscriberId = Guid.NewGuid();
@@ -159,10 +160,11 @@ public class SensingService(
     var disabledSensors = sensors.Where(s => !s.Enabled).Select(s => s.Id).ToHashSet();
     var removedDisabled = disabledSensors.Count(id => _environment.Areas.TryRemove(id, out _));
     if (removedDisabled > 0)
+    {
       logger.LogInformation("Removed {Count} disabled sensors from environment reading.", removedDisabled);
+    }
 
     var now = time.GetUtcNow();
-
     // if there are enabled sensors without readings, cache them so we can check if they come back online later
     var sensorsWithoutReadings = sensors.Where(x => x.Enabled && !_environment.Areas.ContainsKey(x.Id)).Select(x => x.Id).ToList();
     foreach (var sensorId in sensorsWithoutReadings)
@@ -183,19 +185,29 @@ public class SensingService(
       {
         _enabledSensorsWithoutReadings.TryRemove(sensorId, out _);
         _environment.Areas.TryRemove(sensorId, out _);
-      }
-      logger.LogInformation("Removed {Count} timed out sensors from environment reading.", sensorsToCleanup.Count);
 
-      if (_environment.Areas.IsEmpty)
-      {
-        logger.LogCritical("All sensors have timed out, relinquishing control to the fail-safe thermostat.");
-        await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable, Reason: "All sensors have timed out."), stoppingToken);
+        await dispatcher.DispatchAsync(new DisableSensorRequest(sensorId), stoppingToken);
 
-        var notification = new Notification("All sensors are offline, entering fail-safe mode.", NotificationType.Error, Banner: true);
+        var sensor = sensors.FirstOrDefault(s => s.Id == sensorId);
+        var notification = new Notification(
+          $"Sensor '{sensor?.Name ?? sensorId.ToString()}' has been disabled due to inactivity.",
+          NotificationType.Warning
+        );
         await notificationHub.Clients.All.Notify(notification);
-
-        _environment = new();
       }
+
+      logger.LogInformation("Removed {Count} timed out sensors from environment reading.", sensorsToCleanup.Count);
+    }
+
+    if (_environment.Areas.IsEmpty)
+    {
+      logger.LogCritical("All sensors have timed out, relinquishing control to the fail-safe thermostat.");
+      await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable, Reason: "All sensors have timed out."), stoppingToken);
+
+      var notification = new Notification("All sensors are offline, entering fail-safe mode.", NotificationType.Error, Banner: true);
+      await notificationHub.Clients.All.Notify(notification);
+
+      _environment = new();
     }
 
     return removedDisabled > 0 || sensorsToCleanup.Count > 0;

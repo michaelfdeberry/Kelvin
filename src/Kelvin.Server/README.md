@@ -44,8 +44,6 @@ For existing databases created before migrations were enabled, startup performs 
 
 ## Kelvin.Server Raspberry Pi Install
 
-From `src/Kelvin.Server` on the gateway Raspberry Pi:
-
 1. On the Raspberry Pi (running Raspberry Pi OS Lite), clone the repo:
    `git clone https://github.com/michaelfdeberry/Kelvin.git`
 2. `cd Kelvin/src/Kelvin.Server` and run `./scripts/install-pi.sh`.

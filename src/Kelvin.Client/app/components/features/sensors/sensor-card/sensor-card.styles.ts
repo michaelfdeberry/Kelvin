@@ -54,6 +54,7 @@ const sensorCardStyles = css`
     align-items: center;
   }
 
+  .sensor-card--offline,
   .sensor-card--low-battery,
   .sensor-card--unconfigured {
     position: relative;

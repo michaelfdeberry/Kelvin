@@ -23,6 +23,15 @@
 #define THEME_TEXT 0xFFFF  // White
 #define THEME_MUTED 0x7BEF // Slate/Grey
 #define THEME_ALERT 0xF800 // Red
+#define THEME_WARN 0xFD20  // Orange
+#define THEME_OK 0x07E0    // Green
+
+// Charge thresholds for the battery icon color
+#define BATTERY_OK_PERCENT 50
+#define BATTERY_WARN_PERCENT 20
+
+// Outside the range a real reading can take, including the -1 read-failure value
+#define BATTERY_LEVEL_UNSET -1000
 
 // LovyanGFX Custom Device Configuration for ESP32 + ST7789V (240x320)
 class LGFX : public lgfx::LGFX_Device
@@ -54,7 +63,6 @@ private:
 #endif
 
   void drawBatteryIcon(int level);
-  void clearBatteryIcon();
 
 public:
   Display(unsigned long timeoutMs = 5000);
