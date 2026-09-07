@@ -70,9 +70,9 @@ public class UpdateThermostatSettingsHandler(
     ApplySchedules(context, thermostat, request.Schedules);
 
     await context.SaveChangesAsync(ct);
-    await controlHub.Clients.All.ThermostatStateChanged();
     cache.Remove(ThermostatCache.Key);
 
+    await controlHub.Clients.All.ThermostatStateChanged();
     return Result.Success();
   }
 

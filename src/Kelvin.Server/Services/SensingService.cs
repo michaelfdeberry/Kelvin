@@ -27,7 +27,7 @@ public class SensingService(
   private const int SENSOR_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
   // If we haven't received a packet from a sensor in 15 minutes, we consider it offline and remove it from the environment reading.
-  // For now, this will be 3 times the check-in interval. The UI will show the sensor offline if it the last update was more than 5 minutes ago,
+  // For now, this will be 3 times the check-in interval. The UI will show the sensor offline if the last update was more than 5 minutes ago,
   // but it's kept enabled just in case it comes back.
   private const int SENSOR_TIMEOUT_MS = 3 * SENSOR_HEARTBEAT_INTERVAL_MS;
 
@@ -189,7 +189,10 @@ public class SensingService(
         await dispatcher.DispatchAsync(new DisableSensorRequest(sensorId), stoppingToken);
 
         var sensor = sensors.FirstOrDefault(s => s.Id == sensorId);
-        var notification = new Notification($"Sensor '{sensor!.Name}' has been disabled due to inactivity.", NotificationType.Warning);
+        var notification = new Notification(
+          $"Sensor '{sensor?.Name ?? sensorId.ToString()}' has been disabled due to inactivity.",
+          NotificationType.Warning
+        );
         await notificationHub.Clients.All.Notify(notification);
       }
 

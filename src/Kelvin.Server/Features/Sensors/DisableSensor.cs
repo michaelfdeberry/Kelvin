@@ -26,9 +26,9 @@ public class DisableSensorHandler(KelvinContext context, IMemoryCache cache, IHu
 
     sensor.Enabled = false;
     await context.SaveChangesAsync(ct);
-    await controlHub.Clients.All.SensorsStateChanged();
     cache.Remove(SensorsCache.Key);
 
+    await controlHub.Clients.All.SensorsStateChanged();
     return Result.Success();
   }
 }

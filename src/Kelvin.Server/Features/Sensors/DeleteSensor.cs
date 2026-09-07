@@ -20,9 +20,9 @@ public class DeleteSensorHandler(KelvinContext context, IMemoryCache cache, IHub
   public async Task<Result> HandleAsync(DeleteSensorRequest request, CancellationToken ct = default)
   {
     await context.Sensors.Where(s => s.Id == request.SensorId).ExecuteUpdateAsync(s => s.SetProperty(s => s.DeletedAt, DateTime.UtcNow), ct);
-    await controlHub.Clients.All.SensorsStateChanged();
     cache.Remove(SensorsCache.Key);
 
+    await controlHub.Clients.All.SensorsStateChanged();
     return Result.Success();
   }
 }

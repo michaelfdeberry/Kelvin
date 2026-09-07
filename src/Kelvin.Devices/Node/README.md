@@ -76,7 +76,7 @@ The display uses SPI3, 40 MHz write frequency, rotation 1, and LovyanGFX. It is 
 The main hardware and application settings are in `Config.h`:
 
 - Battery capacity: `1000 mAh`
-- Maximum charging current: `100 mA`
+- Maximum charging current: `500 mA`
 - Onboard shutdown hold duration: `3000 ms`
 - Gateway MAC address: configured by `GATEWAY_MAC_ADDRESS_BYTES`
 - Debug serial logging: enabled by `DEBUG`

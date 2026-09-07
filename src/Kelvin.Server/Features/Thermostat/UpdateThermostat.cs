@@ -33,7 +33,6 @@ public class UpdateThermostatHandler(
     thermostat.Mode = request.Mode;
     thermostat.FanEnabled = request.FanEnabled;
     await context.SaveChangesAsync(ct);
-    await controlHub.Clients.All.ThermostatStateChanged();
 
     var controlContext = new ControlMessage(
       State: ControlState.Dwell,
@@ -64,6 +63,7 @@ public class UpdateThermostatHandler(
 
     cache.Remove(ThermostatCache.Key);
 
+    await controlHub.Clients.All.ThermostatStateChanged();
     return Result.Success();
   }
 }

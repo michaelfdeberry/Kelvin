@@ -33,7 +33,7 @@
 #define CPU_FREQUENCY_MHZ 80
 
 // uncomment to print debug messages to serial
-#define DEBUG 1
+// #define DEBUG 1
 
 // uncomment to light the user LED for the whole awake window (costs ~1-5 mA while lit)
 // #define DEBUG_WAKE_LED 1
