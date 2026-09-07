@@ -1,13 +1,11 @@
 using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
+using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Hosting;
 
 namespace Kelvin.Server.Services;
 
@@ -15,7 +13,6 @@ public class SensingService(
   ILogger<SensingService> logger,
   ISensorPacketChannel sensorPacketChannel,
   IEnvironmentReadingsChannel environmentReadingChannel,
-  IControlChannel controlChannel,
   IHubContext<NotificationsHub, INotificationsClient> notificationHub,
   IHubContext<EnvironmentReadingsHub, IEnvironmentReadingsClient> environmentReadingsHub,
   IDispatcher dispatcher,
@@ -201,12 +198,7 @@ public class SensingService(
 
     if (_environment.Areas.IsEmpty)
     {
-      logger.LogCritical("All sensors have timed out, relinquishing control to the fail-safe thermostat.");
-      await controlChannel.WriteAsync(new ControlMessage(ControlState.Disable, Reason: "All sensors have timed out."), stoppingToken);
-
-      var notification = new Notification("All sensors are offline, entering fail-safe mode.", NotificationType.Error, Banner: true);
-      await notificationHub.Clients.All.Notify(notification);
-
+      await dispatcher.DispatchAsync(new EmergencyShutdownRequest("All sensors are offline, entering fail-safe mode."), stoppingToken);
       _environment = new();
     }
 
