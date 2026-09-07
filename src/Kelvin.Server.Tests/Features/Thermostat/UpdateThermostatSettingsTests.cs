@@ -1,8 +1,10 @@
 using FakeItEasy;
 using Kelvin.Server.Application;
 using Kelvin.Server.Features.Thermostat;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Memory;
 using Shouldly;
 using Xunit;
@@ -11,6 +13,16 @@ namespace Kelvin.Server.Tests.Features.Thermostat;
 
 public class UpdateThermostatSettingsTests
 {
+    private static IHubContext<ControlHub, IControlClient> CreateFakeControlHub()
+    {
+        var clients = A.Fake<IHubClients<IControlClient>>();
+        A.CallTo(() => clients.All).Returns(A.Fake<IControlClient>());
+
+        var hub = A.Fake<IHubContext<ControlHub, IControlClient>>();
+        A.CallTo(() => hub.Clients).Returns(clients);
+        return hub;
+    }
+
     [Fact]
     public async Task NoThermostat_ReturnsFailure()
     {
@@ -18,11 +30,13 @@ public class UpdateThermostatSettingsTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
+        var controlHub = CreateFakeControlHub();
 
         var result = await new UpdateThermostatSettingsHandler(
             context,
             cache,
-            validator
+            validator,
+            controlHub
         ).HandleAsync(new UpdateThermostatSettingsRequest(null, null, [], []));
 
         result.IsFailure.ShouldBeTrue();
@@ -78,6 +92,7 @@ public class UpdateThermostatSettingsTests
         var cache = new MemoryCache(new MemoryCacheOptions());
         cache.Set(ThermostatCache.Key, new object());
         var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
+        var controlHub = CreateFakeControlHub();
         A.CallTo(() =>
                 validator.HandleAsync(A<ValidateThermostatSafetyRequest>._, A<CancellationToken>._)
             )
@@ -86,7 +101,8 @@ public class UpdateThermostatSettingsTests
         var result = await new UpdateThermostatSettingsHandler(
             context,
             cache,
-            validator
+            validator,
+            controlHub
         ).HandleAsync(
             new UpdateThermostatSettingsRequest(
                 12f,
@@ -144,6 +160,7 @@ public class UpdateThermostatSettingsTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
+        var controlHub = CreateFakeControlHub();
         A.CallTo(() =>
                 validator.HandleAsync(A<ValidateThermostatSafetyRequest>._, A<CancellationToken>._)
             )
@@ -152,7 +169,8 @@ public class UpdateThermostatSettingsTests
         var result = await new UpdateThermostatSettingsHandler(
             context,
             cache,
-            validator
+            validator,
+            controlHub
         ).HandleAsync(
             new UpdateThermostatSettingsRequest(
                 12f,

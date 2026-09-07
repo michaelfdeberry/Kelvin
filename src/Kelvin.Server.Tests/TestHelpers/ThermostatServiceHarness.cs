@@ -1,6 +1,7 @@
 using FakeItEasy;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
+using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.GeoCoding;
 using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Features.Weather;
@@ -40,6 +41,8 @@ public sealed class ThermostatServiceHarness
 
     public List<ControlMessage> WrittenMessages { get; } = [];
 
+    public List<EmergencyShutdownRequest> EmergencyShutdowns { get; } = [];
+
     /// <summary>
     /// The states of the messages that were written. Most assertions only care about the sequence of states;
     /// assert on <see cref="WrittenMessages"/> itself when the attached <see cref="ControlContext"/> matters.
@@ -67,6 +70,15 @@ public sealed class ThermostatServiceHarness
         A.CallTo(() => _controlChannel.WriteAsync(A<ControlMessage>._, A<CancellationToken>._))
             .Invokes((ControlMessage message, CancellationToken _) => WrittenMessages.Add(message))
             .Returns(Task.CompletedTask);
+
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync(A<EmergencyShutdownRequest>._, A<CancellationToken>._)
+            )
+            .Invokes(
+                (EmergencyShutdownRequest request, CancellationToken _) =>
+                    EmergencyShutdowns.Add(request)
+            )
+            .Returns(Result.Success());
 
         // Sensible default so tests that don't care about weather forecasting don't need to configure it explicitly.
         SetWeatherFailure(GetCurrentLocationErrors.LocationNotConfigured);
