@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
+using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.GeoCoding;
 using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Features.Weather;
@@ -108,8 +109,7 @@ public class ThermostatService(
     // this shouldn't be possible, it's not allowed to not have both configured for auto mode
     if (heatingTargetTemp is null || coolingTargetTemp is null)
     {
-      logger.LogInformation("Invalid configuration for automatic control.");
-      return context with { State = ControlState.Dwell, Reason = "Invalid configuration for automatic control" };
+      return context with { State = ControlState.Disable, Reason = "Invalid configuration for automatic control" };
     }
 
     var isHeatingMode = false;
@@ -125,15 +125,15 @@ public class ThermostatService(
       var hasInvalidHysteresis = coolingTargetTemp - heatingTargetTemp < hysteresisRange;
       if (hasInvalidTargets || hasInvalidHysteresis)
       {
-        logger.LogCritical(
-          @"
-            The heating target temperature ({HeatingTargetTemp}C) is higher than the cooling target temperature ({CoolingTargetTemp}C). 
-            This is an invalid configuration.
-          ",
-          heatingTargetTemp,
-          coolingTargetTemp
-        );
-        return context with { State = ControlState.Disable, Reason = "the heating target temperature is higher than the cooling target temperature" };
+        return context with
+        {
+          State = ControlState.Disable,
+          Reason =
+            @$"
+              The heating target temperature ({heatingTargetTemp}C) is higher than the cooling target temperature ({coolingTargetTemp}C). 
+              This is an invalid configuration.
+            ",
+        };
       }
 
       isHeatingMode = heatingTargetTemp is not null && environment.TemperatureC <= (heatingTargetTemp - hysteresis);
@@ -170,13 +170,15 @@ public class ThermostatService(
     // if both heating and cooling conditions are met.
     if (isHeatingMode && isCoolingMode)
     {
-      logger.LogCritical(
-        "Both heating and cooling conditions are met. This is an unexpected state. Forecast temperature: {ForecastTemperatureC}C, Heating target: {HeatingTargetTemp}C, Cooling target: {CoolingTargetTemp}C",
-        forecastTemperatureC,
-        heatingTargetTemp,
-        coolingTargetTemp
-      );
-      return context with { State = ControlState.Disable, Reason = "both heating and cooling conditions were met" };
+      return context with
+      {
+        State = ControlState.Disable,
+        Reason =
+          @$"
+            Both heating and cooling conditions are met. This is an unexpected state. 
+            Forecast temperature: {forecastTemperatureC}C, Heating target: {heatingTargetTemp}C, Cooling target: {coolingTargetTemp}C
+          ",
+      };
     }
 
     if (!isHeatingMode && !isCoolingMode)
@@ -339,7 +341,18 @@ public class ThermostatService(
     };
 
     _activeCall = context.State;
-    await controlChannel.WriteAsync(context, cancellationToken);
+
+    if (_activeCall == ControlState.Disable)
+    {
+      await dispatcher.DispatchAsync(
+        new EmergencyShutdownRequest(context.Reason ?? "The thermostat has been disabled due to an unexpected state."),
+        cancellationToken
+      );
+    }
+    else
+    {
+      await controlChannel.WriteAsync(context, cancellationToken);
+    }
     return context;
   }
 

@@ -84,9 +84,11 @@ export class SettingsSensors extends LitElement {
       await apiDelete<void>(resources.sensors.deleteSensor, { routeParams: { id: sensor.id } });
       dispatchToast(this, {
         type: 'Success',
+        duration: 3000,
         message: html`
           Sensor ${sensor.name} removed successfully.
           <button
+            slot="actions"
             class="button button--success button--small"
             @click=${() => this.handleSensorRestore(sensor!)}
           >
@@ -113,7 +115,6 @@ export class SettingsSensors extends LitElement {
       icon = '🪫';
     } else if (percentage <= 50) {
       levelClass = 'battery-pill--med';
-      icon = '🔋';
     }
 
     return html`
@@ -166,7 +167,7 @@ export class SettingsSensors extends LitElement {
                     <div class="features">
                       <span class="badge ${sensor.hasHumiditySensor ? 'badge--active' : ''}">💧 Humidity</span>
                       <span class="badge ${sensor.hasCO2Sensor ? 'badge--active' : ''}">
-                        ☁️ <span>CO<sub>2</sub></span>
+                        <span>☁️ CO<sub>2</sub></span>
                       </span>
                     </div>
                   </td>

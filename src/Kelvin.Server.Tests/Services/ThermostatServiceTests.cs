@@ -58,7 +58,7 @@ public class ThermostatServiceTests
     }
 
     [Fact]
-    public async Task NoActiveSchedulesOrSetPoints_WritesEnableThenDwell()
+    public async Task NoActiveSchedulesOrSetPoints_WritesEnableThenRequestsEmergencyShutdown()
     {
         var harness = new ThermostatServiceHarness();
         harness.SetThermostat(ThermostatFixtures.CreateThermostat(RunMode.Automatic));
@@ -66,7 +66,10 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable]);
+        harness
+            .EmergencyShutdowns.ShouldHaveSingleItem()
+            .Reason.ShouldBe("Invalid configuration for automatic control");
 
         await harness.StopAsync();
     }
@@ -156,7 +159,7 @@ public class ThermostatServiceTests
     }
 
     [Fact]
-    public async Task InvertedAutomaticTargets_WritesEnableThenDisable()
+    public async Task InvertedAutomaticTargets_WritesEnableThenRequestsEmergencyShutdown()
     {
         var harness = new ThermostatServiceHarness();
         // Heating target above cooling target trips the hasInvalidTargets configuration guard in ProcessAutomatic,
@@ -179,7 +182,10 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20.0f));
 
-        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Disable]);
+        harness.WrittenStates.ShouldBe([ControlState.Enable]);
+        harness
+            .EmergencyShutdowns.ShouldHaveSingleItem()
+            .Reason.ShouldContain("heating target temperature");
 
         await harness.StopAsync();
     }
