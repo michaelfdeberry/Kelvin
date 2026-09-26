@@ -6,6 +6,7 @@
 #include <Preferences.h>
 #include "Config.h"
 #include "../Common/SensorPayload.h"
+#include "../battery/BatteryMonitor.h"
 
 // --- Environmental Sensor Macros ---
 #define ENV_SENSOR_NONE 0
@@ -55,6 +56,7 @@ private:
   float lastTemp;
   float lastHum;
   int lastBatteryLevel;
+  bool lastExternalPower;
   bool showFahrenheit;
   uint8_t buttonPin;
   Preferences prefs;
@@ -62,7 +64,8 @@ private:
   uint16_t lastCo2;
 #endif
 
-  void drawBatteryIcon(int level);
+  void drawBatteryIcon(const battery_status &battery);
+  void drawChargeBolt(int x, int y, bool visible);
 
 public:
   Display(unsigned long timeoutMs = 5000);
@@ -76,6 +79,6 @@ public:
   bool awake() const;
 
   void toggleTempUnit();
-  void tick(volatile bool &buttonPressed, unsigned long &lastInterruptTime, const String &macAddress, const sensor_payload &payload);
-  void updateDisplay(const String &macAddress, const sensor_payload &payload);
+  void tick(volatile bool &buttonPressed, unsigned long &lastInterruptTime, const String &macAddress, const sensor_payload &payload, const battery_status &battery);
+  void updateDisplay(const String &macAddress, const sensor_payload &payload, const battery_status &battery);
 };

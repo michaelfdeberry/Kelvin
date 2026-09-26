@@ -32,6 +32,10 @@ arduino-cli compile --fqbn "esp32:esp32:esp32s3_powerfeather:Revision=V2" "src/K
 
 To flash the board, connect it over USB-C and select the matching ESP32-S3 PowerFeather V2 board and serial port in Arduino IDE or Arduino CLI. If the board does not accept an upload, hold `BTN`, press `RST` momentarily, then release `BTN` to enter download mode.
 
+## Charging Mode
+
+When the Node is charging the screen will remain enabled. The battery will also warm while charging. This may cause the internal temperature of the enclosure to increase and result in invalid readings.
+
 ## Pin Map
 
 ### PowerFeather board
@@ -48,17 +52,19 @@ The onboard PowerFeather button and the context button are separate inputs. The 
 
 ### STEMMA QT sensor bus
 
-| Function      |   GPIO |
-| ------------- | -----: |
-| I2C SDA       |     47 |
-| I2C SCL       |     48 |
-| SHT40 address | `0x44` |
+The pins aren't relevant here since they are managed by the feather SDK through `Wire1`.
+
+| Function      |                     GPIO |
+| ------------- | -----------------------: |
+| I2C SDA       |                       47 |
+| I2C SCL       |                       48 |
+| SHT40 address | `0x44` (Default Address) |
 
 The node enables `VSQT` before initializing and reading the SHT40 sensor. `VSQT` is disabled before deep sleep.
 
 ### SPI display
 
-The display is a 240x320 ST7789 panel configured in `src/display/Display.cpp`:
+The display is a 320x240 ST7789 panel configured in `src/display/Display.cpp`:
 
 | Function      |     GPIO |
 | ------------- | -------: |
