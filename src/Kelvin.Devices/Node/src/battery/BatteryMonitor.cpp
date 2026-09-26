@@ -25,13 +25,14 @@ void BatteryMonitor::begin()
   initialized = true;
 }
 
-int BatteryMonitor::getBatteryLevel()
+battery_status BatteryMonitor::getStatus()
 {
-  // uses the PowerFeather library to get battery voltage directly
+  battery_status status;
+
   if (!initialized)
   {
     LOG_PRINTLN("Board not initialized. Call begin() first.");
-    return -1; // Indicate an error
+    return status;
   }
 
   uint8_t batteryCharge = 0;
@@ -40,7 +41,7 @@ int BatteryMonitor::getBatteryLevel()
   if (res == Result::Ok)
   {
     LOG_PRINTF("Charge: %d %%\n", batteryCharge);
-    return batteryCharge;
+    status.level = batteryCharge;
   }
   else if (res == Result::InvalidState)
   {
@@ -50,7 +51,19 @@ int BatteryMonitor::getBatteryLevel()
   {
     LOG_PRINTLN("Charge: <battery not detected>");
   }
-  return -1; // Indicate an error
+
+  bool supplyGood = false;
+  res = Board.checkSupplyGood(supplyGood);
+  if (res == Result::Ok)
+  {
+    status.externalPower = supplyGood;
+  }
+  else
+  {
+    LOG_PRINTLN("Unable to determine whether external power is connected.");
+  }
+
+  return status;
 }
 
 void BatteryMonitor::enterShutdownMode()

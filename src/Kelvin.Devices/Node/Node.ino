@@ -8,6 +8,7 @@
 #include "../Common/SensorPayload.h"
 #include "./src/communication/Communicator.h"
 #include "./src/environment/EnvironmentMonitor.h"
+#include "./src/battery/BatteryMonitor.h"
 #include "./src/display/Display.h"
 #include "Config.h"
 #include "Logger.h"
@@ -16,6 +17,7 @@ using namespace PowerFeather;
 
 Communicator communicator;
 EnvironmentMonitor environmentMonitor;
+BatteryMonitor batteryMonitor;
 Display display;
 String macAddress;
 bool radioStarted = false;
@@ -25,7 +27,9 @@ volatile bool powerButtonPressedFlag = false;
 unsigned long powerButtonPressStarted = 0;
 
 #define TIMER_WAKE_INTERVAL_US (TIMER_WAKE_INTERVAL_S * 1000000ULL)
+#define TIMER_WAKE_INTERVAL_MS ((unsigned long)(TIMER_WAKE_INTERVAL_S * 1000ULL))
 #define DISPLAY_AWAKE_MS 30000UL
+#define POWER_STATE_POLL_MS 1000UL
 
 // Reads the factory MAC without bringing up the WiFi stack, so the radio can stay off.
 String readMacAddress()
@@ -90,7 +94,7 @@ void goToSleep()
   if (powerButtonHeldLongEnough())
   {
     detachInterrupt(digitalPinToInterrupt(POWERFEATHER_BUTTON_PIN));
-    environmentMonitor.enterShutdownMode();
+    batteryMonitor.enterShutdownMode();
   }
 
   if (radioStarted)
@@ -111,6 +115,96 @@ void goToSleep()
   rtc_gpio_pulldown_dis((gpio_num_t)CONTEXT_BUTTON_PIN);
 
   esp_deep_sleep_start();
+}
+
+// Evaluates a fresh reading against the change/heartbeat rules and transmits when needed.
+void sendIfNeeded(const sensor_payload &payload)
+{
+  if (!environmentMonitor.shouldSendUpdate(payload))
+  {
+    return;
+  }
+
+  if (!radioStarted)
+  {
+    communicator.begin();
+    radioStarted = true;
+  }
+
+  if (communicator.send(&payload))
+  {
+    LOG_PRINTLN("Sensor data sent successfully.");
+  }
+  else
+  {
+    LOG_PRINTLN("Failed to send sensor data.");
+  }
+}
+
+// Runs the screen until it times out; on external power it stays on indefinitely,
+// re-reading the sensor on the normal wake cadence instead of deep sleeping.
+void runDisplaySession(sensor_payload &payload, battery_status &battery)
+{
+  macAddress = readMacAddress();
+
+  Board.enable3V3(true);
+  delay(25);
+
+  display.begin();
+  delay(25);
+
+  buttonPressedFlag = true; // the wake counts as the initial press
+  attachInterrupt(digitalPinToInterrupt(CONTEXT_BUTTON_PIN), handleButtonInterrupt, FALLING);
+
+  unsigned long lastInterruptTime = 0;
+  unsigned long lastReadTime = millis();
+  unsigned long lastPowerPollTime = millis();
+  unsigned long awakeUntil = millis() + DISPLAY_AWAKE_MS;
+
+  while (battery.externalPower || (long)(awakeUntil - millis()) > 0)
+  {
+    if (powerButtonHeldLongEnough())
+    {
+      detachInterrupt(digitalPinToInterrupt(CONTEXT_BUTTON_PIN));
+      detachInterrupt(digitalPinToInterrupt(POWERFEATHER_BUTTON_PIN));
+      batteryMonitor.enterShutdownMode();
+    }
+
+    if (millis() - lastReadTime >= TIMER_WAKE_INTERVAL_MS)
+    {
+      lastReadTime = millis();
+      if (environmentMonitor.read(payload))
+      {
+        battery = batteryMonitor.getStatus();
+        payload.batteryLevel = battery.level;
+        sendIfNeeded(payload);
+      }
+    }
+    else if (millis() - lastPowerPollTime >= POWER_STATE_POLL_MS)
+    {
+      // Notice plug/unplug quickly without a full sensor read
+      lastPowerPollTime = millis();
+      battery = batteryMonitor.getStatus();
+    }
+
+    display.tick(buttonPressedFlag, lastInterruptTime, macAddress, payload, battery);
+
+    // Another press re-wakes the board through ext0, so there's no reason to idle here with
+    // the 3V3 rail up once the screen has timed out.
+    if (!battery.externalPower && !display.awake())
+    {
+      break;
+    }
+
+    delay(100);
+  }
+
+  detachInterrupt(digitalPinToInterrupt(CONTEXT_BUTTON_PIN));
+  detachInterrupt(digitalPinToInterrupt(POWERFEATHER_BUTTON_PIN));
+  display.sleep();
+
+  delay(100);
+  Board.enable3V3(false);
 }
 
 void setup()
@@ -140,6 +234,7 @@ void setup()
   delay(25);
 
   environmentMonitor.begin();
+  batteryMonitor.begin();
 
   // wait for the components to stabilize before reading sensor data
   delay(25);
@@ -151,68 +246,20 @@ void setup()
     goToSleep();
   }
 
+  battery_status battery = batteryMonitor.getStatus();
+  payload.batteryLevel = battery.level;
+
   if (powerButtonHeldLongEnough())
   {
     detachInterrupt(digitalPinToInterrupt(POWERFEATHER_BUTTON_PIN));
-    environmentMonitor.enterShutdownMode();
+    batteryMonitor.enterShutdownMode();
   }
 
-  if (wokeByButton)
+  sendIfNeeded(payload);
+
+  if (wokeByButton || battery.externalPower)
   {
-    macAddress = readMacAddress();
-
-    Board.enable3V3(true);
-    delay(25);
-
-    display.begin();
-    delay(25);
-
-    buttonPressedFlag = true; // the wake counts as the initial press
-    attachInterrupt(digitalPinToInterrupt(CONTEXT_BUTTON_PIN), handleButtonInterrupt, FALLING);
-
-    unsigned long lastInterruptTime = 0;
-    unsigned long awakeUntil = millis() + DISPLAY_AWAKE_MS;
-    while ((long)(awakeUntil - millis()) > 0)
-    {
-      if (powerButtonHeldLongEnough())
-      {
-        detachInterrupt(digitalPinToInterrupt(CONTEXT_BUTTON_PIN));
-        detachInterrupt(digitalPinToInterrupt(POWERFEATHER_BUTTON_PIN));
-        environmentMonitor.enterShutdownMode();
-      }
-      display.tick(buttonPressedFlag, lastInterruptTime, macAddress, payload);
-
-      // Another press re-wakes the board through ext0, so there's no reason to idle here with
-      // the 3V3 rail up once the screen has timed out.
-      if (!display.awake())
-      {
-        break;
-      }
-
-      delay(100);
-    }
-
-    detachInterrupt(digitalPinToInterrupt(CONTEXT_BUTTON_PIN));
-    detachInterrupt(digitalPinToInterrupt(POWERFEATHER_BUTTON_PIN));
-    display.sleep();
-
-    delay(100);
-    Board.enable3V3(false);
-  }
-
-  if (environmentMonitor.shouldSendUpdate(payload))
-  {
-    communicator.begin();
-    radioStarted = true;
-
-    if (communicator.send(&payload))
-    {
-      LOG_PRINTLN("Sensor data sent successfully.");
-    }
-    else
-    {
-      LOG_PRINTLN("Failed to send sensor data.");
-    }
+    runDisplaySession(payload, battery);
   }
 
   goToSleep();

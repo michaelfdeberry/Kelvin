@@ -6,7 +6,6 @@
 #include "EnvironmentMonitor.h"
 #include "Logger.h"
 #include "../Common/SensorPayload.h"
-#include "../battery/BatteryMonitor.h"
 
 #ifdef NO_ERROR
 #undef NO_ERROR
@@ -16,7 +15,6 @@
 static char errorMessage[64];
 static int16_t error;
 
-BatteryMonitor batteryMonitor;
 SensirionI2cSht4x sht4x;
 
 // Ticks are counted in units of the timer-wake interval; survives deep sleep in RTC memory.
@@ -32,8 +30,6 @@ void EnvironmentMonitor::begin()
 {
   sht4x.begin(Wire1, SHT40_I2C_ADDR_44);
   sht4x.softReset();
-
-  batteryMonitor.begin();
 }
 
 bool EnvironmentMonitor::read(sensor_payload &payload)
@@ -53,7 +49,6 @@ bool EnvironmentMonitor::read(sensor_payload &payload)
   payload.temperature = temperature;
   payload.humidity = relativeHumidity;
   payload.co2 = 0;
-  payload.batteryLevel = batteryMonitor.getBatteryLevel();
 
   return true;
 }
@@ -77,9 +72,4 @@ bool EnvironmentMonitor::shouldSendUpdate(const sensor_payload &newPayload)
   }
 
   return shouldUpdate;
-}
-
-void EnvironmentMonitor::enterShutdownMode()
-{
-  batteryMonitor.enterShutdownMode();
 }

@@ -60,6 +60,7 @@ Display::Display(unsigned long timeoutMs)
       lastTemp(-999.0),
       lastHum(-999.0),
       lastBatteryLevel(BATTERY_LEVEL_UNSET),
+      lastExternalPower(false),
       showFahrenheit(false)
 #if ENV_SENSOR_TYPE == ENV_SENSOR_SCD4X
       ,
@@ -96,6 +97,7 @@ void Display::wakeUp()
     lastTemp = -999.0;
     lastHum = -999.0;
     lastBatteryLevel = BATTERY_LEVEL_UNSET;
+    lastExternalPower = false;
     lastMac = "";
 #if ENV_SENSOR_TYPE == ENV_SENSOR_SCD4X
     lastCo2 = 0;
@@ -135,7 +137,7 @@ void Display::checkSleepTimeout()
   }
 }
 
-void Display::tick(volatile bool &buttonPressed, unsigned long &lastInterruptTime, const String &macAddress, const sensor_payload &payload)
+void Display::tick(volatile bool &buttonPressed, unsigned long &lastInterruptTime, const String &macAddress, const sensor_payload &payload, const battery_status &battery)
 {
   if (buttonPressed)
   {
@@ -157,20 +159,24 @@ void Display::tick(volatile bool &buttonPressed, unsigned long &lastInterruptTim
     }
   }
 
+  // External power keeps the screen from timing out
+  if (battery.externalPower)
+  {
+    lastActivityTime = millis();
+  }
+
   checkSleepTimeout();
   if (awake())
   {
-    updateDisplay(macAddress, payload);
+    updateDisplay(macAddress, payload, battery);
   }
 }
 
-void Display::updateDisplay(const String &macAddress, const sensor_payload &payload)
+void Display::updateDisplay(const String &macAddress, const sensor_payload &payload, const battery_status &battery)
 {
   // Do not attempt to draw to the screen if the display controller is sleeping
   if (!isAwake)
     return;
-
-  int currentBattery = payload.batteryLevel;
 
   tft.startWrite();
 
@@ -187,10 +193,11 @@ void Display::updateDisplay(const String &macAddress, const sensor_payload &payl
   }
 
   // 2. Update Battery Icon (Top Right)
-  if (currentBattery != lastBatteryLevel)
+  if (battery.level != lastBatteryLevel || battery.externalPower != lastExternalPower)
   {
-    drawBatteryIcon(currentBattery);
-    lastBatteryLevel = currentBattery;
+    drawBatteryIcon(battery);
+    lastBatteryLevel = battery.level;
+    lastExternalPower = battery.externalPower;
   }
 
   // 3. Update Temperature (Center)
@@ -248,7 +255,7 @@ void Display::updateDisplay(const String &macAddress, const sensor_payload &payl
   tft.endWrite();
 }
 
-void Display::drawBatteryIcon(int level)
+void Display::drawBatteryIcon(const battery_status &battery)
 {
   const int x = tft.width() - 35;
   const int y = 15;
@@ -257,7 +264,7 @@ void Display::drawBatteryIcon(int level)
   const int innerWidth = bodyWidth - 4;
   const int innerHeight = bodyHeight - 4;
 
-  int charge = constrain(level, 0, 100);
+  int charge = constrain(battery.level, 0, 100);
   uint16_t color = THEME_ALERT;
   if (charge >= BATTERY_OK_PERCENT)
   {
@@ -280,4 +287,22 @@ void Display::drawBatteryIcon(int level)
   {
     tft.fillRect(x + 2 + fillWidth, y + 2, innerWidth - fillWidth, innerHeight, THEME_BG);
   }
+
+  drawChargeBolt(x - 14, y - 1, battery.externalPower);
+}
+
+void Display::drawChargeBolt(int x, int y, bool visible)
+{
+  const int width = 10;
+  const int height = 14;
+
+  tft.fillRect(x, y, width, height, THEME_BG);
+  if (!visible)
+  {
+    return;
+  }
+
+  // Two triangles form the classic zigzag bolt
+  tft.fillTriangle(x + 7, y, x + 1, y + 8, x + 5, y + 8, THEME_WARN);
+  tft.fillTriangle(x + 3, y + 13, x + 9, y + 5, x + 5, y + 5, THEME_WARN);
 }
