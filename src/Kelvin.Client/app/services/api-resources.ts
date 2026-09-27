@@ -23,6 +23,7 @@ const apiResources = {
     disableSensor: '/api/sensors/{sensorId}/disable',
     enableSensor: '/api/sensors/{sensorId}/enable',
     getLatestReading: '/api/sensors/readings/latest',
+    getSensorHistory: '/api/sensors/readings/history',
     getSensors: '/api/sensors',
     restoreSensor: '/api/sensors/{id}',
     updateSensor: '/api/sensors/{id:guid}',

@@ -1,17 +1,27 @@
 import { consume } from '@lit/context';
-import { html, LitElement, nothing, TemplateResult } from 'lit';
+import { html, LitElement, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 
-import { toMeasurementPoints, toStateIntervals } from './analytics-chart-data.js';
+import {
+  extendToDomainEnd,
+  toBucketedSensorAverage,
+  toMeasurementPoints,
+  toSensorSeries,
+  toStateIntervals,
+  withSeed,
+} from './analytics-chart-data.js';
 import analyticsViewStyles from './analytics-view.styles.js';
 import '../../shared/chart/chart.js';
 import { preferencesContext } from '../../../contexts/preferences-context.js';
+import { sensorsContext } from '../../../contexts/sensors-context.js';
 import { Preferences } from '../../../models/preferences.js';
-import { loadControlHistory } from '../../../services/control-analytics.js';
+import { loadControlHistory, loadLatestControlChangeBefore } from '../../../services/control-analytics.js';
+import { loadLatestSensorReadingsBefore, loadSensorHistory } from '../../../services/sensor-analytics.js';
 import { getPreferredUnit, presentAsPreferredUnit } from '../../../services/utilities.js';
 import sharedStyles from '../../../shared.styles.js';
 
 import type { ControlStateChange } from '../../../models/control-state-change.js';
+import type { Sensor, SensorPacketHistoryEntry } from '../../../models/sensors.js';
 import type { ChartDataset, ChartDomain } from '../../shared/chart/chart.js';
 
 type RangePreset = '24h' | '7d' | '30d';
@@ -23,6 +33,17 @@ const rangeDurations: Record<RangePreset, number> = {
   '30d': 30 * 24 * 60 * 60 * 1000,
 };
 
+// Cycles through distinct tokens for per-sensor overlay lines, so they read as clearly different from the
+// indoor/target temperature lines (--accent-primary/--accent-success) as well as from each other.
+const sensorLineColors = [
+  'var(--accent-info)',
+  'var(--accent-danger)',
+  'var(--accent-heat)',
+  'var(--accent-cool)',
+  'var(--accent-idle)',
+  'var(--accent-primary-strong)',
+];
+
 const emptyDomain: ChartDomain = { from: 0, to: 1 };
 
 @customElement('app-analytics-view')
@@ -31,6 +52,9 @@ export class AnalyticsView extends LitElement {
 
   @consume({ context: preferencesContext, subscribe: true })
   private preferences!: Preferences;
+
+  @consume({ context: sensorsContext, subscribe: true })
+  private sensors!: Sensor[];
 
   @state()
   private rangePreset: RangePreset = '7d';
@@ -51,7 +75,7 @@ export class AnalyticsView extends LitElement {
   private controlData: ChartDataset[] = [];
 
   @state()
-  private humidityData: ChartDataset[] = [];
+  private airQualityData: ChartDataset[] = [];
 
   private abortController?: AbortController;
 
@@ -121,20 +145,11 @@ export class AnalyticsView extends LitElement {
             ? html`
                 ${this.renderChart(
                   'Temperature',
-                  'Heating and cooling activity is shown behind the indoor temperature.',
+                  'Heating and cooling activity is shown behind the indoor temperature. Per-sensor readings are hidden by default - enable them from the legend.',
                   this.temperatureData,
-                  this.temperatureData.some(dataset => dataset.type === 'line' && dataset.points.length >= 2),
-                  html`
-                    <div
-                      class="analytics-view__legend"
-                      aria-label="Temperature chart legend"
-                    >
-                      <span><i class="analytics-view__legend-swatch analytics-view__legend-swatch--heating"></i>Heating</span>
-                      <span><i class="analytics-view__legend-swatch analytics-view__legend-swatch--cooling"></i>Cooling</span>
-                      <span><i class="analytics-view__legend-swatch analytics-view__legend-swatch--temperature"></i>Indoor temperature</span>
-                      <span><i class="analytics-view__legend-swatch analytics-view__legend-swatch--target-temperature"></i>Target temperature</span>
-                    </div>
-                  `,
+                  this.temperatureData.some(
+                    dataset => (dataset.type === 'line' && dataset.points.length > 0) || (dataset.type === 'state' && dataset.intervals.length > 0),
+                  ),
                 )}
                 ${this.renderChart(
                   'Fan runtime',
@@ -149,10 +164,10 @@ export class AnalyticsView extends LitElement {
                   this.controlData.some(dataset => dataset.type === 'state' && dataset.intervals.length > 0),
                 )}
                 ${this.renderChart(
-                  'Humidity',
-                  'Indoor relative humidity recorded with control events.',
-                  this.humidityData,
-                  this.humidityData.some(dataset => dataset.type === 'line' && dataset.points.length >= 2),
+                  'Air quality',
+                  'Indoor humidity and CO2 levels recorded by the sensors.',
+                  this.airQualityData,
+                  this.airQualityData.some(dataset => dataset.type === 'line' && dataset.points.length > 0),
                 )}
               `
             : nothing
@@ -161,7 +176,7 @@ export class AnalyticsView extends LitElement {
     `;
   }
 
-  private renderChart(heading: string, description: string, datasets: ChartDataset[], hasData: boolean, legend?: TemplateResult) {
+  private renderChart(heading: string, description: string, datasets: ChartDataset[], hasData: boolean) {
     return html`
       <section
         class="card analytics-view__chart"
@@ -172,7 +187,6 @@ export class AnalyticsView extends LitElement {
             <h2>${heading}</h2>
             <p>${description}</p>
           </div>
-          ${legend ?? nothing}
         </div>
         ${
           hasData
@@ -195,27 +209,41 @@ export class AnalyticsView extends LitElement {
     this.abortController?.abort();
     const abortController = new AbortController();
     this.abortController = abortController;
+    const signal = abortController.signal;
 
     const to = new Date();
     const from = new Date(to.getTime() - rangeDurations[this.rangePreset]);
-    this.domain = { from: from.getTime(), to: to.getTime() };
+    const domain: ChartDomain = { from: from.getTime(), to: to.getTime() };
+    this.domain = domain;
     this.status = 'loading';
 
     try {
-      const [callChanges, fanChanges, controlChanges] = await Promise.all([
-        loadControlHistory({ from, to, kind: 'Call' }, abortController.signal),
-        loadControlHistory({ from, to, kind: 'Fan' }, abortController.signal),
-        loadControlHistory({ from, to, kind: 'Control' }, abortController.signal),
+      const [callChanges, fanChanges, controlChanges, callSeed, fanSeed, controlSeed, sensorHistory, sensorSeeds] = await Promise.all([
+        loadControlHistory({ from, to, kind: 'Call' }, signal),
+        loadControlHistory({ from, to, kind: 'Fan' }, signal),
+        loadControlHistory({ from, to, kind: 'Control' }, signal),
+        loadLatestControlChangeBefore('Call', from, signal),
+        loadLatestControlChangeBefore('Fan', from, signal),
+        loadLatestControlChangeBefore('Control', from, signal),
+        loadSensorHistory({ from, to }, signal),
+        loadLatestSensorReadingsBefore(from, signal),
       ]);
 
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
-      this.setChartData(callChanges, fanChanges, controlChanges);
+      this.setChartData(
+        withSeed(callChanges, callSeed, domain),
+        withSeed(fanChanges, fanSeed, domain),
+        withSeed(controlChanges, controlSeed, domain),
+        sensorHistory,
+        sensorSeeds,
+        domain,
+      );
       this.status = 'ready';
     } catch {
-      if (abortController.signal.aborted) {
+      if (signal.aborted) {
         return;
       }
 
@@ -223,53 +251,121 @@ export class AnalyticsView extends LitElement {
     }
   }
 
-  private setChartData(callChanges: ControlStateChange[], fanChanges: ControlStateChange[], controlChanges: ControlStateChange[]) {
+  private setChartData(
+    callChanges: ControlStateChange[],
+    fanChanges: ControlStateChange[],
+    controlChanges: ControlStateChange[],
+    sensorHistory: SensorPacketHistoryEntry[],
+    sensorSeeds: SensorPacketHistoryEntry[],
+    domain: ChartDomain,
+  ) {
     const measurementChanges = [...callChanges, ...fanChanges, ...controlChanges].sort(
       (first, second) => Date.parse(first.changedAt) - Date.parse(second.changedAt),
     );
 
+    const temperatureUnitFormatter = (value: number) =>
+      `${presentAsPreferredUnit(this.preferences.temperatureUnit, value)} ${getPreferredUnit(this.preferences.temperatureUnit)}`;
+
     this.temperatureData = [
-      { type: 'state', intervals: toStateIntervals(callChanges, new Set(['Heating']), this.domain), color: 'var(--accent-heat)', label: 'Heating' },
-      { type: 'state', intervals: toStateIntervals(callChanges, new Set(['Cooling']), this.domain), color: 'var(--accent-cool)', label: 'Cooling' },
+      {
+        type: 'state',
+        key: 'heating-band',
+        intervals: toStateIntervals(callChanges, new Set(['Heating']), domain),
+        color: 'var(--accent-heat)',
+        label: 'Heating',
+      },
+      {
+        type: 'state',
+        key: 'cooling-band',
+        intervals: toStateIntervals(callChanges, new Set(['Cooling']), domain),
+        color: 'var(--accent-cool)',
+        label: 'Cooling',
+      },
       {
         type: 'line',
-        points: toMeasurementPoints(measurementChanges, 'environmentTemperatureC'),
+        key: 'indoor-temperature',
+        points: extendToDomainEnd(toMeasurementPoints(measurementChanges, 'environmentTemperatureC'), domain),
         color: 'var(--accent-primary)',
         label: 'Indoor temperature',
-        valueFormatter: value =>
-          `${presentAsPreferredUnit(this.preferences.temperatureUnit, value)} ${getPreferredUnit(this.preferences.temperatureUnit)}`,
+        valueFormatter: temperatureUnitFormatter,
       },
       {
         type: 'line',
-        points: toMeasurementPoints(measurementChanges, 'targetTemperatureC'),
+        key: 'target-temperature',
+        points: extendToDomainEnd(toMeasurementPoints(measurementChanges, 'targetTemperatureC'), domain),
         color: 'var(--accent-success)',
         label: 'Target temperature',
-        valueFormatter: value =>
-          `${presentAsPreferredUnit(this.preferences.temperatureUnit, value)} ${getPreferredUnit(this.preferences.temperatureUnit)}`,
+        valueFormatter: temperatureUnitFormatter,
+      },
+      ...this.buildSensorTemperatureDatasets(sensorHistory, sensorSeeds, domain, temperatureUnitFormatter),
+    ];
+
+    this.fanData = [
+      {
+        type: 'state',
+        key: 'fan-on-band',
+        intervals: toStateIntervals(fanChanges, new Set(['FanOn']), domain),
+        color: 'var(--accent-info)',
+        label: 'Fan on',
       },
     ];
-    this.fanData = [
-      { type: 'state', intervals: toStateIntervals(fanChanges, new Set(['FanOn']), this.domain), color: 'var(--accent-info)', label: 'Fan on' },
-    ];
+
     this.controlData = [
       {
         type: 'state',
-        intervals: toStateIntervals(controlChanges, new Set(['Enable']), this.domain),
+        key: 'control-enabled-band',
+        intervals: toStateIntervals(controlChanges, new Set(['Enable']), domain),
         color: 'var(--accent-success)',
         label: 'Kelvin control',
       },
     ];
-    this.humidityData = [
+
+    this.airQualityData = [
       {
         type: 'line',
-        points: toMeasurementPoints(measurementChanges, 'humidityPercentage'),
+        key: 'humidity',
+        points: extendToDomainEnd(toBucketedSensorAverage(sensorHistory, sensorSeeds, 'humidityPercentage', domain), domain),
         color: 'var(--accent-info)',
+        axis: 'y',
         min: 0,
         max: 100,
         label: 'Humidity',
         valueFormatter: value => `${value.toFixed(1)}%`,
       },
+      {
+        type: 'line',
+        key: 'co2',
+        points: extendToDomainEnd(toBucketedSensorAverage(sensorHistory, sensorSeeds, 'cO2LevelPpm', domain), domain),
+        color: 'var(--accent-danger)',
+        axis: 'y1',
+        label: 'CO2',
+        valueFormatter: value => `${Math.round(value)} ppm`,
+      },
     ];
+  }
+
+  private buildSensorTemperatureDatasets(
+    sensorHistory: SensorPacketHistoryEntry[],
+    sensorSeeds: SensorPacketHistoryEntry[],
+    domain: ChartDomain,
+    valueFormatter: (value: number) => string,
+  ): ChartDataset[] {
+    const seriesBySensor = toSensorSeries(sensorHistory, sensorSeeds, 'temperatureC', domain);
+    const sensorIds = [...seriesBySensor.keys()].sort((first, second) => this.getSensorName(first).localeCompare(this.getSensorName(second)));
+
+    return sensorIds.map((sensorId, index) => ({
+      type: 'line',
+      key: `sensor-temperature-${sensorId}`,
+      points: extendToDomainEnd(seriesBySensor.get(sensorId)!, domain),
+      color: sensorLineColors[index % sensorLineColors.length] ?? 'var(--accent-info)',
+      hidden: true,
+      label: this.getSensorName(sensorId),
+      valueFormatter,
+    }));
+  }
+
+  private getSensorName(sensorId: string): string {
+    return this.sensors?.find(sensor => sensor.id === sensorId)?.name || 'Sensor';
   }
 }
 

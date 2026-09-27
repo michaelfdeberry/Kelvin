@@ -83,49 +83,10 @@ const analyticsViewStyles = css`
   }
 
   app-kelvin-chart {
-    height: 12rem;
+    height: 16rem;
     border: 1px solid var(--border-subtle);
     border-radius: var(--border-radius);
     overflow: hidden;
-  }
-
-  .analytics-view__legend {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    color: var(--text-muted);
-    font-size: 0.8125rem;
-  }
-
-  .analytics-view__legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .analytics-view__legend-swatch {
-    display: inline-block;
-    width: 0.75rem;
-    height: 0.75rem;
-  }
-
-  .analytics-view__legend-swatch--heating {
-    background: var(--accent-heat);
-  }
-
-  .analytics-view__legend-swatch--cooling {
-    background: var(--accent-cool);
-  }
-
-  .analytics-view__legend-swatch--temperature {
-    height: 0.2rem;
-    background: var(--accent-primary);
-  }
-
-  .analytics-view__legend-swatch--target-temperature {
-    height: 0.2rem;
-    background: var(--accent-success);
   }
 
   @media (max-width: 640px) {
@@ -141,10 +102,6 @@ const analyticsViewStyles = css`
     .analytics-view__range-control,
     .analytics-view__range-control select {
       width: 100%;
-    }
-
-    .analytics-view__legend {
-      justify-content: flex-start;
     }
   }
 `;

@@ -242,7 +242,11 @@ public class ThermostatService(
 
     if (callForCooling && (thermostat.Mode == RunMode.Cooling || thermostat.Mode == RunMode.Automatic))
     {
-      logger.LogInformation("Thermostat is in cooling mode and conditions are met for cooling.");
+      logger.LogInformation(
+        "Thermostat is in cooling mode and conditions are met for cooling. Target: {CoolingTargetTemp}C; Current: {CurrentTemp}C",
+        coolingTargetTemp,
+        environmentTemperatureC
+      );
       return context with
       {
         State = ControlState.Cooling,
@@ -302,7 +306,12 @@ public class ThermostatService(
 
     if (callForHeating && (thermostat.Mode == RunMode.Heating || thermostat.Mode == RunMode.Automatic))
     {
-      logger.LogInformation("Thermostat is in heating mode and conditions are met for heating.");
+      logger.LogInformation(
+        "Thermostat is in heating mode and conditions are met for heating. Target: {HeatingTargetTemp}C; Current: {CurrentTemp}C",
+        heatingTargetTemp,
+        environmentTemperatureC
+      );
+
       return context with
       {
         State = ControlState.Heating,
