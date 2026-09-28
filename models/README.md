@@ -1,12 +1,12 @@
 # Node Enclosure
 
-- These models print without support material.
-- 2.5mm screws were used and screws directly into the plastic.
+- The models print without support material, but will need to be reoriented.
+- 2.5mm screws were used and screw directly into the plastic.
 
 ## Node Face Plate
 
-- Support a common generic 320x240 display module.
-- Has a carriage for the battery. I secured it with two-sided tape.
+- Supports a common generic 320x240 display module.
+- Has a carriage for the battery. I secured it with two-sided tape at the bottom of the carriage.
 - The ESP32-S3 Power Feather mounts on top of the battery carriage.
 
 ## Node Enclosure Body
