@@ -201,7 +201,8 @@ export class KelvinChart extends LitElement {
     const stateSpecs = this.datasets.filter((dataset): dataset is StateDataset => dataset.type === 'state');
 
     this.reconcileLineDatasets(lineSpecs);
-    stateBandsByChart.set(this.chart, { bands: stateSpecs, hiddenKeys: this.hiddenBandKeys });
+    const resolvedBands = stateSpecs.map(spec => ({ ...spec, color: this.resolveColor(spec.color) }));
+    stateBandsByChart.set(this.chart, { bands: resolvedBands, hiddenKeys: this.hiddenBandKeys });
 
     if (this.domain) {
       const xScale = this.chart.options.scales!.x! as { min?: number; max?: number };

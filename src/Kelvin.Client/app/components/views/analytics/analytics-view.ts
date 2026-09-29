@@ -2,21 +2,14 @@ import { consume } from '@lit/context';
 import { html, LitElement, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 
-import {
-  extendToDomainEnd,
-  toBucketedSensorAverage,
-  toMeasurementPoints,
-  toSensorSeries,
-  toStateIntervals,
-  withSeed,
-} from './analytics-chart-data.js';
+import { extendToDomainEnd, toCrossSensorAverage, toMeasurementPoints, toSensorSeries, toStateIntervals, withSeed } from './analytics-chart-data.js';
 import analyticsViewStyles from './analytics-view.styles.js';
 import '../../shared/chart/chart.js';
 import { preferencesContext } from '../../../contexts/preferences-context.js';
 import { sensorsContext } from '../../../contexts/sensors-context.js';
 import { Preferences } from '../../../models/preferences.js';
 import { loadControlHistory, loadLatestControlChangeBefore } from '../../../services/control-analytics.js';
-import { loadLatestSensorReadingsBefore, loadSensorHistory } from '../../../services/sensor-analytics.js';
+import { loadLatestSensorReadingsBefore, loadSensorHistoryPeriods } from '../../../services/sensor-analytics.js';
 import { getPreferredUnit, presentAsPreferredUnit } from '../../../services/utilities.js';
 import sharedStyles from '../../../shared.styles.js';
 
@@ -57,7 +50,7 @@ export class AnalyticsView extends LitElement {
   private sensors!: Sensor[];
 
   @state()
-  private rangePreset: RangePreset = '7d';
+  private rangePreset: RangePreset = '24h';
 
   @state()
   private status: LoadStatus = 'loading';
@@ -152,10 +145,10 @@ export class AnalyticsView extends LitElement {
                   ),
                 )}
                 ${this.renderChart(
-                  'Fan runtime',
-                  'Intervals where the circulation fan was on.',
-                  this.fanData,
-                  this.fanData.some(dataset => dataset.type === 'state' && dataset.intervals.length > 0),
+                  'Air quality',
+                  'Indoor humidity and CO2 levels recorded by the sensors.',
+                  this.airQualityData,
+                  this.airQualityData.some(dataset => dataset.type === 'line' && dataset.points.length > 0),
                 )}
                 ${this.renderChart(
                   'Control ownership',
@@ -164,10 +157,10 @@ export class AnalyticsView extends LitElement {
                   this.controlData.some(dataset => dataset.type === 'state' && dataset.intervals.length > 0),
                 )}
                 ${this.renderChart(
-                  'Air quality',
-                  'Indoor humidity and CO2 levels recorded by the sensors.',
-                  this.airQualityData,
-                  this.airQualityData.some(dataset => dataset.type === 'line' && dataset.points.length > 0),
+                  'Fan runtime',
+                  'Intervals where the circulation fan was on.',
+                  this.fanData,
+                  this.fanData.some(dataset => dataset.type === 'state' && dataset.intervals.length > 0),
                 )}
               `
             : nothing
@@ -218,14 +211,14 @@ export class AnalyticsView extends LitElement {
     this.status = 'loading';
 
     try {
-      const [callChanges, fanChanges, controlChanges, callSeed, fanSeed, controlSeed, sensorHistory, sensorSeeds] = await Promise.all([
+      const [callChanges, fanChanges, controlChanges, callSeed, fanSeed, controlSeed, sensorPeriods, sensorSeeds] = await Promise.all([
         loadControlHistory({ from, to, kind: 'Call' }, signal),
         loadControlHistory({ from, to, kind: 'Fan' }, signal),
         loadControlHistory({ from, to, kind: 'Control' }, signal),
         loadLatestControlChangeBefore('Call', from, signal),
         loadLatestControlChangeBefore('Fan', from, signal),
         loadLatestControlChangeBefore('Control', from, signal),
-        loadSensorHistory({ from, to }, signal),
+        loadSensorHistoryPeriods({ from, to }, signal),
         loadLatestSensorReadingsBefore(from, signal),
       ]);
 
@@ -237,7 +230,7 @@ export class AnalyticsView extends LitElement {
         withSeed(callChanges, callSeed, domain),
         withSeed(fanChanges, fanSeed, domain),
         withSeed(controlChanges, controlSeed, domain),
-        sensorHistory,
+        sensorPeriods,
         sensorSeeds,
         domain,
       );
@@ -255,7 +248,7 @@ export class AnalyticsView extends LitElement {
     callChanges: ControlStateChange[],
     fanChanges: ControlStateChange[],
     controlChanges: ControlStateChange[],
-    sensorHistory: SensorPacketHistoryEntry[],
+    sensorPeriods: SensorPacketHistoryEntry[],
     sensorSeeds: SensorPacketHistoryEntry[],
     domain: ChartDomain,
   ) {
@@ -297,7 +290,7 @@ export class AnalyticsView extends LitElement {
         label: 'Target temperature',
         valueFormatter: temperatureUnitFormatter,
       },
-      ...this.buildSensorTemperatureDatasets(sensorHistory, sensorSeeds, domain, temperatureUnitFormatter),
+      ...this.buildSensorTemperatureDatasets(sensorPeriods, sensorSeeds, domain, temperatureUnitFormatter),
     ];
 
     this.fanData = [
@@ -324,7 +317,7 @@ export class AnalyticsView extends LitElement {
       {
         type: 'line',
         key: 'humidity',
-        points: extendToDomainEnd(toBucketedSensorAverage(sensorHistory, sensorSeeds, 'humidityPercentage', domain), domain),
+        points: extendToDomainEnd(toCrossSensorAverage(sensorPeriods, sensorSeeds, 'humidityPercentage', domain), domain),
         color: 'var(--accent-info)',
         axis: 'y',
         min: 0,
@@ -335,7 +328,7 @@ export class AnalyticsView extends LitElement {
       {
         type: 'line',
         key: 'co2',
-        points: extendToDomainEnd(toBucketedSensorAverage(sensorHistory, sensorSeeds, 'cO2LevelPpm', domain), domain),
+        points: extendToDomainEnd(toCrossSensorAverage(sensorPeriods, sensorSeeds, 'cO2LevelPpm', domain), domain),
         color: 'var(--accent-danger)',
         axis: 'y1',
         label: 'CO2',
@@ -345,13 +338,16 @@ export class AnalyticsView extends LitElement {
   }
 
   private buildSensorTemperatureDatasets(
-    sensorHistory: SensorPacketHistoryEntry[],
+    sensorPeriods: SensorPacketHistoryEntry[],
     sensorSeeds: SensorPacketHistoryEntry[],
     domain: ChartDomain,
     valueFormatter: (value: number) => string,
   ): ChartDataset[] {
-    const seriesBySensor = toSensorSeries(sensorHistory, sensorSeeds, 'temperatureC', domain);
-    const sensorIds = [...seriesBySensor.keys()].sort((first, second) => this.getSensorName(first).localeCompare(this.getSensorName(second)));
+    const seriesBySensor = toSensorSeries(sensorPeriods, sensorSeeds, 'temperatureC', domain);
+    const historicalNames = this.buildHistoricalSensorNames(sensorPeriods, sensorSeeds);
+    const sensorIds = [...seriesBySensor.keys()].sort((first, second) =>
+      this.getSensorName(first, historicalNames).localeCompare(this.getSensorName(second, historicalNames)),
+    );
 
     return sensorIds.map((sensorId, index) => ({
       type: 'line',
@@ -359,13 +355,27 @@ export class AnalyticsView extends LitElement {
       points: extendToDomainEnd(seriesBySensor.get(sensorId)!, domain),
       color: sensorLineColors[index % sensorLineColors.length] ?? 'var(--accent-info)',
       hidden: true,
-      label: this.getSensorName(sensorId),
+      label: this.getSensorName(sensorId, historicalNames),
       valueFormatter,
     }));
   }
 
-  private getSensorName(sensorId: string): string {
-    return this.sensors?.find(sensor => sensor.id === sensorId)?.name || 'Sensor';
+  // The sensors context only tracks currently active sensors, so a sensor removed since a history/seed
+  // entry was recorded would otherwise fall back to a generic, indistinguishable label - the name the
+  // server attached to that entry is the only place it still exists.
+  private buildHistoricalSensorNames(sensorPeriods: SensorPacketHistoryEntry[], sensorSeeds: SensorPacketHistoryEntry[]): Map<string, string> {
+    const names = new Map<string, string>();
+    for (const entry of [...sensorSeeds, ...sensorPeriods]) {
+      if (entry.sensorId && entry.sensorName && !names.has(entry.sensorId)) {
+        names.set(entry.sensorId, entry.sensorName);
+      }
+    }
+
+    return names;
+  }
+
+  private getSensorName(sensorId: string, historicalNames: Map<string, string>): string {
+    return this.sensors?.find(sensor => sensor.id === sensorId)?.name || historicalNames.get(sensorId) || 'Sensor';
   }
 }
 

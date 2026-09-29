@@ -6,13 +6,14 @@ using Microsoft.EntityFrameworkCore;
 namespace Kelvin.Server.Features.Sensors;
 
 public record SensorPacketDto(
-  Guid Id,
+  Guid? Id,
   Guid? SensorId,
   string? SensorName,
+  DateTimeOffset Timestamp,
   float TemperatureC,
   float HumidityPercentage,
-  ushort CO2LevelPpm,
-  DateTimeOffset CreatedAt
+  float CO2LevelPpm,
+  int SampleCount
 );
 
 public record GetSensorHistoryRequest(
@@ -62,10 +63,11 @@ public class GetSensorHistoryHandler(KelvinContext context) : IPagedHandler<GetS
         packet.Id,
         packet.SensorId,
         packet.Sensor!.Name,
+        packet.CreatedAt,
         packet.TemperatureC,
         packet.HumidityPercentage,
         packet.CO2LevelPpm,
-        packet.CreatedAt
+        1
       ))
       .ToListAsync(cancellationToken);
 

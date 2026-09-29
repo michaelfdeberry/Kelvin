@@ -63,5 +63,8 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
 
     // The history is always read as a timeline for one axis over a date range.
     modelBuilder.Entity<ControlStateChange>().HasIndex(change => new { change.Kind, change.CreatedAt });
+
+    // Analytics aggregates a range of packets into periods; without this every period query is a full table scan.
+    modelBuilder.Entity<SensorPacket>().HasIndex(packet => packet.CreatedAt);
   }
 }

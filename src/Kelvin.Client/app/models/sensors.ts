@@ -34,11 +34,12 @@ export type SensorReading = {
 };
 
 export type SensorPacketHistoryEntry = {
-  id: string;
+  id?: string;
   sensorId?: string;
   sensorName?: string;
+  timestamp: string;
   temperatureC: number;
   humidityPercentage: number;
   cO2LevelPpm: number;
-  createdAt: string;
+  sampleCount: number;
 };

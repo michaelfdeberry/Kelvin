@@ -80,40 +80,39 @@ export function toStateIntervals(changes: ControlStateChange[], activeStates: Re
   return intervals;
 }
 
-function toSensorTimestamp(createdAt: string): number | undefined {
-  const timestamp = Date.parse(createdAt);
-  return Number.isFinite(timestamp) ? timestamp : undefined;
+function toSensorTimestamp(timestamp: string): number | undefined {
+  const at = Date.parse(timestamp);
+  return Number.isFinite(at) ? at : undefined;
 }
 
-// Groups packets per sensor, seeding each sensor's series with its last reading before the range so a
-// sensor with no new packets in the visible window still shows a flat continuation instead of a gap.
+// Groups server-aggregated rows per sensor, seeding each sensor's series with its last reading before the
+// range so a sensor with no new packets in the visible window still shows a flat continuation instead of a
+// gap. Periods are already averaged server-side, so no further aggregation happens here.
 export function toSensorSeries(
-  history: SensorPacketHistoryEntry[],
+  entries: SensorPacketHistoryEntry[],
   seeds: SensorPacketHistoryEntry[],
   key: SensorMeasurementKey,
   domain: AnalyticsDomain,
 ): Map<string, ChartPoint[]> {
   const bySensor = new Map<string, ChartPoint[]>();
 
-  const addPoint = (entry: SensorPacketHistoryEntry, at: number) => {
-    if (!entry.sensorId) return;
-    const value = entry[key];
-    if (!Number.isFinite(value)) return;
+  const addPoint = (sensorId: string | undefined, at: number, value: number) => {
+    if (!sensorId || !Number.isFinite(value)) return;
 
-    const points = bySensor.get(entry.sensorId) ?? [];
+    const points = bySensor.get(sensorId) ?? [];
     points.push({ at, value });
-    bySensor.set(entry.sensorId, points);
+    bySensor.set(sensorId, points);
   };
 
   for (const seed of seeds) {
-    addPoint(seed, domain.from);
+    addPoint(seed.sensorId, domain.from, seed[key]);
   }
 
-  for (const entry of history) {
-    const at = toSensorTimestamp(entry.createdAt);
+  for (const entry of entries) {
+    const at = toSensorTimestamp(entry.timestamp);
     if (at === undefined || at < domain.from || at > domain.to) continue;
 
-    addPoint(entry, at);
+    addPoint(entry.sensorId, at, entry[key]);
   }
 
   for (const points of bySensor.values()) {
@@ -123,48 +122,35 @@ export function toSensorSeries(
   return bySensor;
 }
 
-const hour = 60 * 60 * 1000;
-
-function getBucketSizeMs(rangeMs: number): number {
-  if (rangeMs <= 24 * hour) return 5 * 60 * 1000;
-  if (rangeMs <= 7 * 24 * hour) return 30 * 60 * 1000;
-  return 2 * hour;
-}
-
-// Buckets packets across all sensors into fixed-width windows and averages them, smoothing independently
-// timed per-sensor readings into a single line instead of a jagged stitch of whichever sensor reported last.
-export function toBucketedSensorAverage(
-  history: SensorPacketHistoryEntry[],
+// Averages server-aggregated rows across all sensors that share a period, weighted by each row's sample
+// count, into a single line - e.g. combining every sensor's humidity/CO2 into one Air Quality series.
+export function toCrossSensorAverage(
+  entries: SensorPacketHistoryEntry[],
   seeds: SensorPacketHistoryEntry[],
   key: SensorMeasurementKey,
   domain: AnalyticsDomain,
 ): ChartPoint[] {
-  if (domain.to <= domain.from) return [];
+  const sums = new Map<number, { total: number; weight: number }>();
 
-  const bucketMs = getBucketSizeMs(domain.to - domain.from);
-  const sums = new Map<number, { total: number; count: number }>();
+  const addValue = (at: number, value: number, weight: number) => {
+    if (!Number.isFinite(at) || !Number.isFinite(value) || weight <= 0) return;
 
-  const addEntry = (entry: SensorPacketHistoryEntry, at: number) => {
-    const value = entry[key];
-    if (!Number.isFinite(value)) return;
-
-    const bucket = domain.from + Math.floor((at - domain.from) / bucketMs) * bucketMs;
-    const bucketSum = sums.get(bucket) ?? { total: 0, count: 0 };
-    bucketSum.total += value;
-    bucketSum.count += 1;
-    sums.set(bucket, bucketSum);
+    const sum = sums.get(at) ?? { total: 0, weight: 0 };
+    sum.total += value * weight;
+    sum.weight += weight;
+    sums.set(at, sum);
   };
 
   for (const seed of seeds) {
-    addEntry(seed, domain.from);
+    addValue(domain.from, seed[key], seed.sampleCount);
   }
 
-  for (const entry of history) {
-    const at = toSensorTimestamp(entry.createdAt);
+  for (const entry of entries) {
+    const at = toSensorTimestamp(entry.timestamp);
     if (at === undefined || at < domain.from || at > domain.to) continue;
 
-    addEntry(entry, at);
+    addValue(at, entry[key], entry.sampleCount);
   }
 
-  return [...sums.entries()].map(([at, { total, count }]) => ({ at, value: total / count })).sort((first, second) => first.at - second.at);
+  return [...sums.entries()].map(([at, { total, weight }]) => ({ at, value: total / weight })).sort((first, second) => first.at - second.at);
 }
