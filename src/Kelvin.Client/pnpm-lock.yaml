@@ -214,8 +214,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       '@microsoft/signalr':
-        specifier: ^10.0.0
-        version: 10.0.0
+        specifier: ^10.0.11
+        version: 10.0.11
       lit:
         specifier: ^3.3.3
         version: 3.3.3
@@ -498,8 +498,8 @@ packages:
   '@lit/task@1.0.3':
     resolution: {integrity: sha512-1gJGJl8WON+2j0y9xfcD+XsS1rvcy3XDgsIhcdUW++yTR8ESjZW6o7dn8M8a4SZM8NnJe6ynS2cKWwsbfLOurg==}
 
-  '@microsoft/signalr@10.0.0':
-    resolution: {integrity: sha512-0BRqz/uCx3JdrOqiqgFhih/+hfTERaUfCZXFB52uMaZJrKaPRzHzMuqVsJC/V3pt7NozcNXGspjKiQEK+X7P2w==}
+  '@microsoft/signalr@10.0.11':
+    resolution: {integrity: sha512-FulOJ2EEtKvLQcswe/U7v8pzyXyk7Jua5xgWJPPwyQU/2Z9ORvKcVjyO75VvLsem+CJ1ORRexJ+7Bz1FCei2aw==}
 
   '@oxc-project/types@0.151.0':
     resolution: {integrity: sha512-J1yXrIlNDZVzE3ada310xeAw7nH8yCAyLPuUIsjKatFPmfn5bS1oW+cM+QsGOtVWd5nhSpbwZWx/rue+r5Z+PA==}
@@ -1883,7 +1883,7 @@ snapshots:
     dependencies:
       '@lit/reactive-element': 2.1.2
 
-  '@microsoft/signalr@10.0.0':
+  '@microsoft/signalr@10.0.11':
     dependencies:
       abort-controller: 3.0.0
       eventsource: 2.0.2
