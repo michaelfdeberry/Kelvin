@@ -85,6 +85,20 @@ function toSensorTimestamp(timestamp: string): number | undefined {
   return Number.isFinite(at) ? at : undefined;
 }
 
+// The latest-before seed query and the periods query are both inclusive at the range start, so a packet
+// recorded exactly at domain.from can come back as both a seed and a real entry - skip the seed for any
+// sensor that already has one, or the duplicate timestamp renders as a false vertical jump in the chart.
+function getSensorIdsWithEntryAtStart(entries: SensorPacketHistoryEntry[], domain: AnalyticsDomain): ReadonlySet<string> {
+  const sensorIds = new Set<string>();
+  for (const entry of entries) {
+    if (entry.sensorId && toSensorTimestamp(entry.timestamp) === domain.from) {
+      sensorIds.add(entry.sensorId);
+    }
+  }
+
+  return sensorIds;
+}
+
 // Groups server-aggregated rows per sensor, seeding each sensor's series with its last reading before the
 // range so a sensor with no new packets in the visible window still shows a flat continuation instead of a
 // gap. Periods are already averaged server-side, so no further aggregation happens here.
@@ -104,7 +118,9 @@ export function toSensorSeries(
     bySensor.set(sensorId, points);
   };
 
+  const sensorIdsWithEntryAtStart = getSensorIdsWithEntryAtStart(entries, domain);
   for (const seed of seeds) {
+    if (seed.sensorId && sensorIdsWithEntryAtStart.has(seed.sensorId)) continue;
     addPoint(seed.sensorId, domain.from, seed[key]);
   }
 
@@ -141,7 +157,9 @@ export function toCrossSensorAverage(
     sums.set(at, sum);
   };
 
+  const sensorIdsWithEntryAtStart = getSensorIdsWithEntryAtStart(entries, domain);
   for (const seed of seeds) {
+    if (seed.sensorId && sensorIdsWithEntryAtStart.has(seed.sensorId)) continue;
     addValue(domain.from, seed[key], seed.sampleCount);
   }
 

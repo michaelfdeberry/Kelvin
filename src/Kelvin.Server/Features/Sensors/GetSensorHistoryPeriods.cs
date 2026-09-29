@@ -21,8 +21,8 @@ public static class GetSensorHistoryPeriodsErrors
 /// </summary>
 public class GetSensorHistoryPeriodsHandler(KelvinContext context) : IHandler<GetSensorHistoryPeriodsRequest, GetSensorHistoryPeriodsResponse>
 {
-  // Regardless of the requested period width, this bounds how many small aggregate queries a single request
-  // can trigger - a caller asking for 1-second periods over 30 days must not force millions of iterations.
+  // Regardless of the requested period width, this bounds how many period groups a single request can
+  // produce - a caller asking for 1-second periods over 30 days must not force millions of groups.
   private const int MaxPeriods = 2_000;
 
   public async Task<Result<GetSensorHistoryPeriodsResponse>> HandleAsync(GetSensorHistoryPeriodsRequest request, CancellationToken ct = default)
@@ -34,49 +34,60 @@ public class GetSensorHistoryPeriodsHandler(KelvinContext context) : IHandler<Ge
     var periodSeconds = Math.Max(request.PeriodSeconds ?? GetDefaultPeriodSeconds(range), 1);
     var minPeriodSeconds = (int)Math.Ceiling(Math.Max(range.TotalSeconds, 1) / MaxPeriods);
     periodSeconds = Math.Max(periodSeconds, minPeriodSeconds);
+    var periodTicks = TimeSpan.FromSeconds(periodSeconds).Ticks;
 
     var sensorNames = await context.Sensors.AsNoTracking().ToDictionaryAsync(sensor => sensor.Id, sensor => sensor.Name, ct);
 
-    var periods = new List<SensorPacketDto>();
-    for (var periodStart = request.From; periodStart < request.To; periodStart = periodStart.AddSeconds(periodSeconds))
+    var query = context
+      .SensorPackets.AsNoTracking()
+      .Where(packet => packet.DeletedAt == null && packet.SensorId != null && packet.CreatedAt >= request.From && packet.CreatedAt < request.To);
+
+    if (request.SensorId is not null)
+      query = query.Where(packet => packet.SensorId == request.SensorId);
+
+    var projected = query.Select(packet => new
     {
-      var periodEnd = periodStart.AddSeconds(periodSeconds);
+      packet.SensorId,
+      packet.CreatedAt,
+      packet.TemperatureC,
+      packet.HumidityPercentage,
+      packet.CO2LevelPpm,
+    });
 
-      var query = context
-        .SensorPackets.AsNoTracking()
-        .Where(packet => packet.DeletedAt == null && packet.SensorId != null && packet.CreatedAt >= periodStart && packet.CreatedAt < periodEnd);
+    // A single query streamed row-by-row (not materialized into a list) and folded into running per-period
+    // totals - one database round trip for the whole range instead of one aggregate query per period, and
+    // only one row from the driver plus these small totals are ever held in memory at once.
+    var totals = new Dictionary<(Guid SensorId, long PeriodIndex), PeriodTotals>();
 
-      if (request.SensorId is not null)
-        query = query.Where(packet => packet.SensorId == request.SensorId);
+    await foreach (var packet in projected.AsAsyncEnumerable().WithCancellation(ct))
+    {
+      if (packet.SensorId is not { } sensorId)
+        continue;
 
-      // Grouping/averaging happens in SQL - only one small aggregate row per sensor comes back per period,
-      // never the raw packets that make up the average.
-      var grouped = await query
-        .GroupBy(packet => packet.SensorId)
-        .Select(g => new
-        {
-          SensorId = g.Key,
-          TemperatureC = g.Average(packet => packet.TemperatureC),
-          HumidityPercentage = g.Average(packet => packet.HumidityPercentage),
-          CO2LevelPpm = g.Average(packet => packet.CO2LevelPpm),
-          SampleCount = g.Count(),
-        })
-        .ToListAsync(ct);
+      var periodIndex = (packet.CreatedAt - request.From).Ticks / periodTicks;
+      var key = (sensorId, periodIndex);
 
-      var capturedPeriodStart = periodStart;
-      periods.AddRange(
-        grouped.Select(g => new SensorPacketDto(
-          null,
-          g.SensorId,
-          g.SensorId.HasValue ? sensorNames.GetValueOrDefault(g.SensorId.Value) : null,
-          capturedPeriodStart,
-          g.TemperatureC,
-          g.HumidityPercentage,
-          (float)g.CO2LevelPpm,
-          g.SampleCount
-        ))
-      );
+      totals.TryGetValue(key, out var total);
+      total.TemperatureTotal += packet.TemperatureC;
+      total.HumidityTotal += packet.HumidityPercentage;
+      total.CO2Total += packet.CO2LevelPpm;
+      total.Count++;
+      totals[key] = total;
     }
+
+    var periods = totals
+      .Select(entry => new SensorPacketDto(
+        null,
+        entry.Key.SensorId,
+        sensorNames.GetValueOrDefault(entry.Key.SensorId),
+        request.From + TimeSpan.FromTicks(entry.Key.PeriodIndex * periodTicks),
+        (float)(entry.Value.TemperatureTotal / entry.Value.Count),
+        (float)(entry.Value.HumidityTotal / entry.Value.Count),
+        (float)(entry.Value.CO2Total / entry.Value.Count),
+        entry.Value.Count
+      ))
+      .OrderBy(period => period.Timestamp)
+      .ToList();
 
     return Result<GetSensorHistoryPeriodsResponse>.Success(new GetSensorHistoryPeriodsResponse(periods));
   }
@@ -90,6 +101,14 @@ public class GetSensorHistoryPeriodsHandler(KelvinContext context) : IHandler<Ge
       return 30 * 60;
 
     return 2 * 60 * 60;
+  }
+
+  private struct PeriodTotals
+  {
+    public double TemperatureTotal;
+    public double HumidityTotal;
+    public double CO2Total;
+    public int Count;
   }
 }
 
