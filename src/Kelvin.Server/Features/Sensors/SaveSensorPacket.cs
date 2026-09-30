@@ -7,7 +7,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Sensors;
 
-public record SaveSensorPacketRequest(SensorPacket SensorPacket) : IRequest;
+public record SaveSensorPacketRequest(SensorPacket SensorPacket, DeviceType DeviceType) : IRequest;
 
 public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel sensorPacketChannel, IMemoryCache cache)
   : IHandler<SaveSensorPacketRequest>
@@ -20,8 +20,14 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     if (sensor is null)
     {
       sensor = new Sensor { MacAddress = sensorPacket.MacAddress, Enabled = true };
+      ApplyCapabilities(sensor, request.DeviceType);
       context.Sensors.Add(sensor);
       clearCache = true;
+
+      if (request.DeviceType == DeviceType.Hmi)
+      {
+        await LinkHmiAsync(sensor, ct);
+      }
     }
 
     // if it was deleted, but starts sending packets again restore it, but leave it disabled.
@@ -60,6 +66,42 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     }
 
     return Result.Success();
+  }
+
+  private static void ApplyCapabilities(Sensor sensor, DeviceType deviceType)
+  {
+    switch (deviceType)
+    {
+      case DeviceType.Node:
+      case DeviceType.Hmi:
+        sensor.HasHumiditySensor = true;
+        sensor.HasBattery = true;
+        break;
+      case DeviceType.Kiosk:
+        sensor.HasHumiditySensor = true;
+        sensor.HasCO2Sensor = true;
+        break;
+    }
+  }
+
+  private async Task LinkHmiAsync(Sensor sensor, CancellationToken ct)
+  {
+    var hmi = await context.Hmis.FirstOrDefaultAsync(h => h.MacAddress == sensor.MacAddress, ct);
+    if (hmi is null)
+    {
+      context.Hmis.Add(
+        new Models.Hmi
+        {
+          MacAddress = sensor.MacAddress,
+          Enabled = true,
+          SensorId = sensor.Id,
+        }
+      );
+    }
+    else
+    {
+      hmi.SensorId = sensor.Id;
+    }
   }
 }
 

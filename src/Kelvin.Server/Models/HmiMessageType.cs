@@ -8,6 +8,12 @@ public enum HmiMessageType : byte
   /// <summary>Server -> Hmi. One chunk of the full thermostat state; see HmiThermostatStateEncoder.</summary>
   ThermostatStateChunk = 1,
 
+  /// <summary>
+  /// Hmi -> Server. The panel's own onboard reading. Body: float TemperatureC, float HumidityPercentage,
+  /// ushort CO2LevelPpm, float BatteryLevelPercentage - all little-endian, tightly packed (14 bytes).
+  /// </summary>
+  SensorReading = 2,
+
   /// <summary>Hmi -> Server. Body: byte RunMode.</summary>
   SetMode = 0x10,
 

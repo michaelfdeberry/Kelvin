@@ -18,5 +18,6 @@ class SensorReading:
                 "humidityPercentage": self.humidity_percentage,
                 "co2LevelPpm": self.co2_level_ppm,
                 "batteryLevelPercentage": self.battery_level_percentage,
-            }
+            },
+            "deviceType": "Kiosk",
         }

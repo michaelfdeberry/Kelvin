@@ -76,7 +76,9 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
           var packet = ReadPacket(port);
           if (packet != null)
           {
-            var result = await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet), stoppingToken);
+            // Only Node uses this path - Hmi tags everything (readings included) with hmiFrameTag and is
+            // relayed via DEVICE_UPLINK_HEADER instead, decoded by ReceiveHmiCommandHandler.
+            var result = await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet, DeviceType.Node), stoppingToken);
             result.EnsureSuccess();
           }
 

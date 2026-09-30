@@ -16,7 +16,7 @@ public class EnvironmentReadingsHub(ILogger<EnvironmentReadingsHub> logger, IDis
   public async Task SubmitReadingAsync(SensorPacket packet, CancellationToken cancellationToken)
   {
     logger.LogInformation("Received sensor packet from {MacAddress}", packet.MacAddress);
-    await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet), cancellationToken);
+    await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet, DeviceType.Node), cancellationToken);
   }
 }
 

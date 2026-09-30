@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,8 @@ public static class ReceiveHmiCommandErrors
 public class ReceiveHmiCommandHandler(
   KelvinContext context,
   IHandler<UpdateThermostatRequest> updateThermostat,
-  IHandler<UpdateThermostatSettingsRequest> updateThermostatSettings
+  IHandler<UpdateThermostatSettingsRequest> updateThermostatSettings,
+  IHandler<SaveSensorPacketRequest> saveSensorPacket
 ) : IHandler<ReceiveHmiCommandRequest>
 {
   public async Task<Result> HandleAsync(ReceiveHmiCommandRequest request, CancellationToken ct = default)
@@ -32,31 +34,70 @@ public class ReceiveHmiCommandHandler(
     if (request.Payload.Length == 0)
       return Result.Failure(ReceiveHmiCommandErrors.EmptyPayload);
 
+    var messageType = (HmiMessageType)request.Payload[0];
+
+    if (messageType == HmiMessageType.SensorReading)
+    {
+      // A ReadOnlySpan<byte> can't be kept as a local across an `await`, so it's re-sliced at each use
+      // site below instead of stored once in a shared variable.
+      var packet = BuildSensorPacket(request.MacAddress, request.Payload.AsSpan(1));
+      return await saveSensorPacket.HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Hmi), ct);
+    }
+
     var thermostat = await context.Thermostats.Include(t => t.SetPoints).Include(t => t.Schedules).FirstOrDefaultAsync(ct);
     if (thermostat is null)
       return Result.Failure(ReceiveHmiCommandErrors.ThermostatNotFound);
 
-    var messageType = (HmiMessageType)request.Payload[0];
-    var body = request.Payload.AsSpan(1);
-
     return messageType switch
     {
-      HmiMessageType.SetMode => await updateThermostat.HandleAsync(new UpdateThermostatRequest((RunMode)body[0], thermostat.FanEnabled), ct),
-      HmiMessageType.SetFanEnabled => await updateThermostat.HandleAsync(new UpdateThermostatRequest(thermostat.Mode, body[0] != 0), ct),
-      HmiMessageType.SetForecastLockouts => await updateThermostatSettings.HandleAsync(BuildForecastLockoutsRequest(thermostat, body), ct),
-      HmiMessageType.SetSetPoint => await updateThermostatSettings.HandleAsync(BuildSetPointRequest(thermostat, body), ct),
-      HmiMessageType.UpsertSchedule => await updateThermostatSettings.HandleAsync(BuildUpsertScheduleRequest(thermostat, body), ct),
-      HmiMessageType.RemoveSchedule => await updateThermostatSettings.HandleAsync(BuildRemoveScheduleRequest(thermostat, body), ct),
+      HmiMessageType.SetMode => await updateThermostat.HandleAsync(
+        new UpdateThermostatRequest((RunMode)request.Payload[1], thermostat.FanEnabled),
+        ct
+      ),
+      HmiMessageType.SetFanEnabled => await updateThermostat.HandleAsync(new UpdateThermostatRequest(thermostat.Mode, request.Payload[1] != 0), ct),
+      HmiMessageType.SetForecastLockouts => await updateThermostatSettings.HandleAsync(
+        BuildForecastLockoutsRequest(thermostat, request.Payload.AsSpan(1)),
+        ct
+      ),
+      HmiMessageType.SetSetPoint => await updateThermostatSettings.HandleAsync(BuildSetPointRequest(thermostat, request.Payload.AsSpan(1)), ct),
+      HmiMessageType.UpsertSchedule => await updateThermostatSettings.HandleAsync(
+        BuildUpsertScheduleRequest(thermostat, request.Payload.AsSpan(1)),
+        ct
+      ),
+      HmiMessageType.RemoveSchedule => await updateThermostatSettings.HandleAsync(
+        BuildRemoveScheduleRequest(thermostat, request.Payload.AsSpan(1)),
+        ct
+      ),
       _ => Result.Failure(ReceiveHmiCommandErrors.UnknownCommand),
     };
   }
+
+  private static SensorPacket BuildSensorPacket(string macAddress, ReadOnlySpan<byte> body) =>
+    new()
+    {
+      MacAddress = macAddress,
+      TemperatureC = BitConverter.ToSingle(body),
+      HumidityPercentage = BitConverter.ToSingle(body[4..]),
+      CO2LevelPpm = BitConverter.ToUInt16(body[8..]),
+      BatteryLevelPercentage = BitConverter.ToSingle(body[10..]),
+    };
 
   private async Task RegisterHmiAsync(string macAddress, CancellationToken ct)
   {
     var hmi = await context.Hmis.FirstOrDefaultAsync(h => h.MacAddress == macAddress, ct);
     if (hmi is null)
     {
-      context.Hmis.Add(new Models.Hmi { MacAddress = macAddress, Enabled = true });
+      // The panel's own reading may have already registered a Sensor for this MAC before its first command
+      // arrived here - link to it rather than leaving SensorId null until a later reading creates one.
+      var sensor = await context.Sensors.FirstOrDefaultAsync(s => s.MacAddress == macAddress, ct);
+      context.Hmis.Add(
+        new Models.Hmi
+        {
+          MacAddress = macAddress,
+          Enabled = true,
+          SensorId = sensor?.Id,
+        }
+      );
       await context.SaveChangesAsync(ct);
       return;
     }

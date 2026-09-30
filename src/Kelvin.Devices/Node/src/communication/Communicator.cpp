@@ -50,9 +50,9 @@ void Communicator::begin()
 
 bool Communicator::send(const void *payload)
 {
-  uint8_t frame[sizeof(sensorPayloadTag) + sizeof(sensor_payload)];
-  memcpy(frame, sensorPayloadTag, sizeof(sensorPayloadTag));
-  memcpy(frame + sizeof(sensorPayloadTag), payload, sizeof(sensor_payload));
+  uint8_t frame[sizeof(nodeFrameTag) + sizeof(sensor_payload)];
+  memcpy(frame, nodeFrameTag, sizeof(nodeFrameTag));
+  memcpy(frame + sizeof(nodeFrameTag), payload, sizeof(sensor_payload));
 
   txDone = false;
   txSucceeded = false;

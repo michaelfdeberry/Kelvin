@@ -3,10 +3,12 @@
 #include <string.h>
 #include "../Common/SensorPayload.h"
 
-// Node's sensor_payload frames are tagged with sensorPayloadTag (see Common/SensorPayload.h) and Hmi panel
-// messages are tagged with hmiFrameTag below, so frame type is identified explicitly rather than inferred
-// from length alone. Hmi messages are relayed generically, keyed by the sender's MAC address - this gateway
-// never needs to understand what's inside those messages, only the server does.
+// Every ESP-NOW frame is tagged so the sender/frame-type is identified explicitly rather than inferred from
+// length alone: Node readings (nodeFrameTag, see Common/SensorPayload.h) and Hmi messages (hmiFrameTag below -
+// readings and commands alike, no distinction made here). Node readings are relayed with a fixed-size header
+// the server can decode directly. Hmi messages are relayed generically, keyed by the sender's MAC address -
+// this gateway never needs to understand what's inside them (including telling a reading apart from a
+// command), only the server does.
 sensor_payload incomingReadings;
 
 const uint8_t packetHeader[2] = {0xAA, 0x55};
@@ -33,16 +35,17 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
     return;
   }
 
-  if (len == (int)(sizeof(sensorPayloadTag) + sizeof(sensor_payload)) && memcmp(incomingData, sensorPayloadTag, sizeof(sensorPayloadTag)) == 0)
+  if (len != (int)(sizeof(nodeFrameTag) + sizeof(sensor_payload)) || memcmp(incomingData, nodeFrameTag, sizeof(nodeFrameTag)) != 0)
   {
-    memcpy(&incomingReadings, incomingData + sizeof(sensorPayloadTag), sizeof(incomingReadings));
-
-    Serial.write(packetHeader, sizeof(packetHeader));
-    Serial.write(info->src_addr, 6);
-    Serial.write(reinterpret_cast<uint8_t *>(&incomingReadings), sizeof(incomingReadings));
+    // Anything else (wrong size/tag) is discarded - radio noise or an unrelated ESP-NOW sender.
+    return;
   }
 
-  // Anything else (wrong size/tag) is discarded - radio noise or an unrelated ESP-NOW sender.
+  memcpy(&incomingReadings, incomingData + sizeof(nodeFrameTag), sizeof(incomingReadings));
+
+  Serial.write(packetHeader, sizeof(packetHeader));
+  Serial.write(info->src_addr, 6);
+  Serial.write(reinterpret_cast<uint8_t *>(&incomingReadings), sizeof(incomingReadings));
 }
 
 void setup()
