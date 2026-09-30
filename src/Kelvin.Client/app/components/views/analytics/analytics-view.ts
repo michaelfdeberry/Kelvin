@@ -13,9 +13,10 @@ import { loadLatestSensorReadingsBefore, loadSensorHistoryPeriods } from '../../
 import { getPreferredUnit, presentAsPreferredUnit } from '../../../services/utilities.js';
 import sharedStyles from '../../../shared.styles.js';
 
+import type { SensorMeasurementKey } from './analytics-chart-data.js';
 import type { ControlStateChange } from '../../../models/control-state-change.js';
 import type { Sensor, SensorPacketHistoryEntry } from '../../../models/sensors.js';
-import type { ChartDataset, ChartDomain } from '../../shared/chart/chart.js';
+import type { ChartAxis, ChartDataset, ChartDomain } from '../../shared/chart/chart.js';
 
 type RangePreset = '24h' | '7d' | '30d';
 type LoadStatus = 'loading' | 'ready' | 'error';
@@ -146,7 +147,7 @@ export class AnalyticsView extends LitElement {
                 )}
                 ${this.renderChart(
                   'Air quality',
-                  'Indoor humidity and CO2 levels recorded by the sensors.',
+                  'Indoor humidity and CO2 levels recorded by the sensors. Per-sensor readings are hidden by default - enable them from the legend.',
                   this.airQualityData,
                   this.airQualityData.some(dataset => dataset.type === 'line' && dataset.points.length > 0),
                 )}
@@ -313,28 +314,61 @@ export class AnalyticsView extends LitElement {
       },
     ];
 
+    const humidityPeriods = this.filterEntriesBySensorFeature(sensorPeriods, sensor => sensor.hasHumiditySensor);
+    const humiditySeeds = this.filterEntriesBySensorFeature(sensorSeeds, sensor => sensor.hasHumiditySensor);
+    const co2Periods = this.filterEntriesBySensorFeature(sensorPeriods, sensor => sensor.hasCO2Sensor);
+    const co2Seeds = this.filterEntriesBySensorFeature(sensorSeeds, sensor => sensor.hasCO2Sensor);
+
     this.airQualityData = [
       {
         type: 'line',
         key: 'humidity',
-        points: extendToDomainEnd(toCrossSensorAverage(sensorPeriods, sensorSeeds, 'humidityPercentage', domain), domain),
+        points: extendToDomainEnd(toCrossSensorAverage(humidityPeriods, humiditySeeds, 'humidityPercentage', domain), domain),
         color: 'var(--accent-info)',
         axis: 'y',
         min: 0,
         max: 100,
-        label: 'Humidity',
+        label: 'Average humidity',
         valueFormatter: value => `${value.toFixed(1)}%`,
       },
       {
         type: 'line',
         key: 'co2',
-        points: extendToDomainEnd(toCrossSensorAverage(sensorPeriods, sensorSeeds, 'cO2LevelPpm', domain), domain),
+        points: extendToDomainEnd(toCrossSensorAverage(co2Periods, co2Seeds, 'cO2LevelPpm', domain), domain),
         color: 'var(--accent-danger)',
         axis: 'y1',
-        label: 'CO2',
+        label: 'Average CO2',
         valueFormatter: value => `${Math.round(value)} ppm`,
       },
+      ...this.buildSensorMeasurementDatasets(humidityPeriods, humiditySeeds, domain, {
+        measurementKey: 'humidityPercentage',
+        keyPrefix: 'sensor-humidity',
+        axis: 'y',
+        min: 0,
+        max: 100,
+        label: sensorName => `${sensorName} humidity`,
+        valueFormatter: value => `${value.toFixed(1)}%`,
+      }),
+      ...this.buildSensorMeasurementDatasets(co2Periods, co2Seeds, domain, {
+        measurementKey: 'cO2LevelPpm',
+        keyPrefix: 'sensor-co2',
+        axis: 'y1',
+        label: sensorName => `${sensorName} CO2`,
+        valueFormatter: value => `${Math.round(value)} ppm`,
+      }),
     ];
+  }
+
+  // Only sensors with the corresponding feature flag (checked against the live sensors context) contribute
+  // to a metric - a sensor removed since the reading was recorded can no longer be verified, so it's excluded.
+  private filterEntriesBySensorFeature(
+    entries: SensorPacketHistoryEntry[],
+    supportsFeature: (sensor: Sensor) => boolean,
+  ): SensorPacketHistoryEntry[] {
+    return entries.filter(entry => {
+      const sensor = this.sensors?.find(candidate => candidate.id === entry.sensorId);
+      return sensor ? supportsFeature(sensor) : false;
+    });
   }
 
   private buildSensorTemperatureDatasets(
@@ -343,21 +377,51 @@ export class AnalyticsView extends LitElement {
     domain: ChartDomain,
     valueFormatter: (value: number) => string,
   ): ChartDataset[] {
-    const seriesBySensor = toSensorSeries(sensorPeriods, sensorSeeds, 'temperatureC', domain);
+    return this.buildSensorMeasurementDatasets(sensorPeriods, sensorSeeds, domain, {
+      measurementKey: 'temperatureC',
+      keyPrefix: 'sensor-temperature',
+      valueFormatter,
+    });
+  }
+
+  // Builds one hidden-by-default line per sensor for a given measurement, e.g. temperature/humidity/CO2
+  // overlays - callers pre-filter entries/seeds to only the sensors that support a given metric.
+  private buildSensorMeasurementDatasets(
+    sensorPeriods: SensorPacketHistoryEntry[],
+    sensorSeeds: SensorPacketHistoryEntry[],
+    domain: ChartDomain,
+    options: {
+      measurementKey: SensorMeasurementKey;
+      keyPrefix: string;
+      valueFormatter: (value: number) => string;
+      label?: (sensorName: string) => string;
+      axis?: ChartAxis;
+      min?: number;
+      max?: number;
+    },
+  ): ChartDataset[] {
+    const { measurementKey, keyPrefix, valueFormatter, label, axis, min, max } = options;
+    const seriesBySensor = toSensorSeries(sensorPeriods, sensorSeeds, measurementKey, domain);
     const historicalNames = this.buildHistoricalSensorNames(sensorPeriods, sensorSeeds);
     const sensorIds = [...seriesBySensor.keys()].sort((first, second) =>
       this.getSensorName(first, historicalNames).localeCompare(this.getSensorName(second, historicalNames)),
     );
 
-    return sensorIds.map((sensorId, index) => ({
-      type: 'line',
-      key: `sensor-temperature-${sensorId}`,
-      points: extendToDomainEnd(seriesBySensor.get(sensorId)!, domain),
-      color: sensorLineColors[index % sensorLineColors.length] ?? 'var(--accent-info)',
-      hidden: true,
-      label: this.getSensorName(sensorId, historicalNames),
-      valueFormatter,
-    }));
+    return sensorIds.map((sensorId, index) => {
+      const sensorName = this.getSensorName(sensorId, historicalNames);
+      return {
+        type: 'line',
+        key: `${keyPrefix}-${sensorId}`,
+        points: extendToDomainEnd(seriesBySensor.get(sensorId)!, domain),
+        color: sensorLineColors[index % sensorLineColors.length] ?? 'var(--accent-info)',
+        axis,
+        min,
+        max,
+        hidden: true,
+        label: label ? label(sensorName) : sensorName,
+        valueFormatter,
+      };
+    });
   }
 
   // The sensors context only tracks currently active sensors, so a sensor removed since a history/seed

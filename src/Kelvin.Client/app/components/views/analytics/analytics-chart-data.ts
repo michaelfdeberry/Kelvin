@@ -8,7 +8,7 @@ export type AnalyticsDomain = {
 };
 
 type MeasurementKey = 'environmentTemperatureC' | 'humidityPercentage' | 'targetTemperatureC';
-type SensorMeasurementKey = 'temperatureC' | 'humidityPercentage' | 'cO2LevelPpm';
+export type SensorMeasurementKey = 'temperatureC' | 'humidityPercentage' | 'cO2LevelPpm';
 
 function toTimestamp(changedAt: string): number | undefined {
   const timestamp = Date.parse(changedAt);
