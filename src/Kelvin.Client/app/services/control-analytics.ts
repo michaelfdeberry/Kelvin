@@ -70,3 +70,17 @@ export async function loadControlHistory(query: ControlHistoryQuery, signal?: Ab
     }
   }
 }
+
+// Seeds continuity for a range with no changes in it by finding the state that was already active when it started.
+export async function loadLatestControlChangeBefore(
+  kind: ControlStateChange['kind'],
+  before: Date,
+  signal?: AbortSignal,
+): Promise<ControlStateChange | undefined> {
+  const response = await apiGet<ControlHistoryResponse>(resources.control.getControlHistory, {
+    signal,
+    queryParams: { to: before.toISOString(), kind, page: 1, pageSize: 1 },
+  });
+
+  return response.items[0];
+}

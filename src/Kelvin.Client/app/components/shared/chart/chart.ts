@@ -1,11 +1,29 @@
 import { consume } from '@lit/context';
-import { LitElement, TemplateResult, html, svg } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import {
+  Chart,
+  Filler,
+  Legend,
+  LinearScale,
+  LineController,
+  LineElement,
+  PointElement,
+  TimeScale,
+  Tooltip,
+  type ChartDataset as ChartJsDataset,
+  type LegendItem,
+  type Plugin,
+  type ScaleOptionsByType,
+} from 'chart.js';
+import 'chartjs-adapter-date-fns';
+import { LitElement, html } from 'lit';
+import { customElement, property, query } from 'lit/decorators.js';
 
 import chartStyles from './chart.styles.js';
 import { preferencesContext } from '../../../contexts/preferences-context.js';
 import { Preferences } from '../../../models/preferences.js';
 import sharedStyles from '../../../shared.styles.js';
+
+Chart.register(LineController, LineElement, PointElement, LinearScale, TimeScale, Tooltip, Legend, Filler);
 
 export type ChartDomain = {
   from: number;
@@ -22,33 +40,73 @@ export type ChartInterval = {
   to: number;
 };
 
-type HoveredLine = {
-  dataset: Extract<ChartDataset, { type: 'line' }>;
-  point?: ChartPoint;
-};
+export type ChartAxis = 'y' | 'y1';
 
 export type ChartDataset =
   | {
       type: 'state';
+      /** Stable identity used to preserve the dataset's hidden/shown state across re-renders. */
+      key: string;
       intervals: ChartInterval[];
       color: string;
       label?: string;
     }
   | {
       type: 'line';
+      /** Stable identity used to preserve the dataset's hidden/shown state across re-renders. */
+      key: string;
       points: ChartPoint[];
       color: string;
+      axis?: ChartAxis;
       min?: number;
       max?: number;
       label?: string;
+      /** Whether the series starts hidden, toggled on via the legend (e.g. per-sensor overlays). */
+      hidden?: boolean;
       valueFormatter?: (value: number) => string;
     };
+
+type LineDataset = Extract<ChartDataset, { type: 'line' }>;
+type StateDataset = Extract<ChartDataset, { type: 'state' }>;
+type StateBandsConfig = { bands: StateDataset[]; hiddenKeys: Set<string> };
+
+// Kept outside chart.js's options object (rather than a custom plugin option) so chart.js's DeepPartial
+// option typing doesn't cascade through our dataset types and turn every field optional.
+const stateBandsByChart = new WeakMap<Chart, StateBandsConfig>();
+
+// Sentinel offset so legend clicks on state bands (which aren't real Chart.js datasets) can be told apart
+// from clicks on real line datasets, whose datasetIndex is always a small non-negative number.
+const BAND_LEGEND_INDEX_OFFSET = 100_000;
+
+const stateBandsPlugin: Plugin<'line'> = {
+  id: 'stateBands',
+  beforeDatasetsDraw(chart) {
+    const config = stateBandsByChart.get(chart);
+    if (!config?.bands.length) return;
+
+    const { ctx, chartArea, scales } = chart;
+    const xScale = scales.x;
+    if (!chartArea || !xScale) return;
+
+    ctx.save();
+    ctx.globalAlpha = 0.24;
+    for (const band of config.bands) {
+      if (config.hiddenKeys.has(band.key)) continue;
+
+      ctx.fillStyle = band.color;
+      for (const interval of band.intervals) {
+        const x1 = xScale.getPixelForValue(interval.from);
+        const x2 = xScale.getPixelForValue(interval.to);
+        ctx.fillRect(Math.min(x1, x2), chartArea.top, Math.abs(x2 - x1), chartArea.bottom - chartArea.top);
+      }
+    }
+    ctx.restore();
+  },
+};
 
 @customElement('app-kelvin-chart')
 export class KelvinChart extends LitElement {
   static override styles = [sharedStyles, chartStyles];
-
-  private static readonly plot = { left: 56, right: 984, top: 8, bottom: 82 };
 
   @consume({ context: preferencesContext, subscribe: true })
   private preferences!: Preferences;
@@ -59,242 +117,243 @@ export class KelvinChart extends LitElement {
   @property({ attribute: false })
   domain?: ChartDomain;
 
-  @state()
-  private hoveredLines: HoveredLine[] = [];
+  @query('canvas')
+  private canvasElement?: HTMLCanvasElement;
 
-  @state()
-  private hoveredX?: number;
+  private chart?: Chart<'line'>;
+  private hiddenBandKeys = new Set<string>();
 
-  @state()
-  private hoveredAt?: number;
-
-  override render(): TemplateResult {
-    const lineScale = this.domain ? this.getLineScale(this.domain) : undefined;
-
-    return html`
-      <svg
-        viewBox="0 0 1000 100"
-        preserveAspectRatio="none"
-        @pointermove=${this.handlePointerMove}
-        @pointerleave=${this.handlePointerLeave}
-      >
-        <rect
-          class="chart-surface"
-          x="0"
-          y="0"
-          width="1000"
-          height="100"
-        />
-        ${this.domain ? this.datasets.filter(dataset => dataset.type === 'state').map(dataset => this.renderState(dataset, this.domain!)) : ''}
-        ${this.domain ? this.renderGrid(this.domain, lineScale) : ''}
-        ${this.domain && lineScale ? this.datasets.filter(dataset => dataset.type === 'line').map(dataset => this.renderLine(dataset, this.domain!, lineScale)) : ''}
-        ${this.renderTooltip()}
-      </svg>
-    `;
+  override render() {
+    return html`<div class="chart-container"><canvas></canvas></div>`;
   }
 
-  // Renders binary data (e.g., HVAC On/Off) as shaded background bars
-  private renderState(dataset: Extract<ChartDataset, { type: 'state' }>, domain: ChartDomain) {
-    const { intervals, color } = dataset;
-    if (!intervals.length) return '';
-
-    return svg`
-      <g fill="${color}" fill-opacity="0.24">
-        ${intervals.map(interval => {
-          const from = Math.max(interval.from, domain.from);
-          const to = Math.min(interval.to, domain.to);
-          if (to <= from) return '';
-
-          const x = this.toX(from, domain);
-          const width = this.toX(to, domain) - x;
-          return svg`<rect x="${x}" y="0" width="${width}" height="100" />`;
-        })}
-      </g>
-    `;
+  override firstUpdated() {
+    this.createChart();
   }
 
-  // Renders continuous data (e.g., Temp, Humidity) as a line graph
-  private renderLine(dataset: Extract<ChartDataset, { type: 'line' }>, domain: ChartDomain, scale: ChartDomain) {
-    const { color } = dataset;
-    const pointsInDomain = dataset.points.filter(
-      point => Number.isFinite(point.at) && Number.isFinite(point.value) && point.at >= domain.from && point.at <= domain.to,
-    );
-    if (pointsInDomain.length < 2) return '';
-
-    // Map the raw data to X,Y SVG coordinates
-    const points = pointsInDomain
-      .map(point => {
-        const x = this.toX(point.at, domain);
-        // SVG Y-axis is inverted (0 is top, 100 is bottom), so we subtract from 100
-        const y = this.toY(point.value, scale);
-        return `${x},${y}`;
-      })
-      .join(' ');
-
-    return svg`
-      <polyline 
-        points="${points}" 
-        fill="none" 
-        stroke="${color}" 
-        stroke-width="2" 
-        /* Prevents the line from getting fat when the SVG stretches horizontally */
-        vector-effect="non-scaling-stroke" 
-      />
-    `;
+  override updated() {
+    if (this.chart) this.applyData();
   }
 
-  private toX(at: number, domain: ChartDomain) {
-    const { left, right } = KelvinChart.plot;
-    return left + ((at - domain.from) / (domain.to - domain.from)) * (right - left);
+  override disconnectedCallback() {
+    this.chart?.destroy();
+    this.chart = undefined;
+    super.disconnectedCallback();
   }
 
-  private toY(value: number, scale: ChartDomain) {
-    const { top, bottom } = KelvinChart.plot;
-    return bottom - ((value - scale.from) / (scale.to - scale.from)) * (bottom - top);
+  private createChart() {
+    if (!this.canvasElement) return;
+
+    this.chart = new Chart(this.canvasElement, {
+      type: 'line',
+      data: { datasets: [] },
+      plugins: [stateBandsPlugin],
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: {
+            type: 'time',
+            grid: { color: this.resolveColor('var(--border-subtle)') },
+            ticks: {
+              color: this.resolveColor('var(--text-muted)'),
+              maxRotation: 0,
+              autoSkip: true,
+              callback: value => this.formatTick(Number(value)),
+            },
+          },
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: this.resolveColor('var(--text-muted)'),
+              boxWidth: 12,
+              usePointStyle: false,
+              generateLabels: chart => this.generateLegendLabels(chart),
+            },
+            onClick: (event, legendItem, legend) => this.handleLegendClick(legendItem, legend.chart),
+          },
+          tooltip: {
+            backgroundColor: this.resolveColor('var(--bg-panel)'),
+            titleColor: this.resolveColor('var(--text-main)'),
+            bodyColor: this.resolveColor('var(--text-main)'),
+            borderColor: this.resolveColor('var(--border-subtle)'),
+            borderWidth: 1,
+            callbacks: {
+              title: items => (items[0] ? this.formatTooltipTime(items[0].parsed.x ?? 0) : ''),
+              label: item => this.formatTooltipLabel(item.dataset.label, item.parsed.y ?? 0),
+            },
+          },
+        },
+      },
+    });
+
+    this.applyData();
   }
 
-  private getLineScale(domain: ChartDomain): ChartDomain | undefined {
-    const lineDatasets = this.datasets.filter(dataset => dataset.type === 'line');
-    const values = lineDatasets.flatMap(dataset =>
-      dataset.points
-        .filter(point => Number.isFinite(point.at) && Number.isFinite(point.value) && point.at >= domain.from && point.at <= domain.to)
-        .map(point => point.value),
-    );
+  private applyData() {
+    if (!this.chart) return;
 
-    if (!values.length) return undefined;
+    const lineSpecs = this.datasets.filter((dataset): dataset is LineDataset => dataset.type === 'line');
+    const stateSpecs = this.datasets.filter((dataset): dataset is StateDataset => dataset.type === 'state');
 
-    const min = Math.min(...lineDatasets.map(dataset => dataset.min ?? Math.min(...values)));
-    const max = Math.max(...lineDatasets.map(dataset => dataset.max ?? Math.max(...values)));
-    const range = max - min || Math.max(Math.abs(max), 1);
-    const padding = range * 0.1;
+    this.reconcileLineDatasets(lineSpecs);
+    const resolvedBands = stateSpecs.map(spec => ({ ...spec, color: this.resolveColor(spec.color) }));
+    stateBandsByChart.set(this.chart, { bands: resolvedBands, hiddenKeys: this.hiddenBandKeys });
 
-    return { from: min - padding, to: max + padding };
+    if (this.domain) {
+      const xScale = this.chart.options.scales!.x! as { min?: number; max?: number };
+      xScale.min = this.domain.from;
+      xScale.max = this.domain.to;
+    }
+
+    this.applyAxisBounds('y', lineSpecs);
+    this.applyAxisBounds('y1', lineSpecs);
+
+    this.chart.update();
   }
 
-  private renderGrid(domain: ChartDomain, scale?: ChartDomain) {
-    const { left, right, top, bottom } = KelvinChart.plot;
-    const horizontalLines = [0.25, 0.5, 0.75].map(fraction => top + (bottom - top) * fraction);
-    const verticalLines = [0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875].map(fraction => left + (right - left) * fraction);
+  // Updates existing Chart.js datasets in place (matched by key) instead of replacing the array, so
+  // legend-toggled hidden state survives data refreshes (e.g. switching the selected range).
+  private reconcileLineDatasets(specs: LineDataset[]) {
+    const chart = this.chart!;
+    const existingByKey = new Map(chart.data.datasets.map(dataset => [(dataset as ChartJsDataset<'line'> & { _key: string })._key, dataset]));
+    const nextKeys = new Set(specs.map(spec => spec.key));
 
-    return svg`
-      <g class="chart-grid" vector-effect="non-scaling-stroke">
-        ${horizontalLines.map(y => svg`<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" />`)}
-        ${verticalLines.map(x => svg`<line x1="${x}" y1="${top}" x2="${x}" y2="${bottom}" />`)}
-      </g>
-      ${scale ? this.renderValueLabels(scale) : ''}
-      ${this.renderTimeLabels(domain)}
-    `;
+    for (const key of [...existingByKey.keys()]) {
+      if (!nextKeys.has(key)) {
+        const index = chart.data.datasets.findIndex(dataset => (dataset as ChartJsDataset<'line'> & { _key: string })._key === key);
+        if (index >= 0) chart.data.datasets.splice(index, 1);
+      }
+    }
+
+    for (const spec of specs) {
+      const color = this.resolveColor(spec.color);
+      const data = spec.points.map(point => ({ x: point.at, y: point.value }));
+      const existing = existingByKey.get(spec.key) as (ChartJsDataset<'line'> & { _key: string }) | undefined;
+
+      if (existing) {
+        existing.data = data;
+        existing.label = spec.label;
+        existing.borderColor = color;
+        existing.backgroundColor = color;
+        existing.yAxisID = spec.axis ?? 'y';
+        continue;
+      }
+
+      chart.data.datasets.push({
+        _key: spec.key,
+        label: spec.label,
+        data,
+        borderColor: color,
+        backgroundColor: color,
+        yAxisID: spec.axis ?? 'y',
+        pointRadius: 0,
+        borderWidth: 2,
+        tension: 0.15,
+        spanGaps: true,
+        hidden: spec.hidden ?? false,
+      } as ChartJsDataset<'line'> & { _key: string });
+    }
   }
 
-  private renderValueLabels(scale: ChartDomain) {
-    const { left, top, bottom } = KelvinChart.plot;
-    const values = [scale.to, (scale.from + scale.to) / 2, scale.from];
-    const positions = [top, (top + bottom) / 2, bottom];
+  private applyAxisBounds(axis: ChartAxis, specs: LineDataset[]) {
+    const chart = this.chart!;
+    const onAxis = specs.filter(spec => (spec.axis ?? 'y') === axis);
 
-    return svg`
-      <g class="chart-axis-labels chart-axis-labels--values">
-        ${values.map((value, index) => svg`<text x="${left - 8}" y="${positions[index]}" text-anchor="end" dominant-baseline="middle">${this.formatValue(value, this.getAxisValueFormatter())}</text>`)}
-      </g>
-    `;
-  }
-
-  private renderTimeLabels(domain: ChartDomain) {
-    const { left, right } = KelvinChart.plot;
-
-    return svg`
-      <g class="chart-axis-labels chart-axis-labels--time">
-        <text x="${left}" y="96" text-anchor="start">${this.formatTime(domain.from)}</text>
-        <text x="${right}" y="96" text-anchor="end">${this.formatTime(domain.to)}</text>
-      </g>
-    `;
-  }
-
-  private renderTooltip() {
-    if (this.hoveredX === undefined || !this.hoveredLines.length) return '';
-
-    const { left, right, top, bottom } = KelvinChart.plot;
-    const tooltipWidth = 150;
-    const tooltipHeight = this.hoveredLines.length * 10 + 20;
-    const x = Math.min(Math.max(this.hoveredX + 12, left), right - tooltipWidth);
-    const y = Math.min(top + 4, bottom - tooltipHeight);
-
-    return svg`
-      <g class="chart-tooltip">
-        <line class="chart-tooltip__guide" x1="${this.hoveredX}" y1="${top}" x2="${this.hoveredX}" y2="${bottom}" vector-effect="non-scaling-stroke" />
-        <rect x="${x}" y="${y}" width="${tooltipWidth}" height="${tooltipHeight}" rx="2" vector-effect="non-scaling-stroke" />
-        ${this.hoveredLines.map(
-          (hoveredLine, index) => svg`
-          <text x="${x + 6}" y="${y + 8 + index * 10}">
-            ${hoveredLine.dataset.label ?? 'Value'}: ${hoveredLine.point ? this.formatValue(hoveredLine.point.value, hoveredLine.dataset.valueFormatter) : '--'}
-          </text>
-        `,
-        )}
-        <text class="chart-tooltip__time" x="${x + 6}" y="${y + tooltipHeight - 5}">
-          ${this.hoveredAt === undefined ? '' : this.formatTooltipTime(this.hoveredAt)}
-        </text>
-      </g>
-    `;
-  }
-
-  private handlePointerMove(event: PointerEvent) {
-    if (!this.domain) return;
-
-    const svgElement = event.currentTarget as SVGSVGElement;
-    const bounds = svgElement.getBoundingClientRect();
-    const relativeX = ((event.clientX - bounds.left) / bounds.width) * 1000;
-    const { left, right } = KelvinChart.plot;
-
-    if (relativeX < left || relativeX > right) {
-      this.handlePointerLeave();
+    if (!onAxis.length) {
+      if (chart.options.scales![axis]) delete chart.options.scales![axis];
       return;
     }
 
-    const at = this.domain.from + ((relativeX - left) / (right - left)) * (this.domain.to - this.domain.from);
-    this.hoveredX = relativeX;
-    this.hoveredAt = at;
-    this.hoveredLines = this.datasets
-      .filter(dataset => dataset.type === 'line')
-      .map(dataset => ({ dataset, point: this.findClosestPoint(dataset.points, at) }));
+    // Always build a fresh plain object rather than reading back chart.options.scales![axis]: once chart.js
+    // has processed a scale config it wraps it in internal resolver machinery, and re-mutating that wrapped
+    // object on the next update corrupts it (surfaced as "Ignoring resolver passed as options for scale").
+    const scale: { type: 'linear'; position: 'left' | 'right'; min?: number; max?: number; grid: unknown; ticks: unknown } = {
+      type: 'linear',
+      position: axis === 'y1' ? 'right' : 'left',
+      min: onAxis.find(spec => spec.min !== undefined)?.min,
+      max: onAxis.find(spec => spec.max !== undefined)?.max,
+      grid: { display: axis === 'y', color: this.resolveColor('var(--border-subtle)') },
+      ticks: { color: this.resolveColor('var(--text-muted)'), callback: (value: unknown) => this.formatAxisValue(Number(value), onAxis) },
+    };
+
+    chart.options.scales![axis] = scale as ScaleOptionsByType<'linear'>;
   }
 
-  private handlePointerLeave() {
-    this.hoveredX = undefined;
-    this.hoveredAt = undefined;
-    this.hoveredLines = [];
+  private generateLegendLabels(chart: Chart): LegendItem[] {
+    const lineLabels = (Chart.defaults.plugins.legend.labels.generateLabels as (chart: Chart) => LegendItem[])(chart);
+    const stateSpecs = this.datasets.filter((dataset): dataset is StateDataset => dataset.type === 'state');
+
+    const bandLabels: LegendItem[] = stateSpecs.map((spec, index) => ({
+      text: spec.label ?? 'State',
+      fillStyle: this.resolveColor(spec.color),
+      strokeStyle: this.resolveColor(spec.color),
+      fontColor: this.resolveColor('var(--text-muted)'),
+      hidden: this.hiddenBandKeys.has(spec.key),
+      datasetIndex: BAND_LEGEND_INDEX_OFFSET + index,
+    }));
+
+    return [...lineLabels, ...bandLabels];
   }
 
-  private findClosestPoint(points: ChartPoint[], at: number) {
-    const pointsInDomain = points.filter(
-      point => Number.isFinite(point.at) && Number.isFinite(point.value) && this.domain && point.at >= this.domain.from && point.at <= this.domain.to,
-    );
+  private handleLegendClick(legendItem: LegendItem, chart: Chart) {
+    const datasetIndex = legendItem.datasetIndex;
+    if (datasetIndex === undefined) return;
 
-    const firstPoint = pointsInDomain.at(0);
-    const lastPoint = pointsInDomain.at(-1);
-    if (!firstPoint || !lastPoint || at < firstPoint.at || at > lastPoint.at) {
-      return undefined;
+    if (datasetIndex >= BAND_LEGEND_INDEX_OFFSET) {
+      const stateSpecs = this.datasets.filter((dataset): dataset is StateDataset => dataset.type === 'state');
+      const spec = stateSpecs[datasetIndex - BAND_LEGEND_INDEX_OFFSET];
+      if (!spec) return;
+
+      if (this.hiddenBandKeys.has(spec.key)) this.hiddenBandKeys.delete(spec.key);
+      else this.hiddenBandKeys.add(spec.key);
+
+      chart.update();
+      return;
     }
 
-    return pointsInDomain.reduce<ChartPoint | undefined>(
-      (closestPoint, point) => (!closestPoint || Math.abs(point.at - at) < Math.abs(closestPoint.at - at) ? point : closestPoint),
-      undefined,
-    );
+    const meta = chart.getDatasetMeta(datasetIndex);
+    meta.hidden = meta.hidden === null ? !chart.data.datasets[datasetIndex]?.hidden : !meta.hidden;
+    chart.update();
   }
 
-  private getAxisValueFormatter() {
-    return this.datasets.find(dataset => dataset.type === 'line')?.valueFormatter;
+  private resolveColor(color: string): string {
+    const match = /^var\((--[a-z0-9-]+)\)$/i.exec(color.trim());
+    if (!match?.[1]) return color;
+
+    return getComputedStyle(this).getPropertyValue(match[1]).trim() || color;
   }
 
-  private formatValue(value: number, formatter?: (value: number) => string) {
+  private formatAxisValue(value: number, onAxis: LineDataset[]): string {
+    const formatter = onAxis[0]?.valueFormatter;
     if (formatter) return formatter(value);
 
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
   }
 
-  private formatTime(value: number) {
-    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(value);
+  private formatTooltipLabel(label: string | undefined, value: number): string {
+    const spec = this.datasets.find((dataset): dataset is LineDataset => dataset.type === 'line' && dataset.label === label);
+    const formatted = spec?.valueFormatter
+      ? spec.valueFormatter(value)
+      : new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
+    return `${label ?? 'Value'}: ${formatted}`;
   }
 
-  private formatTooltipTime(value: number) {
+  private formatTick(value: number): string {
+    const rangeMs = this.domain ? this.domain.to - this.domain.from : 0;
+    const showTimeOnly = rangeMs > 0 && rangeMs <= 26 * 60 * 60 * 1000;
+
+    return new Intl.DateTimeFormat(
+      undefined,
+      showTimeOnly ? { hour: 'numeric', minute: '2-digit', hour12: this.preferences.timeFormat === 'Hour12' } : { month: 'short', day: 'numeric' },
+    ).format(value);
+  }
+
+  private formatTooltipTime(value: number): string {
     return new Intl.DateTimeFormat(undefined, {
       month: 'short',
       day: 'numeric',

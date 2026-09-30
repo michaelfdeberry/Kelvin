@@ -48,41 +48,16 @@ export class ThermostatControl extends LitElement {
   private renderSetpoint(): TemplateResult | typeof nothing {
     if (this.thermostat.mode === 'Disabled') return nothing;
     if (this.thermostat.mode === 'Off') return nothing;
+    if (!this.controlState.targetTemperatureC) return nothing;
 
-    let targetTempC = this.controlState.targetTemperatureC;
-
-    // the target temp won't be in the control state until the state changes
-    // using the set points or schedules to determine the target temp for the current mode
-    if (!targetTempC) {
-      let setPoint: SetPoint | undefined;
-      let schedule: Schedule | undefined;
-
-      const isActive = (schedule: Schedule) => {
-        const start = new Date(schedule.startTime).getTime();
-        const end = new Date(schedule.endTime).getTime();
-        const current = Date.now();
-
-        if (start <= end) return current >= start && current <= end;
-        return current >= start || current <= end;
-      };
-
-      if (this.controlState.state === 'Cooling') {
-        setPoint = this.setPoints.find(sp => sp.type === 'Cooling');
-        schedule = this.schedules.find(s => s.type === 'Cooling' && isActive(s));
-      } else if (this.controlState.state === 'Heating') {
-        setPoint = this.setPoints.find(sp => sp.type === 'Heating');
-        schedule = this.schedules.find(s => s.type === 'Heating' && isActive(s));
-      }
-
-      targetTempC = setPoint?.targetTemperatureC ?? schedule?.targetTemperatureC;
-    }
-
-    if (!targetTempC) return nothing;
-
+    // Known issue, when changing the setpoint when a run mode is active, the set point in the UI
+    // will continue to display the old set point until the control state updates.
+    // I'm considering this acceptable behavior for now, because my current assumption is that if it's
+    // being changed it's to trigger a state change.
     return html`
       Set to
       <app-temperature
-        .temperature=${targetTempC}
+        .temperature=${this.controlState.targetTemperatureC}
         show-unit
       ></app-temperature>
     `;
