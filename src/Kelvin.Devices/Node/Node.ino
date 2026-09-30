@@ -5,13 +5,13 @@
 #include <esp_mac.h>
 #include <esp_sleep.h>
 #include <driver/rtc_io.h>
-#include "../Common/SensorPayload.h"
-#include "./src/communication/Communicator.h"
-#include "./src/environment/EnvironmentMonitor.h"
+#include <SensorPayload.h>
+#include <Communication/Communicator.h>
+#include <Environment/EnvironmentMonitor.h>
 #include "./src/battery/BatteryMonitor.h"
 #include "./src/display/Display.h"
 #include "Config.h"
-#include "Logger.h"
+#include <Logger.h>
 
 using namespace PowerFeather;
 
@@ -127,11 +127,12 @@ void sendIfNeeded(const sensor_payload &payload)
 
   if (!radioStarted)
   {
-    communicator.begin();
+    static const uint8_t gatewayMac[] = GATEWAY_MAC_ADDRESS_BYTES;
+    communicator.begin(gatewayMac, nodeFrameTag);
     radioStarted = true;
   }
 
-  if (communicator.send(&payload))
+  if (communicator.send(&payload, sizeof(payload)))
   {
     LOG_PRINTLN("Sensor data sent successfully.");
   }
@@ -233,7 +234,7 @@ void setup()
   // wait for the Stemma V rail to stabilize before initializing components
   delay(25);
 
-  environmentMonitor.begin();
+  environmentMonitor.begin(Wire1);
   batteryMonitor.begin();
 
   // wait for the components to stabilize before reading sensor data

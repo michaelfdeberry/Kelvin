@@ -1,11 +1,10 @@
 #include <Wire.h>
 #include <Arduino.h>
-#include <PowerFeather.h>
 #include <SensirionI2cSht4x.h>
 #include "Config.h"
 #include "EnvironmentMonitor.h"
-#include "Logger.h"
-#include "../Common/SensorPayload.h"
+#include "../Logger.h"
+#include "../SensorPayload.h"
 
 #ifdef NO_ERROR
 #undef NO_ERROR
@@ -26,9 +25,10 @@ static_assert(HEARTBEAT_TICKS * TIMER_WAKE_INTERVAL_S == HEARTBEAT_INTERVAL_S, "
 RTC_DATA_ATTR static sensor_payload lastPayload{};
 RTC_DATA_ATTR static uint32_t heartbeatTicks = HEARTBEAT_TICKS; // force a send on the first reading after power-up
 
-void EnvironmentMonitor::begin()
+void EnvironmentMonitor::begin(TwoWire &wire)
 {
-  sht4x.begin(Wire1, SHT40_I2C_ADDR_44);
+  bus = &wire;
+  sht4x.begin(*bus, SHT40_I2C_ADDR_44);
   sht4x.softReset();
 }
 
