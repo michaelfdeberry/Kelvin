@@ -1,5 +1,6 @@
 using FakeItEasy;
 using Kelvin.Server.Application;
+using Kelvin.Server.Features.Hmi;
 using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
@@ -23,6 +24,9 @@ public class UpdateThermostatSettingsTests
         return hub;
     }
 
+    private static IHandler<BroadcastHmiStateRequest> CreateFakeHmiStateBroadcaster() =>
+        A.Fake<IHandler<BroadcastHmiStateRequest>>();
+
     [Fact]
     public async Task NoThermostat_ReturnsFailure()
     {
@@ -36,7 +40,8 @@ public class UpdateThermostatSettingsTests
             context,
             cache,
             validator,
-            controlHub
+            controlHub,
+            CreateFakeHmiStateBroadcaster()
         ).HandleAsync(new UpdateThermostatSettingsRequest(null, null, [], []));
 
         result.IsFailure.ShouldBeTrue();
@@ -102,7 +107,8 @@ public class UpdateThermostatSettingsTests
             context,
             cache,
             validator,
-            controlHub
+            controlHub,
+            CreateFakeHmiStateBroadcaster()
         ).HandleAsync(
             new UpdateThermostatSettingsRequest(
                 12f,
@@ -170,7 +176,8 @@ public class UpdateThermostatSettingsTests
             context,
             cache,
             validator,
-            controlHub
+            controlHub,
+            CreateFakeHmiStateBroadcaster()
         ).HandleAsync(
             new UpdateThermostatSettingsRequest(
                 12f,

@@ -50,11 +50,14 @@ void Communicator::begin()
 
 bool Communicator::send(const void *payload)
 {
-  size_t size = sizeof(sensor_payload);
+  uint8_t frame[sizeof(sensorPayloadTag) + sizeof(sensor_payload)];
+  memcpy(frame, sensorPayloadTag, sizeof(sensorPayloadTag));
+  memcpy(frame + sizeof(sensorPayloadTag), payload, sizeof(sensor_payload));
+
   txDone = false;
   txSucceeded = false;
 
-  esp_err_t result = esp_now_send(gatewayMacAddress, (uint8_t *)payload, size);
+  esp_err_t result = esp_now_send(gatewayMacAddress, frame, sizeof(frame));
 
   if (result != ESP_OK)
   {

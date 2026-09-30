@@ -1,5 +1,7 @@
 using FakeItEasy;
+using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
+using Kelvin.Server.Features.Hmi;
 using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
@@ -37,6 +39,9 @@ public class UpdateThermostatTests
         return hub;
     }
 
+    private static IHandler<BroadcastHmiStateRequest> CreateFakeHmiStateBroadcaster() =>
+        A.Fake<IHandler<BroadcastHmiStateRequest>>();
+
     [Fact]
     public async Task NoThermostatExists_ReturnsFailure_AndSendsNoMessages()
     {
@@ -50,7 +55,8 @@ public class UpdateThermostatTests
             context,
             cache,
             channel,
-            controlHub
+            controlHub,
+            CreateFakeHmiStateBroadcaster()
         ).HandleAsync(new UpdateThermostatRequest(RunMode.Heating, false));
 
         result.IsFailure.ShouldBeTrue();
@@ -82,7 +88,8 @@ public class UpdateThermostatTests
             context,
             cache,
             channel,
-            controlHub
+            controlHub,
+            CreateFakeHmiStateBroadcaster()
         ).HandleAsync(new UpdateThermostatRequest(RunMode.Disabled, false));
 
         result.IsSuccess.ShouldBeTrue();
@@ -102,7 +109,8 @@ public class UpdateThermostatTests
             context,
             cache,
             channel,
-            controlHub
+            controlHub,
+            CreateFakeHmiStateBroadcaster()
         ).HandleAsync(new UpdateThermostatRequest(RunMode.Off, false));
 
         result.IsSuccess.ShouldBeTrue();
@@ -127,7 +135,8 @@ public class UpdateThermostatTests
             context,
             cache,
             channel,
-            controlHub
+            controlHub,
+            CreateFakeHmiStateBroadcaster()
         ).HandleAsync(new UpdateThermostatRequest(mode, false));
 
         result.IsSuccess.ShouldBeTrue();
@@ -148,7 +157,8 @@ public class UpdateThermostatTests
                 context,
                 cache,
                 channel,
-                controlHub
+                controlHub,
+                CreateFakeHmiStateBroadcaster()
             ).HandleAsync(new UpdateThermostatRequest(RunMode.Heating, true));
             result.IsSuccess.ShouldBeTrue();
         }
@@ -179,7 +189,8 @@ public class UpdateThermostatTests
             context,
             cache,
             channel,
-            controlHub
+            controlHub,
+            CreateFakeHmiStateBroadcaster()
         ).HandleAsync(new UpdateThermostatRequest(RunMode.Heating, false));
 
         result.IsSuccess.ShouldBeTrue();
