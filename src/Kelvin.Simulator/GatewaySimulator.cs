@@ -8,13 +8,16 @@ namespace Kelvin.Simulator;
 
 internal sealed class GatewaySimulator
 {
-    private const byte PacketHeaderFirst = 0xAA;
-    private const byte PacketHeaderSecond = 0x55;
+    private const byte DeviceUplinkHeaderFirst = 0xAC;
+    private const byte DeviceUplinkHeaderSecond = 0x57;
     private const byte InfoHeaderFirst = 0xAB;
     private const byte InfoHeaderSecond = 0x56;
     private const int MacLength = 6;
     private const int PayloadLength = 16;
     private const float DefaultHysteresisC = 0.6f;
+
+    // Mirrors Kelvin.Server's Models/FrameTags.Node - identifies this as a Node-shaped reading to the server.
+    private static readonly byte[] NodeFrameTag = [0x4B, 0x4E, 0x4F, 0x44]; // "KNOD"
 
     private const float AmbientSlewRateCPerMinute = 0.5f;
     private const float HeatingAmbientTargetOffsetC = 1.5f;
@@ -508,20 +511,39 @@ internal sealed class GatewaySimulator
 
     private static void WriteSensorPacket(SerialPort port, SimulatedSensor sensor)
     {
-        var payload = new byte[2 + MacLength + PayloadLength];
-        payload[0] = PacketHeaderFirst;
-        payload[1] = PacketHeaderSecond;
-        sensor.MacAddress.CopyTo(payload, 2);
+        var contentLength = NodeFrameTag.Length + PayloadLength;
+        var frame = new byte[2 + MacLength + 2 + contentLength];
 
-        BinaryPrimitives.WriteSingleLittleEndian(payload.AsSpan(8, 4), sensor.TemperatureC);
-        BinaryPrimitives.WriteSingleLittleEndian(payload.AsSpan(12, 4), sensor.HumidityPercentage);
-        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(16, 2), sensor.CO2LevelPpm);
+        frame[0] = DeviceUplinkHeaderFirst;
+        frame[1] = DeviceUplinkHeaderSecond;
+        sensor.MacAddress.CopyTo(frame, 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            frame.AsSpan(2 + MacLength, 2),
+            (ushort)contentLength
+        );
+
+        var contentOffset = 2 + MacLength + 2;
+        NodeFrameTag.CopyTo(frame, contentOffset);
+
+        var payloadOffset = contentOffset + NodeFrameTag.Length;
         BinaryPrimitives.WriteSingleLittleEndian(
-            payload.AsSpan(20, 4),
+            frame.AsSpan(payloadOffset, 4),
+            sensor.TemperatureC
+        );
+        BinaryPrimitives.WriteSingleLittleEndian(
+            frame.AsSpan(payloadOffset + 4, 4),
+            sensor.HumidityPercentage
+        );
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            frame.AsSpan(payloadOffset + 8, 2),
+            sensor.CO2LevelPpm
+        );
+        BinaryPrimitives.WriteSingleLittleEndian(
+            frame.AsSpan(payloadOffset + 12, 4),
             sensor.BatteryLevelPercentage
         );
 
-        port.Write(payload, 0, payload.Length);
+        port.Write(frame, 0, frame.Length);
         Console.WriteLine(sensor);
     }
 }

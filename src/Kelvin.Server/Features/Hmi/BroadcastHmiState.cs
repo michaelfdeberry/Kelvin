@@ -14,8 +14,8 @@ public record BroadcastHmiStateRequest() : IRequest;
 /// </summary>
 public class BroadcastHmiStateHandler(KelvinContext context, IHmiOutboundChannel outboundChannel) : IHandler<BroadcastHmiStateRequest>
 {
-  // ESP-NOW's payload limit is ~250 bytes; leave headroom for the 3 byte chunk header plus the gateway's
-  // MAC + length framing on the serial link.
+  // ESP-NOW's payload limit is ~250 bytes; leave headroom for the 3 byte chunk header plus the 4 byte
+  // frame tag IHmiOutboundChannel prepends before this reaches the radio.
   private const int MAX_CHUNK_DATA_SIZE = 200;
 
   public async Task<Result> HandleAsync(BroadcastHmiStateRequest request, CancellationToken ct = default)

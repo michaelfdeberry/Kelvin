@@ -16,20 +16,18 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
   const int GATEWAY_BOOT_DELAY = 5000;
   const int MAX_RETRIES = 5;
   const int MAC_SIZE = 6;
-  const int PAYLOAD_SIZE = 16;
-  const int PACKET_SIZE = MAC_SIZE + PAYLOAD_SIZE;
+  const int NODE_PAYLOAD_SIZE = 16;
 
   // Main-loop reads must not block indefinitely, or a quiet Node/panel would starve outbound Hmi writes.
   const int MAIN_PORT_READ_TIMEOUT = 250;
-  static readonly byte[] PACKET_HEADER = [0xAA, 0x55];
   static readonly byte[] GATEWAY_INFO_HEADER = [0xAB, 0x56];
 
-  // Device (Hmi) messages are variable length and framed as [header][6 byte MAC][2 byte LE length][payload].
-  // Distinct from PACKET_HEADER so Node's fixed-size sensor_payload frames (never carrying a header of their
-  // own - Gateway.ino only prepends PACKET_HEADER for those) keep working unchanged.
+  // Every device (Node, Hmi, and whatever comes next) is relayed generically as
+  // [header][6 byte MAC][2 byte LE length][tag(4 bytes) + raw ESP-NOW payload] - the Gateway never inspects
+  // the tag, only this service does (see FrameTags), so new device types don't require a Gateway.ino change.
   static readonly byte[] DEVICE_UPLINK_HEADER = [0xAC, 0x57];
   static readonly byte[] DEVICE_DOWNLINK_HEADER = [0xAD, 0x58];
-  static readonly IReadOnlyList<byte[]> KNOWN_INCOMING_HEADERS = [PACKET_HEADER, DEVICE_UPLINK_HEADER];
+  static readonly IReadOnlyList<byte[]> KNOWN_INCOMING_HEADERS = [DEVICE_UPLINK_HEADER];
 
   /*
   Error cases to solve for:
@@ -71,23 +69,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
           continue;
         }
 
-        if (header.SequenceEqual(PACKET_HEADER))
-        {
-          var packet = ReadPacket(port);
-          if (packet != null)
-          {
-            // Only Node uses this path - Hmi tags everything (readings included) with hmiFrameTag and is
-            // relayed via DEVICE_UPLINK_HEADER instead, decoded by ReceiveHmiCommandHandler.
-            var result = await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet, DeviceType.Node), stoppingToken);
-            result.EnsureSuccess();
-          }
-
-          await Task.Delay(DEFAULT_READ_DELAY, stoppingToken);
-        }
-        else
-        {
-          await HandleDeviceUplinkMessage(port, stoppingToken);
-        }
+        await HandleDeviceUplinkMessage(port, stoppingToken);
 
         retryCount = 0;
       }
@@ -227,8 +209,9 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
     return false;
   }
 
-  // Generalized header sniff for the main loop, which - unlike the gateway info handshake - must recognize
-  // more than one possible frame type (sensor packets vs relayed Hmi device messages) on the same stream.
+  // Generalized (multi-header-capable) sniff reused for the main loop's single DEVICE_UPLINK_HEADER, kept
+  // separate from ReadHeader/GATEWAY_INFO_HEADER purely so a distinct serial-level frame type could be added
+  // later without touching the info handshake.
   private static byte[]? TryReadIncomingHeader(SerialPort port, IReadOnlyList<byte[]> headers, CancellationToken cancellationToken)
   {
     try
@@ -268,12 +251,44 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
       return;
 
     var length = BitConverter.ToUInt16(lengthBytes, 0);
-    var payload = length == 0 ? [] : ReadBytes(port, length);
-    if (payload is null)
+    var frame = length == 0 ? [] : ReadBytes(port, length);
+    if (frame is null || frame.Length < FrameTags.Size)
       return;
 
     var macAddress = string.Join(':', macBytes.Select(b => b.ToString("X2"))).ToLowerInvariant();
-    var result = await dispatcher.DispatchAsync(new ReceiveHmiCommandRequest(macAddress, payload), stoppingToken);
+    var tag = frame[..FrameTags.Size];
+    var content = frame[FrameTags.Size..];
+
+    if (tag.SequenceEqual(FrameTags.Node))
+    {
+      await HandleNodeReadingAsync(macAddress, content, stoppingToken);
+    }
+    else if (tag.SequenceEqual(FrameTags.Hmi))
+    {
+      var result = await dispatcher.DispatchAsync(new ReceiveHmiCommandRequest(macAddress, content), stoppingToken);
+      result.EnsureSuccess();
+    }
+    else
+    {
+      logger.LogWarning("Received a frame from {MacAddress} with an unrecognized device tag; discarding.", macAddress);
+    }
+  }
+
+  private async Task HandleNodeReadingAsync(string macAddress, byte[] payload, CancellationToken stoppingToken)
+  {
+    if (payload.Length != NODE_PAYLOAD_SIZE)
+      return;
+
+    var packet = new SensorPacket
+    {
+      MacAddress = macAddress,
+      TemperatureC = BitConverter.ToSingle(payload, 0),
+      HumidityPercentage = BitConverter.ToSingle(payload, 4),
+      CO2LevelPpm = BitConverter.ToUInt16(payload, 8),
+      BatteryLevelPercentage = BitConverter.ToSingle(payload, 12),
+    };
+
+    var result = await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet, DeviceType.Node), stoppingToken);
     result.EnsureSuccess();
   }
 
@@ -304,25 +319,6 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
     port.Write(macBytes, 0, macBytes.Length);
     port.Write(lengthBytes, 0, lengthBytes.Length);
     port.Write(payload, 0, payload.Length);
-  }
-
-  private static SensorPacket? ReadPacket(SerialPort port)
-  {
-    var buffer = ReadBytes(port, PACKET_SIZE);
-    if (buffer is null)
-      return null;
-
-    var macBytes = buffer[..MAC_SIZE];
-    var packet = new SensorPacket
-    {
-      MacAddress = string.Join(':', macBytes.Select(b => b.ToString("X2"))).ToLowerInvariant(),
-      TemperatureC = BitConverter.ToSingle(buffer, MAC_SIZE + 0),
-      HumidityPercentage = BitConverter.ToSingle(buffer, MAC_SIZE + 4),
-      CO2LevelPpm = BitConverter.ToUInt16(buffer, MAC_SIZE + 8),
-      BatteryLevelPercentage = BitConverter.ToSingle(buffer, MAC_SIZE + 12),
-    };
-
-    return packet;
   }
 
   private static byte[]? ReadBytes(SerialPort port, int count)

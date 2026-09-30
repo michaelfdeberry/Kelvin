@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using Kelvin.Server.Application;
+using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Channels;
 
@@ -19,7 +20,16 @@ public class HmiOutboundChannel : IHmiOutboundChannel
 {
   private readonly Channel<HmiOutboundMessage> _channel = Channel.CreateUnbounded<HmiOutboundMessage>();
 
-  public void Write(string macAddress, byte[] payload) => _channel.Writer.TryWrite(new HmiOutboundMessage(macAddress, payload));
+  // The Gateway relays outbound frames verbatim (it doesn't know or care about tags), so the tag identifying
+  // this as an Hmi frame is prepended here, once, rather than by every caller that writes to this channel.
+  public void Write(string macAddress, byte[] payload)
+  {
+    var frame = new byte[FrameTags.Size + payload.Length];
+    Buffer.BlockCopy(FrameTags.Hmi, 0, frame, 0, FrameTags.Size);
+    Buffer.BlockCopy(payload, 0, frame, FrameTags.Size, payload.Length);
+
+    _channel.Writer.TryWrite(new HmiOutboundMessage(macAddress, frame));
+  }
 
   public bool TryRead(out HmiOutboundMessage message) => _channel.Reader.TryRead(out message!);
 }

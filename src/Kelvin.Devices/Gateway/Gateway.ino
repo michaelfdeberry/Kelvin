@@ -1,51 +1,30 @@
 #include <esp_now.h>
 #include <WiFi.h>
-#include <string.h>
-#include "../Common/SensorPayload.h"
 
-// Every ESP-NOW frame is tagged so the sender/frame-type is identified explicitly rather than inferred from
-// length alone: Node readings (nodeFrameTag, see Common/SensorPayload.h) and Hmi messages (hmiFrameTag below -
-// readings and commands alike, no distinction made here). Node readings are relayed with a fixed-size header
-// the server can decode directly. Hmi messages are relayed generically, keyed by the sender's MAC address -
-// this gateway never needs to understand what's inside them (including telling a reading apart from a
-// command), only the server does.
-sensor_payload incomingReadings;
+// This gateway never inspects a device's frame tag or contents - it just relays every ESP-NOW frame it
+// receives to the server as-is (tag included), and relays every frame the server sends back out to the
+// addressed device as-is. The server decides what a tag means (see Models/FrameTags.cs), so adding a new
+// device type never requires a change here.
 
-const uint8_t packetHeader[2] = {0xAA, 0x55};
 const uint8_t infoHeader[2] = {0xAB, 0x56};
 const uint8_t deviceUplinkHeader[2] = {0xAC, 0x57};
 const uint8_t deviceDownlinkHeader[2] = {0xAD, 0x58};
 const size_t MAX_DEVICE_PAYLOAD = 240;
 
-// Tags every Hmi radio frame so it can be positively identified rather than assumed to be "whatever isn't a
-// sensor reading".
-const uint8_t hmiFrameTag[4] = {0x4B, 0x48, 0x4D, 0x49}; // "KHMI"
-
 void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int len)
 {
-  if (len >= (int)sizeof(hmiFrameTag) && memcmp(incomingData, hmiFrameTag, sizeof(hmiFrameTag)) == 0)
+  if (len <= 0)
   {
-    size_t payloadLength = min((size_t)len - sizeof(hmiFrameTag), MAX_DEVICE_PAYLOAD);
-    uint16_t payloadLengthLE = (uint16_t)payloadLength;
-
-    Serial.write(deviceUplinkHeader, sizeof(deviceUplinkHeader));
-    Serial.write(info->src_addr, 6);
-    Serial.write(reinterpret_cast<uint8_t *>(&payloadLengthLE), sizeof(payloadLengthLE));
-    Serial.write(incomingData + sizeof(hmiFrameTag), payloadLength);
     return;
   }
 
-  if (len != (int)(sizeof(nodeFrameTag) + sizeof(sensor_payload)) || memcmp(incomingData, nodeFrameTag, sizeof(nodeFrameTag)) != 0)
-  {
-    // Anything else (wrong size/tag) is discarded - radio noise or an unrelated ESP-NOW sender.
-    return;
-  }
+  size_t payloadLength = min((size_t)len, MAX_DEVICE_PAYLOAD);
+  uint16_t payloadLengthLE = (uint16_t)payloadLength;
 
-  memcpy(&incomingReadings, incomingData + sizeof(nodeFrameTag), sizeof(incomingReadings));
-
-  Serial.write(packetHeader, sizeof(packetHeader));
+  Serial.write(deviceUplinkHeader, sizeof(deviceUplinkHeader));
   Serial.write(info->src_addr, 6);
-  Serial.write(reinterpret_cast<uint8_t *>(&incomingReadings), sizeof(incomingReadings));
+  Serial.write(reinterpret_cast<uint8_t *>(&payloadLengthLE), sizeof(payloadLengthLE));
+  Serial.write(incomingData, payloadLength);
 }
 
 void setup()
@@ -120,17 +99,17 @@ void handleDeviceDownlink()
     return;
   }
 
-  // The frame tag is a radio-only framing concern, so it's added here rather than by the server.
-  uint8_t frame[sizeof(hmiFrameTag) + MAX_DEVICE_PAYLOAD];
-  memcpy(frame, hmiFrameTag, sizeof(hmiFrameTag));
-  if (!readSerialBytes(frame + sizeof(hmiFrameTag), payloadLength))
+  // The server already includes whatever tag the target device expects in `payload` - this gateway just
+  // relays the bytes as given.
+  uint8_t payload[MAX_DEVICE_PAYLOAD];
+  if (!readSerialBytes(payload, payloadLength))
   {
     return;
   }
 
   if (ensurePeer(macAddress))
   {
-    esp_now_send(macAddress, frame, sizeof(hmiFrameTag) + payloadLength);
+    esp_now_send(macAddress, payload, payloadLength);
   }
 }
 
