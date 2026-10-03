@@ -3,14 +3,14 @@
 Kelvin is a smart thermostat platform with remote sensor nodes.
 It monitors temperature, CO2, and humidity across the home, then helps manage HVAC behavior from one place.
 
+![Kelvin system](/docs/kelvin_system.png)
+
 Built as a full-stack system, Kelvin combines:
 
-- embedded sensor and gateway devices,
+- embedded sensors and gateway devices,
 - a backend service for automation and data handling,
 - a web app for monitoring and control,
 - and a simulator for local development/testing.
-
-The goal is simple: keep indoor comfort and air quality easier to track and control.
 
 ## Kelvin Client
 
@@ -20,7 +20,7 @@ Built with Lit + TypeScript and communicates with Kelvin.Server over REST and Si
 ## Kelvin Devices
 
 Device firmware lives in [src/Kelvin.Devices/README.md](src/Kelvin.Devices/README.md).
-Includes ESP32 node and gateway code plus shared packet contracts.
+Includes HMI, Sensor Node, Gateway, and Kiosk implementations.
 
 ## Kelvin Server
 

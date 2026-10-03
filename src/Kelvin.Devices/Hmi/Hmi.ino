@@ -120,7 +120,7 @@ void setup()
 
   ui.begin(communicator);
 
-  LOG_PRINTLN("Hmi ready (interactivity stubbed - see README for remaining hardware bring-up).");
+  LOG_PRINTLN("Hmi ready");
 }
 
 void loop()
