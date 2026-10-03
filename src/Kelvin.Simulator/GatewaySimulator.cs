@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.IO.Ports;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 
@@ -10,11 +11,14 @@ internal sealed class GatewaySimulator
 {
     private const byte DeviceUplinkHeaderFirst = 0xAC;
     private const byte DeviceUplinkHeaderSecond = 0x57;
+    private const byte DeviceDownlinkHeaderFirst = 0xAD;
+    private const byte DeviceDownlinkHeaderSecond = 0x58;
     private const byte InfoHeaderFirst = 0xAB;
     private const byte InfoHeaderSecond = 0x56;
     private const int MacLength = 6;
     private const int PayloadLength = 16;
     private const float DefaultHysteresisC = 0.6f;
+    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
 
     // Mirrors Kelvin.Server's Models/FrameTags.Node - identifies this as a Node-shaped reading to the server.
     private static readonly byte[] NodeFrameTag = [0x4B, 0x4E, 0x4F, 0x44]; // "KNOD"
@@ -28,6 +32,8 @@ internal sealed class GatewaySimulator
 
     private readonly SimulatorOptions options;
     private readonly SensorFleet sensors;
+    private readonly HmiFleet hmis;
+    private readonly List<byte> receiveBuffer = [];
     private readonly Channel<SimulatorCommand> commandChannel =
         Channel.CreateUnbounded<SimulatorCommand>();
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -49,6 +55,7 @@ internal sealed class GatewaySimulator
         baseTemperatureC = options.BaseTemperatureC;
         ambientTemperatureC = options.BaseTemperatureC;
         sensors = new SensorFleet(options.SensorCount, baseTemperatureC);
+        hmis = new HmiFleet(options.HmiCount, baseTemperatureC);
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -63,12 +70,12 @@ internal sealed class GatewaySimulator
 
         port.Open();
         Console.WriteLine(
-            $"Kelvin simulator connected to {options.PortName} with {sensors.Count} sensor(s)."
+            $"Kelvin simulator connected to {options.PortName} with {sensors.Count} sensor(s) and {hmis.Count} HMI(s)."
         );
         Console.WriteLine($"Kelvin.Server target: {options.ServerUrl}");
         Console.WriteLine("Press Ctrl+C to stop.");
         Console.WriteLine(
-            "Commands: base <temp>, add, remove <index>, enable <index|all>, disable <index|all>, scenario <auto|idle|heating|cooling>, list, status"
+            "Commands: base <temp>, add, remove <index>, enable <index|all>, disable <index|all>, scenario <auto|idle|heating|cooling>, list, status, hmi (type 'hmi help')"
         );
 
         var commandTask = options.Interactive
@@ -79,17 +86,10 @@ internal sealed class GatewaySimulator
         {
             try
             {
-                await ProcessCommandsAsync();
+                await ProcessCommandsAsync(port);
                 await RefreshServerStateAsync(cancellationToken);
 
-                while (port.BytesToRead > 0)
-                {
-                    var command = port.ReadLine().Trim();
-                    if (command.Equals("info", StringComparison.OrdinalIgnoreCase))
-                    {
-                        WriteGatewayInfo(port);
-                    }
-                }
+                ReadIncoming(port);
 
                 ApplyScenario();
 
@@ -98,7 +98,12 @@ internal sealed class GatewaySimulator
                     WriteSensorPacket(port, sensor);
                 }
 
-                await Task.Delay(options.Interval, cancellationToken);
+                foreach (var hmi in hmis.ActiveHmis)
+                {
+                    WriteHmiReading(port, hmi);
+                }
+
+                await WaitForNextTickAsync(port, cancellationToken);
             }
             catch (TimeoutException) { }
         }
@@ -120,7 +125,23 @@ internal sealed class GatewaySimulator
         }
     }
 
-    private async Task ProcessCommandsAsync()
+    // Downlink frames and typed commands should show up promptly, not only once per (default 30s) packet interval.
+    private async Task WaitForNextTickAsync(SerialPort port, CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + options.Interval;
+        while (DateTime.UtcNow < deadline)
+        {
+            var remaining = deadline - DateTime.UtcNow;
+            await Task.Delay(
+                remaining < PollInterval ? remaining : PollInterval,
+                cancellationToken
+            );
+            ReadIncoming(port);
+            await ProcessCommandsAsync(port);
+        }
+    }
+
+    private async Task ProcessCommandsAsync(SerialPort port)
     {
         while (commandChannel.Reader.TryRead(out var command))
         {
@@ -153,6 +174,27 @@ internal sealed class GatewaySimulator
                         break;
                     case StatusCommand:
                         PrintStatus();
+                        break;
+                    case AddHmiCommand:
+                        AddHmi();
+                        break;
+                    case RemoveHmiCommand removeHmi:
+                        RemoveHmi(removeHmi.Index);
+                        break;
+                    case ToggleHmiCommand toggleHmi:
+                        ToggleHmi(toggleHmi.Index, toggleHmi.Enabled);
+                        break;
+                    case ToggleAllHmisCommand toggleAllHmis:
+                        ToggleAllHmis(toggleAllHmis.Enabled);
+                        break;
+                    case ListHmisCommand:
+                        ListHmis();
+                        break;
+                    case HmiHelpCommand:
+                        PrintHmiHelp();
+                        break;
+                    case HmiDeviceCommand hmiCommand:
+                        HandleHmiDeviceCommand(port, hmiCommand);
                         break;
                 }
             }
@@ -237,12 +279,25 @@ internal sealed class GatewaySimulator
         lastAmbientTrend = directive.Trend;
         lastAmbientTargetC = directive.TargetTemperatureC;
         LogDirective(directive);
-        // The server averages sensor readings (ambient + each sensor's fixed room offset), so the
+        // The server averages sensor readings (ambient + each device's fixed room offset), so the
         // shared ambient value must aim short/past the real target by the fleet's average offset
         // or the call can stall just shy of the threshold forever.
-        var fleetBiasC = sensors.AverageActiveRoomOffsetC;
-        StepAmbientTemperature(directive.TargetTemperatureC - fleetBiasC);
+        StepAmbientTemperature(directive.TargetTemperatureC - FleetBiasC);
         sensors.StepAll(ambientTemperatureC);
+        hmis.StepAll(ambientTemperatureC);
+    }
+
+    // HMIs report their onboard reading as a sensor too, so their offsets count toward the server's average.
+    private float FleetBiasC
+    {
+        get
+        {
+            var offsets = sensors
+                .ActiveSensors.Select(sensor => sensor.RoomOffsetC)
+                .Concat(hmis.ActiveHmis.Select(hmi => hmi.RoomOffsetC))
+                .ToList();
+            return offsets.Count == 0 ? 0f : offsets.Average();
+        }
     }
 
     private void LogDirective(AmbientDirective directive)
@@ -261,7 +316,7 @@ internal sealed class GatewaySimulator
             changed ? DebugLevel.Info : DebugLevel.Verbose,
             $"callState={callState ?? "unknown"} mode={mode ?? "unknown"} fanOn={fanOn} "
                 + $"trend={directive.Trend} target={directive.TargetTemperatureC:F2}C ambient={ambientTemperatureC:F2}C "
-                + $"fleetBias={sensors.AverageActiveRoomOffsetC:F2}C "
+                + $"fleetBias={FleetBiasC:F2}C "
                 + $"callTarget={gatewayStatus.CallContext?.TargetTemperatureC} callHysteresis={gatewayStatus.CallContext?.HysteresisC}"
         );
 
@@ -443,6 +498,7 @@ internal sealed class GatewaySimulator
         Console.WriteLine($"Thermostat mode: {gatewayStatus.Thermostat?.Mode ?? "unknown"}");
         Console.WriteLine($"Control call: {gatewayStatus.Control?.CallState ?? "unknown"}");
         Console.WriteLine($"Sensors: {sensors.Count}");
+        Console.WriteLine($"HMIs: {hmis.Count}");
         Console.WriteLine($"Ambient trend: {lastAmbientTrend}");
         Console.WriteLine(
             $"Ambient target: {lastAmbientTargetC.ToString("F1", CultureInfo.InvariantCulture)}C"
@@ -498,8 +554,569 @@ internal sealed class GatewaySimulator
                     && Enum.TryParse<SimulatorScenario>(parts[1], true, out var scenario) =>
                 new SetScenarioCommand(scenario),
             "list" => new ListSensorsCommand(),
+            "hmi" => ParseHmiCommand(parts[1..]),
             _ => new StatusCommand(),
         };
+    }
+
+    private static SimulatorCommand ParseHmiCommand(string[] parts)
+    {
+        if (parts.Length == 0)
+        {
+            return new ListHmisCommand();
+        }
+
+        var fleetCommand = parts[0].ToLowerInvariant() switch
+        {
+            "add" => new AddHmiCommand(),
+            "list" => new ListHmisCommand(),
+            "help" => new HmiHelpCommand(),
+            "remove" when parts.Length > 1 && int.TryParse(parts[1], out var removeIndex) =>
+                new RemoveHmiCommand(removeIndex),
+            "enable" when parts.Length > 1 && int.TryParse(parts[1], out var enableIndex) =>
+                new ToggleHmiCommand(enableIndex, true),
+            "disable" when parts.Length > 1 && int.TryParse(parts[1], out var disableIndex) =>
+                new ToggleHmiCommand(disableIndex, false),
+            "enable" when parts.Length > 1 && IsAll(parts[1]) => new ToggleAllHmisCommand(true),
+            "disable" when parts.Length > 1 && IsAll(parts[1]) => new ToggleAllHmisCommand(false),
+            "remove" or "enable" or "disable" => new HmiHelpCommand(),
+            _ => (SimulatorCommand?)null,
+        };
+
+        if (fleetCommand is not null)
+        {
+            return fleetCommand;
+        }
+
+        // Device commands take an optional leading HMI index, defaulting to the first HMI.
+        var index = 0;
+        if (int.TryParse(parts[0], out var parsedIndex))
+        {
+            index = parsedIndex;
+            parts = parts[1..];
+        }
+
+        if (parts.Length == 0)
+        {
+            return new HmiStateCommand(index);
+        }
+
+        var args = parts[1..];
+        return parts[0].ToLowerInvariant() switch
+        {
+            "state" => new HmiStateCommand(index),
+            "reading" => new HmiSendReadingCommand(index),
+            "mode" when args.Length == 1 && TryParseEnum<HmiRunMode>(args[0], out var mode) =>
+                new HmiSetModeCommand(index, mode),
+            "fan" when args.Length == 1 && TryParseOnOff(args[0], out var fanEnabled) =>
+                new HmiSetFanCommand(index, fanEnabled),
+            "setpoint"
+                when args.Length == 2
+                    && TryParseEnum<HmiRunType>(args[0], out var setPointType)
+                    && TryParseFloat(args[1], out var setPointTemp) => new HmiSetSetPointCommand(
+                index,
+                setPointType,
+                setPointTemp
+            ),
+            "schedule" => ParseHmiScheduleCommand(index, args),
+            "lockouts"
+                when args.Length == 2
+                    && TryParseOptionalFloat(args[0], out var heatingLockout)
+                    && TryParseOptionalFloat(args[1], out var coolingLockout) =>
+                new HmiSetLockoutsCommand(index, heatingLockout, coolingLockout),
+            _ => new HmiHelpCommand(),
+        };
+    }
+
+    private static SimulatorCommand ParseHmiScheduleCommand(int index, string[] args)
+    {
+        if (args.Length == 0)
+        {
+            return new HmiHelpCommand();
+        }
+
+        var verb = args[0].ToLowerInvariant();
+        if (verb == "remove" && args.Length == 2 && int.TryParse(args[1], out var removeIndex))
+        {
+            return new HmiRemoveScheduleCommand(index, removeIndex);
+        }
+
+        int? scheduleIndex = null;
+        var fields = args[1..];
+        if (verb == "update" && args.Length > 1 && int.TryParse(args[1], out var updateIndex))
+        {
+            scheduleIndex = updateIndex;
+            fields = args[2..];
+        }
+        else if (verb != "add")
+        {
+            return new HmiHelpCommand();
+        }
+
+        if (
+            fields.Length == 4
+            && TryParseEnum<HmiRunType>(fields[0], out var type)
+            && TimeOnly.TryParse(fields[1], CultureInfo.InvariantCulture, out var start)
+            && TimeOnly.TryParse(fields[2], CultureInfo.InvariantCulture, out var end)
+            && TryParseFloat(fields[3], out var temp)
+        )
+        {
+            return new HmiUpsertScheduleCommand(index, scheduleIndex, type, start, end, temp);
+        }
+
+        return new HmiHelpCommand();
+    }
+
+    private static bool IsAll(string value) =>
+        value.Equals("all", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryParseEnum<T>(string value, out T result)
+        where T : struct, Enum =>
+        Enum.TryParse(value, true, out result)
+        && !int.TryParse(value, out _)
+        && Enum.IsDefined(result);
+
+    private static bool TryParseFloat(string value, out float result) =>
+        float.TryParse(value, CultureInfo.InvariantCulture, out result);
+
+    private static bool TryParseOptionalFloat(string value, out float? result)
+    {
+        result = null;
+        if (value.Equals("none", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!TryParseFloat(value, out var parsed))
+        {
+            return false;
+        }
+
+        result = parsed;
+        return true;
+    }
+
+    private static bool TryParseOnOff(string value, out bool enabled)
+    {
+        enabled = value.Equals("on", StringComparison.OrdinalIgnoreCase);
+        return enabled || value.Equals("off", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void AddHmi()
+    {
+        var hmi = hmis.AddHmi(baseTemperatureC);
+        Console.WriteLine($"HMI added. Total HMIs: {hmis.Count}. Added {hmi}.");
+    }
+
+    private void RemoveHmi(int index)
+    {
+        if (!hmis.RemoveHmi(index, out var removedHmi))
+        {
+            Console.WriteLine("Invalid HMI index.");
+            return;
+        }
+
+        Console.WriteLine($"HMI {index} removed. Total HMIs: {hmis.Count}. Removed {removedHmi}.");
+    }
+
+    private void ToggleHmi(int index, bool enabled)
+    {
+        if (!hmis.SetHmiEnabled(index, enabled, out var hmi))
+        {
+            Console.WriteLine("Invalid HMI index.");
+            return;
+        }
+
+        Console.WriteLine($"HMI {index} {(enabled ? "enabled" : "disabled")}. {hmi}");
+    }
+
+    private void ToggleAllHmis(bool enabled)
+    {
+        var count = hmis.SetAllHmisEnabled(enabled);
+        Console.WriteLine($"{count} HMI(s) {(enabled ? "enabled" : "disabled")}.");
+    }
+
+    private void ListHmis()
+    {
+        for (var index = 0; index < hmis.Count; index++)
+        {
+            Console.WriteLine(hmis.Describe(index));
+        }
+    }
+
+    private static void PrintHmiHelp()
+    {
+        Console.WriteLine(
+            """
+            HMI fleet commands:
+              hmi add | hmi remove <index> | hmi enable <index|all> | hmi disable <index|all> | hmi list
+            HMI device commands ([index] defaults to 0, temperatures in C):
+              hmi [index] state                                  print the last messages received from the server
+              hmi [index] reading                                send the onboard sensor reading now
+              hmi [index] mode <disabled|off|heating|cooling|automatic>
+              hmi [index] fan <on|off>
+              hmi [index] setpoint <heating|cooling> <temp>
+              hmi [index] schedule add <heating|cooling> <HH:mm> <HH:mm> <temp>
+              hmi [index] schedule update <n> <heating|cooling> <HH:mm> <HH:mm> <temp>
+              hmi [index] schedule remove <n>                    <n> is the schedule index shown by 'hmi state'
+              hmi [index] lockouts <heatingTemp|none> <coolingTemp|none>
+            """
+        );
+    }
+
+    private void HandleHmiDeviceCommand(SerialPort port, HmiDeviceCommand command)
+    {
+        if (!hmis.TryGet(command.Index, out var hmi))
+        {
+            Console.WriteLine("Invalid HMI index.");
+            return;
+        }
+
+        if (command is HmiStateCommand)
+        {
+            PrintHmiState(hmi);
+            return;
+        }
+
+        if (!hmi.Enabled)
+        {
+            Console.WriteLine($"[{hmi.Label}] is offline; enable it before sending.");
+            return;
+        }
+
+        switch (command)
+        {
+            case HmiSendReadingCommand:
+                WriteHmiReading(port, hmi);
+                break;
+            case HmiSetModeCommand setMode:
+                WriteHmiMessage(
+                    port,
+                    hmi,
+                    HmiMessageType.SetMode,
+                    HmiProtocol.EncodeSetMode(setMode.Mode),
+                    $"mode={setMode.Mode}"
+                );
+                break;
+            case HmiSetFanCommand setFan:
+                WriteHmiMessage(
+                    port,
+                    hmi,
+                    HmiMessageType.SetFanEnabled,
+                    HmiProtocol.EncodeSetFanEnabled(setFan.Enabled),
+                    $"fan={(setFan.Enabled ? "on" : "off")}"
+                );
+                break;
+            case HmiSetSetPointCommand setPoint:
+                WriteHmiMessage(
+                    port,
+                    hmi,
+                    HmiMessageType.SetSetPoint,
+                    HmiProtocol.EncodeSetSetPoint(setPoint.Type, setPoint.TargetTemperatureC),
+                    $"type={setPoint.Type} target={FormatTemp(setPoint.TargetTemperatureC)}C"
+                );
+                break;
+            case HmiUpsertScheduleCommand upsert:
+                Guid? scheduleId = null;
+                if (upsert.ScheduleIndex is { } scheduleIndex)
+                {
+                    if (!TryGetReceivedSchedule(hmi, scheduleIndex, out var existing))
+                    {
+                        return;
+                    }
+
+                    scheduleId = existing.Id;
+                }
+
+                WriteHmiMessage(
+                    port,
+                    hmi,
+                    HmiMessageType.UpsertSchedule,
+                    HmiProtocol.EncodeUpsertSchedule(
+                        scheduleId,
+                        upsert.Type,
+                        upsert.Start,
+                        upsert.End,
+                        upsert.TargetTemperatureC
+                    ),
+                    $"id={scheduleId?.ToString() ?? "new"} type={upsert.Type} "
+                        + $"{upsert.Start:HH\\:mm}-{upsert.End:HH\\:mm} target={FormatTemp(upsert.TargetTemperatureC)}C"
+                );
+                break;
+            case HmiRemoveScheduleCommand remove:
+                if (!TryGetReceivedSchedule(hmi, remove.ScheduleIndex, out var removed))
+                {
+                    return;
+                }
+
+                WriteHmiMessage(
+                    port,
+                    hmi,
+                    HmiMessageType.RemoveSchedule,
+                    HmiProtocol.EncodeRemoveSchedule(removed.Id),
+                    $"id={removed.Id}"
+                );
+                break;
+            case HmiSetLockoutsCommand lockouts:
+                WriteHmiMessage(
+                    port,
+                    hmi,
+                    HmiMessageType.SetForecastLockouts,
+                    HmiProtocol.EncodeSetForecastLockouts(
+                        lockouts.HeatingLockoutC,
+                        lockouts.CoolingLockoutC
+                    ),
+                    $"heating={FormatTemp(lockouts.HeatingLockoutC)} cooling={FormatTemp(lockouts.CoolingLockoutC)}"
+                );
+                break;
+        }
+    }
+
+    private static bool TryGetReceivedSchedule(
+        SimulatedHmi hmi,
+        int scheduleIndex,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out HmiSchedule? schedule
+    )
+    {
+        var schedules = hmi.ThermostatState?.Schedules;
+        schedule =
+            schedules is not null && scheduleIndex >= 0 && scheduleIndex < schedules.Count
+                ? schedules[scheduleIndex]
+                : null;
+
+        if (schedule is null)
+        {
+            Console.WriteLine(
+                $"[{hmi.Label}] has no schedule [{scheduleIndex}] in its last received thermostat state (see 'hmi state')."
+            );
+        }
+
+        return schedule is not null;
+    }
+
+    private static void PrintHmiState(SimulatedHmi hmi)
+    {
+        Console.WriteLine(hmi);
+        Console.WriteLine(
+            hmi.ThermostatState is null
+                ? "  ThermostatState: none received"
+                : $"  {HmiProtocol.Describe(hmi.ThermostatState)}"
+        );
+        Console.WriteLine(
+            hmi.ControlState is null
+                ? "  ControlStateChanged: none received"
+                : $"  {HmiProtocol.Describe(hmi.ControlState)}"
+        );
+        Console.WriteLine(
+            hmi.EnvironmentReading is null
+                ? "  EnvironmentReadingChanged: none received"
+                : $"  {HmiProtocol.Describe(hmi.EnvironmentReading)}"
+        );
+    }
+
+    private static string FormatTemp(float? value) =>
+        value?.ToString("F1", CultureInfo.InvariantCulture) ?? "none";
+
+    private void ReadIncoming(SerialPort port)
+    {
+        var available = port.BytesToRead;
+        if (available > 0)
+        {
+            var chunk = new byte[available];
+            var read = port.Read(chunk, 0, available);
+            receiveBuffer.AddRange(chunk.AsSpan(0, read));
+        }
+
+        while (TryProcessNextIncoming(port)) { }
+    }
+
+    // The server writes both the newline-terminated "info" probe and binary downlink frames to this port.
+    private bool TryProcessNextIncoming(SerialPort port)
+    {
+        if (receiveBuffer.Count == 0)
+        {
+            return false;
+        }
+
+        if (receiveBuffer[0] == DeviceDownlinkHeaderFirst)
+        {
+            if (receiveBuffer.Count < 2)
+            {
+                return false;
+            }
+
+            if (receiveBuffer[1] != DeviceDownlinkHeaderSecond)
+            {
+                receiveBuffer.RemoveAt(0);
+                return true;
+            }
+
+            const int prefixLength = 2 + MacLength + 2;
+            if (receiveBuffer.Count < prefixLength)
+            {
+                return false;
+            }
+
+            var length = receiveBuffer[2 + MacLength] | (receiveBuffer[2 + MacLength + 1] << 8);
+            if (receiveBuffer.Count < prefixLength + length)
+            {
+                return false;
+            }
+
+            var macAddress = receiveBuffer.GetRange(2, MacLength).ToArray();
+            var payload = receiveBuffer.GetRange(prefixLength, length).ToArray();
+            receiveBuffer.RemoveRange(0, prefixLength + length);
+            HandleDownlink(macAddress, payload);
+            return true;
+        }
+
+        var newlineIndex = receiveBuffer.IndexOf((byte)'\n');
+        var downlinkIndex = receiveBuffer.IndexOf(DeviceDownlinkHeaderFirst);
+        if (downlinkIndex > 0 && (newlineIndex < 0 || downlinkIndex < newlineIndex))
+        {
+            receiveBuffer.RemoveRange(0, downlinkIndex);
+            return true;
+        }
+
+        if (newlineIndex < 0)
+        {
+            return false;
+        }
+
+        var line = Encoding.ASCII.GetString([.. receiveBuffer.GetRange(0, newlineIndex)]).Trim();
+        receiveBuffer.RemoveRange(0, newlineIndex + 1);
+        if (line.Equals("info", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteGatewayInfo(port);
+        }
+
+        return true;
+    }
+
+    private void HandleDownlink(byte[] macAddress, byte[] payload)
+    {
+        var hmi = hmis.FindByMacAddress(macAddress);
+        if (hmi is null)
+        {
+            var mac = string.Join(":", macAddress.Select(byteValue => byteValue.ToString("X2")));
+            Console.WriteLine(
+                $"[{mac}] <- {payload.Length} byte(s) for an unknown device, dropped."
+            );
+            return;
+        }
+
+        // An offline device is out of radio range, so the gateway's send would never reach it.
+        if (!hmi.Enabled)
+        {
+            LogDebug(DebugLevel.Info, $"[{hmi.Label}] offline, dropped {payload.Length} byte(s).");
+            return;
+        }
+
+        var tag = HmiProtocol.FrameTag;
+        if (
+            payload.Length < tag.Length
+            || !payload.AsSpan(0, tag.Length).SequenceEqual(tag)
+            || !HmiProtocol.TryReadEnvelope(
+                payload.AsSpan(tag.Length),
+                out var type,
+                out var chunkIndex,
+                out var chunkCount,
+                out var body
+            )
+        )
+        {
+            Console.WriteLine($"[{hmi.Label}] <- malformed frame: {Convert.ToHexString(payload)}");
+            return;
+        }
+
+        LogDebug(
+            DebugLevel.Verbose,
+            $"[{hmi.Label}] <- {type} chunk {chunkIndex + 1}/{chunkCount} ({body.Length} bytes)"
+        );
+
+        if (!hmi.TryReassemble(type, chunkIndex, chunkCount, body, out var message))
+        {
+            return;
+        }
+
+        string? description = null;
+        switch (type)
+        {
+            case HmiMessageType.ThermostatStateChunk:
+                hmi.ThermostatState = HmiProtocol.DecodeThermostatState(message);
+                description = hmi.ThermostatState is null
+                    ? null
+                    : HmiProtocol.Describe(hmi.ThermostatState);
+                break;
+            case HmiMessageType.ControlStateChanged:
+                hmi.ControlState = HmiProtocol.DecodeControlState(message);
+                description = hmi.ControlState is null
+                    ? null
+                    : HmiProtocol.Describe(hmi.ControlState);
+                break;
+            case HmiMessageType.EnvironmentReadingChanged:
+                hmi.EnvironmentReading = HmiProtocol.DecodeEnvironmentReading(message);
+                description = hmi.EnvironmentReading is null
+                    ? null
+                    : HmiProtocol.Describe(hmi.EnvironmentReading);
+                break;
+            default:
+                description = $"{type} (unhandled) {Convert.ToHexString(message)}";
+                break;
+        }
+
+        Console.WriteLine(
+            $"[{hmi.Label}] <- {description ?? $"{type} malformed body: {Convert.ToHexString(message)}"}"
+        );
+    }
+
+    private void WriteHmiReading(SerialPort port, SimulatedHmi hmi)
+    {
+        var body = HmiProtocol.EncodeSensorReading(
+            hmi.TemperatureC,
+            hmi.HumidityPercentage,
+            hmi.BatteryLevelPercentage
+        );
+        WriteHmiFrame(port, hmi, HmiMessageType.SensorReading, body);
+        Console.WriteLine(hmi);
+    }
+
+    private static void WriteHmiMessage(
+        SerialPort port,
+        SimulatedHmi hmi,
+        HmiMessageType type,
+        byte[] body,
+        string description
+    )
+    {
+        WriteHmiFrame(port, hmi, type, body);
+        Console.WriteLine($"[{hmi.Label}] -> {type} {description}");
+    }
+
+    private static void WriteHmiFrame(
+        SerialPort port,
+        SimulatedHmi hmi,
+        HmiMessageType type,
+        byte[] body
+    )
+    {
+        var envelope = HmiProtocol.Envelope(type, body);
+        var contentLength = HmiProtocol.FrameTag.Length + envelope.Length;
+        var frame = new byte[2 + MacLength + 2 + contentLength];
+
+        frame[0] = DeviceUplinkHeaderFirst;
+        frame[1] = DeviceUplinkHeaderSecond;
+        hmi.MacAddress.CopyTo(frame, 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            frame.AsSpan(2 + MacLength, 2),
+            (ushort)contentLength
+        );
+
+        var contentOffset = 2 + MacLength + 2;
+        HmiProtocol.FrameTag.CopyTo(frame, contentOffset);
+        envelope.CopyTo(frame, contentOffset + HmiProtocol.FrameTag.Length);
+
+        port.Write(frame, 0, frame.Length);
     }
 
     private static void WriteGatewayInfo(SerialPort port)

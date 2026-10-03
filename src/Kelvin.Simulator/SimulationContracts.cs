@@ -39,6 +39,50 @@ internal sealed record ListSensorsCommand : SimulatorCommand;
 
 internal sealed record StatusCommand : SimulatorCommand;
 
+internal sealed record AddHmiCommand : SimulatorCommand;
+
+internal sealed record RemoveHmiCommand(int Index) : SimulatorCommand;
+
+internal sealed record ToggleHmiCommand(int Index, bool Enabled) : SimulatorCommand;
+
+internal sealed record ToggleAllHmisCommand(bool Enabled) : SimulatorCommand;
+
+internal sealed record ListHmisCommand : SimulatorCommand;
+
+internal sealed record HmiHelpCommand : SimulatorCommand;
+
+internal abstract record HmiDeviceCommand(int Index) : SimulatorCommand;
+
+internal sealed record HmiStateCommand(int Index) : HmiDeviceCommand(Index);
+
+internal sealed record HmiSendReadingCommand(int Index) : HmiDeviceCommand(Index);
+
+internal sealed record HmiSetModeCommand(int Index, HmiRunMode Mode) : HmiDeviceCommand(Index);
+
+internal sealed record HmiSetFanCommand(int Index, bool Enabled) : HmiDeviceCommand(Index);
+
+internal sealed record HmiSetSetPointCommand(int Index, HmiRunType Type, float TargetTemperatureC)
+    : HmiDeviceCommand(Index);
+
+// ScheduleIndex refers to the schedule list in the HMI's last received thermostat state; null adds a new one.
+internal sealed record HmiUpsertScheduleCommand(
+    int Index,
+    int? ScheduleIndex,
+    HmiRunType Type,
+    TimeOnly Start,
+    TimeOnly End,
+    float TargetTemperatureC
+) : HmiDeviceCommand(Index);
+
+internal sealed record HmiRemoveScheduleCommand(int Index, int ScheduleIndex)
+    : HmiDeviceCommand(Index);
+
+internal sealed record HmiSetLockoutsCommand(
+    int Index,
+    float? HeatingLockoutC,
+    float? CoolingLockoutC
+) : HmiDeviceCommand(Index);
+
 internal enum SimulatorScenario
 {
     Auto,

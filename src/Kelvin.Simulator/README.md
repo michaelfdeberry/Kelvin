@@ -8,6 +8,9 @@ CLI simulator for manually testing Kelvin with gateway-like sensor packets.
 - Responds to the `info` handshake Kelvin.Server uses to discover gateways.
 - Emits sensor packets using the same packet shape as the current device firmware.
 - Starts with 5 simulated sensors by default.
+- Starts with 1 simulated HMI (wall panel) by default. Each HMI sends its onboard reading every
+  interval (registering it with the server), can send thermostat commands on demand, and prints every
+  downlink message the server sends it (thermostat state, control state, environment readings).
 - Uses a shared ambient temperature that rises/falls gradually, plus per-sensor room drift.
 - Polls Kelvin.Server's `/api/thermostat` and `/api/control/state` endpoints so the `auto` scenario
   can track the server's real heating/cooling/idle state.
@@ -17,6 +20,7 @@ CLI simulator for manually testing Kelvin with gateway-like sensor packets.
 - `--server-url` Kelvin.Server base URL. Defaults to `http://localhost:5000`.
 - `--port` virtual COM port. Required.
 - `--sensor-count` starting sensor count. Defaults to 5.
+- `--hmi-count` starting HMI count. Defaults to 1 (0 disables HMIs).
 - `--base-temp` starting environment temperature in Celsius. Defaults to 21.5.
 - `--interval` packet emit cadence (e.g. `00:00:30`). Defaults to 30 seconds.
 - `--non-interactive` disables the live command loop for scripted runs.
@@ -43,6 +47,30 @@ When running interactively, the simulator accepts these commands:
   ambient target direction.
 - `list` prints the current sensor roster.
 - `status` prints the current simulator state.
+
+### HMI commands
+
+Fleet management mirrors the sensor commands:
+
+- `hmi add`, `hmi remove <index>`, `hmi enable <index|all>`, `hmi disable <index|all>`, `hmi list`.
+
+Device commands take an optional HMI index (defaults to `0`); temperatures are in Celsius:
+
+- `hmi [index] state` prints the last thermostat state, control state, and environment reading
+  received from the server.
+- `hmi [index] reading` sends the onboard sensor reading immediately.
+- `hmi [index] mode <disabled|off|heating|cooling|automatic>`
+- `hmi [index] fan <on|off>`
+- `hmi [index] setpoint <heating|cooling> <temp>`
+- `hmi [index] schedule add <heating|cooling> <HH:mm> <HH:mm> <temp>`
+- `hmi [index] schedule update <n> <heating|cooling> <HH:mm> <HH:mm> <temp>`
+- `hmi [index] schedule remove <n>` - `<n>` is the schedule index shown by `hmi state`, so the HMI
+  must have received a thermostat state first.
+- `hmi [index] lockouts <heatingTemp|none> <coolingTemp|none>`
+- `hmi help` prints this list.
+
+Disabled (offline) HMIs neither send nor receive. Received messages are printed as they arrive,
+prefixed with `[hmi #NN MAC] <-`; sent commands are prefixed with `->`.
 
 Any unrecognized input prints `status`.
 

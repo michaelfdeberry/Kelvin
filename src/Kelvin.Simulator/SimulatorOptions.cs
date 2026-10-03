@@ -11,6 +11,7 @@ internal sealed record SimulatorOptions(
     string ServerUrl,
     string PortName,
     int SensorCount,
+    int HmiCount,
     float BaseTemperatureC,
     TimeSpan Interval,
     bool Interactive,
@@ -22,6 +23,7 @@ internal sealed record SimulatorOptions(
         var serverUrl = "http://localhost:5000";
         var portName = string.Empty;
         var sensorCount = 5;
+        var hmiCount = 1;
         var baseTemperatureC = 21.5f;
         var interval = TimeSpan.FromSeconds(30);
         var interactive = true;
@@ -49,6 +51,15 @@ internal sealed record SimulatorOptions(
             )
             {
                 sensorCount = Math.Max(1, parsedSensors);
+                continue;
+            }
+
+            if (
+                TryReadValue(current, "--hmi-count", args, ref index, out var hmiValue)
+                && int.TryParse(hmiValue, out var parsedHmis)
+            )
+            {
+                hmiCount = Math.Max(0, parsedHmis);
                 continue;
             }
 
@@ -100,6 +111,7 @@ internal sealed record SimulatorOptions(
             serverUrl,
             portName,
             sensorCount,
+            hmiCount,
             baseTemperatureC,
             interval,
             interactive,
