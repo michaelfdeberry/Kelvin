@@ -1,6 +1,4 @@
-import './control-hub.js';
-import './notifications-hub.js';
-import './readings-hub.js';
+import './realtime-hub.js';
 
 import { ContextProvider } from '@lit/context';
 import { css, html, LitElement } from 'lit';
@@ -48,9 +46,7 @@ export class SignalRContext extends LitElement {
   override render() {
     return html`
       <slot></slot>
-      <signalr-control-hub></signalr-control-hub>
-      <signalr-notifications-hub></signalr-notifications-hub>
-      <signalr-readings-hub></signalr-readings-hub>
+      <signalr-realtime-hub></signalr-realtime-hub>
     `;
   }
 }

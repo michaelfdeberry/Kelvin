@@ -11,7 +11,6 @@ public static class HmiEnvironmentReadingEncoder
   public static byte[] Encode(EnvironmentReading reading)
   {
     using var stream = new MemoryStream();
-    stream.WriteByte((byte)HmiMessageType.EnvironmentReadingChanged);
     stream.Write(BitConverter.GetBytes(reading.TemperatureC));
     stream.Write(BitConverter.GetBytes(reading.HumidityPercentage));
     stream.Write(BitConverter.GetBytes(reading.CO2LevelPpm));

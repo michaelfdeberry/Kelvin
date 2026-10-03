@@ -1,7 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
-using Kelvin.Server.Hubs;
-using Microsoft.AspNetCore.SignalR;
+using Kelvin.Server.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -14,15 +13,14 @@ public static class DeleteSensorErrors
   public static readonly Error DefaultError = new("DeleteSensor.Failed", "An error occurred processing the request.");
 }
 
-public class DeleteSensorHandler(KelvinContext context, IMemoryCache cache, IHubContext<ControlHub, IControlClient> controlHub)
-  : IHandler<DeleteSensorRequest>
+public class DeleteSensorHandler(KelvinContext context, IMemoryCache cache, IEventBus bus) : IHandler<DeleteSensorRequest>
 {
   public async Task<Result> HandleAsync(DeleteSensorRequest request, CancellationToken ct = default)
   {
     await context.Sensors.Where(s => s.Id == request.SensorId).ExecuteUpdateAsync(s => s.SetProperty(s => s.DeletedAt, DateTime.UtcNow), ct);
     cache.Remove(SensorsCache.Key);
 
-    await controlHub.Clients.All.SensorsStateChanged();
+    await bus.PublishAsync(new SensorsChangedEvent(), ct);
     return Result.Success();
   }
 }

@@ -1,5 +1,6 @@
 using FakeItEasy;
 using Kelvin.Server.Features.Sensors;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
 using Microsoft.Extensions.Caching.Memory;
@@ -20,9 +21,9 @@ public class UpdateSensorTests
         await context.SaveChangesAsync();
         var cache = new MemoryCache(new MemoryCacheOptions());
         cache.Set(SensorsCache.Key, new object());
-        var (hub, client) = SensorTestHelpers.CreateControlHub();
+        var bus = SensorTestHelpers.CreateEventBus();
 
-        var result = await new UpdateSensorHandler(context, cache, hub).HandleAsync(
+        var result = await new UpdateSensorHandler(context, cache, bus).HandleAsync(
             new UpdateSensorRequest(
                 sensor.Id,
                 new SensorRequest(sensor.Id, "New", "new", true, true, true, 1.5f, 2.5f, 3)
@@ -31,7 +32,7 @@ public class UpdateSensorTests
 
         result.IsSuccess.ShouldBeTrue();
         cache.TryGetValue(SensorsCache.Key, out _).ShouldBeFalse();
-        FakeItEasy.A.CallTo(() => client.SensorsStateChanged()).MustHaveHappenedOnceExactly();
+        FakeItEasy.A.CallTo(() => bus.PublishAsync(A<SensorsChangedEvent>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
         var updated = (await harness.CreateContext().Sensors.FindAsync(sensor.Id))!;
         updated.Name.ShouldBe("New");
         updated.MacAddress.ShouldBe("new");

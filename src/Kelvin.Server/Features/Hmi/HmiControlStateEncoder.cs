@@ -11,7 +11,6 @@ public static class HmiControlStateEncoder
   public static byte[] Encode(ControlStateChange change)
   {
     using var stream = new MemoryStream();
-    stream.WriteByte((byte)HmiMessageType.ControlStateChanged);
     stream.WriteByte((byte)change.State);
     WriteOptionalFloat(stream, change.EnvironmentTemperatureC);
     WriteOptionalFloat(stream, change.TargetTemperatureC);

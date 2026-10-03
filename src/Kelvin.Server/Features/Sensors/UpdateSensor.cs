@@ -1,7 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
-using Kelvin.Server.Hubs;
-using Microsoft.AspNetCore.SignalR;
+using Kelvin.Server.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -14,8 +13,7 @@ public static class UpdateSensorErrors
   public static readonly Error DefaultError = new("UpdateSensor.NotFound", "The requested sensor was not found.");
 }
 
-public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IHubContext<ControlHub, IControlClient> controlHub)
-  : IHandler<UpdateSensorRequest>
+public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IEventBus bus) : IHandler<UpdateSensorRequest>
 {
   public async Task<Result> HandleAsync(UpdateSensorRequest request, CancellationToken ct = default)
   {
@@ -42,7 +40,7 @@ public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IHub
     }
 
     await context.SaveChangesAsync(ct);
-    await controlHub.Clients.All.SensorsStateChanged();
+    await bus.PublishAsync(new SensorsChangedEvent(), ct);
     cache.Remove(SensorsCache.Key);
 
     return Result.Success();

@@ -7,7 +7,7 @@
 // Only Heating/Cooling set points exist (see RunType) - one of each, at most.
 static const size_t MAX_SET_POINTS = 2;
 
-// Generous headroom over any realistic schedule count - see HmiStateDecoder::MAX_STATE_SIZE for the
+// Generous headroom over any realistic schedule count - see HmiFrameReassembler::MAX_MESSAGE_SIZE for the
 // buffer budget this was sized against.
 static const size_t MAX_SCHEDULES = 32;
 
@@ -49,7 +49,7 @@ struct ThermostatState
 
 namespace ThermostatStateParser
 {
-  // Parses the fully reassembled state blob (HmiStateDecoder::getState()/getStateLength()) into `outState`.
+  // Parses the fully reassembled state blob (HmiFrameReassembler::getMessage()/getMessageLength()) into `outState`.
   // Returns false if the buffer is truncated/malformed. Schedules beyond MAX_SCHEDULES are read (to keep the
   // offset correct) but dropped rather than overflowing `outState.schedules`.
   bool parse(const uint8_t *data, size_t length, ThermostatState &outState);

@@ -14,10 +14,6 @@ public record BroadcastHmiStateRequest() : IRequest;
 /// </summary>
 public class BroadcastHmiStateHandler(KelvinContext context, IHmiOutboundChannel outboundChannel) : IHandler<BroadcastHmiStateRequest>
 {
-  // ESP-NOW's payload limit is ~250 bytes; leave headroom for the 3 byte chunk header plus the 4 byte
-  // frame tag IHmiOutboundChannel prepends before this reaches the radio.
-  private const int MAX_CHUNK_DATA_SIZE = 200;
-
   public async Task<Result> HandleAsync(BroadcastHmiStateRequest request, CancellationToken ct = default)
   {
     var macAddresses = await context
@@ -32,36 +28,16 @@ public class BroadcastHmiStateHandler(KelvinContext context, IHmiOutboundChannel
     if (thermostat is null)
       return Result.Success();
 
-    var chunks = ChunkPayload(HmiThermostatStateEncoder.Encode(thermostat));
+    var frames = HmiEnvelope.Encode(HmiMessageType.ThermostatStateChunk, HmiThermostatStateEncoder.Encode(thermostat));
     foreach (var macAddress in macAddresses)
     {
-      foreach (var chunk in chunks)
+      foreach (var frame in frames)
       {
-        outboundChannel.Write(macAddress, chunk);
+        outboundChannel.Write(macAddress, frame);
       }
     }
 
     return Result.Success();
-  }
-
-  private static List<byte[]> ChunkPayload(byte[] data)
-  {
-    var chunkCount = (byte)Math.Max(1, (int)Math.Ceiling(data.Length / (double)MAX_CHUNK_DATA_SIZE));
-    var chunks = new List<byte[]>(chunkCount);
-
-    for (byte chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
-    {
-      var start = chunkIndex * MAX_CHUNK_DATA_SIZE;
-      var length = Math.Min(MAX_CHUNK_DATA_SIZE, data.Length - start);
-      var chunk = new byte[3 + length];
-      chunk[0] = (byte)HmiMessageType.ThermostatStateChunk;
-      chunk[1] = chunkIndex;
-      chunk[2] = chunkCount;
-      Buffer.BlockCopy(data, start, chunk, 3, length);
-      chunks.Add(chunk);
-    }
-
-    return chunks;
   }
 }
 

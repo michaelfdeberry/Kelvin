@@ -3,10 +3,8 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
-using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -51,7 +49,7 @@ public sealed class ControlServiceHarness
 
     /// <summary>
     /// The state changes the service asked to have recorded, in the order it queued them. Only safe to assert on
-    /// once <see cref="PushAsync"/> or <see cref="AdvanceAsync"/> has returned, for the same reason the relay
+    /// once <see cref="PushAsync" /> or <see cref="AdvanceAsync" /> has returned, for the same reason the relay
     /// calls are.
     /// </summary>
     public List<ControlStateChange> RecordedChanges { get; } = [];
@@ -93,7 +91,6 @@ public sealed class ControlServiceHarness
             );
 
         SetGateway(ControlFixtures.CreateGateway());
-        var (hub, clientProxy) = CreateFakeHub();
         _service = new ControlService(
             NullLogger<ControlService>.Instance,
             _controlChannel,
@@ -101,7 +98,7 @@ public sealed class ControlServiceHarness
             Relays,
             Time,
             _lifetime,
-            hub
+            A.Fake<IEventBus>()
         );
     }
 
@@ -192,20 +189,5 @@ public sealed class ControlServiceHarness
         Time.Advance(delay);
         await _saveObserved.Task;
         _saveObserved = null;
-    }
-
-    private static (
-        IHubContext<ControlHub, IControlClient> Hub,
-        IControlClient ClientProxy
-    ) CreateFakeHub()
-    {
-        var clientProxy = A.Fake<IControlClient>();
-        var clients = A.Fake<IHubClients<IControlClient>>();
-        A.CallTo(() => clients.All).Returns(clientProxy);
-
-        var hub = A.Fake<IHubContext<ControlHub, IControlClient>>();
-        A.CallTo(() => hub.Clients).Returns(clients);
-
-        return (hub, clientProxy);
     }
 }

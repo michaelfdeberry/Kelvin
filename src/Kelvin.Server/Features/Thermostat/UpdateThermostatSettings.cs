@@ -1,9 +1,7 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
-using Kelvin.Server.Features.Hmi;
-using Kelvin.Server.Hubs;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -32,8 +30,7 @@ public class UpdateThermostatSettingsHandler(
   KelvinContext context,
   IMemoryCache cache,
   IHandler<ValidateThermostatSafetyRequest> safetyValidator,
-  IHubContext<ControlHub, IControlClient> controlHub,
-  IHandler<BroadcastHmiStateRequest> hmiStateBroadcaster
+  IEventBus bus
 ) : IHandler<UpdateThermostatSettingsRequest>
 {
   public async Task<Result> HandleAsync(UpdateThermostatSettingsRequest request, CancellationToken ct = default)
@@ -74,8 +71,7 @@ public class UpdateThermostatSettingsHandler(
     await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
 
-    await controlHub.Clients.All.ThermostatStateChanged();
-    await hmiStateBroadcaster.HandleAsync(new BroadcastHmiStateRequest(), ct);
+    await bus.PublishAsync(new ThermostatConfigChangedEvent(), ct);
     return Result.Success();
   }
 

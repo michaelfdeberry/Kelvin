@@ -4,10 +4,10 @@
 #include <stdint.h>
 #include <HmiProtocol.h>
 
-// Builds the wire body (message type byte + payload) for each Hmi -> Server message, matching
+// Builds the wire frame (HmiEnvelope header + body) for each Hmi -> Server message, matching
 // Kelvin.Server's ReceiveHmiCommand.cs decode logic exactly (see HmiProtocol.h for the documented layout
-// of each message). Every function returns the number of bytes written into `buffer`, or 0 if `bufferSize`
-// was too small for that message.
+// of each message's body). Every function returns the number of bytes written into `buffer`, or 0 if
+// `bufferSize` was too small for that message.
 namespace HmiCommandEncoder
 {
   size_t encodeSensorReading(float temperatureC, float humidityPercentage, float batteryLevelPercentage, uint8_t *buffer, size_t bufferSize);

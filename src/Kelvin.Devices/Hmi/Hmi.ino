@@ -9,7 +9,7 @@
 #include "Config.h"
 #include "./src/battery/BatteryMonitor.h"
 #include "./src/protocol/HmiCommandEncoder.h"
-#include "./src/protocol/HmiStateDecoder.h"
+#include "./src/protocol/HmiFrameReassembler.h"
 #include "./src/protocol/ControlStateParser.h"
 #include "./src/protocol/EnvironmentReadingParser.h"
 #include "./src/ui/Ui.h"
@@ -17,7 +17,7 @@
 Communicator communicator;
 EnvironmentMonitor environmentMonitor;
 BatteryMonitor batteryMonitor;
-HmiStateDecoder stateDecoder;
+HmiFrameReassembler frameReassembler;
 Ui ui;
 
 unsigned long lastReadTime = 0;
@@ -32,18 +32,23 @@ void handleDownlinkMessages()
     return;
   }
 
-  auto messageType = (HmiMessageType)buffer[0];
+  if (!frameReassembler.addFrame(buffer, length))
+  {
+    return; // either a non-final chunk, or a malformed/truncated frame - nothing to dispatch yet
+  }
+
+  auto messageType = frameReassembler.getType();
+  const uint8_t *message = frameReassembler.getMessage();
+  size_t messageLength = frameReassembler.getMessageLength();
+
   if (messageType == HmiMessageType::ThermostatStateChunk)
   {
-    if (stateDecoder.addChunk(buffer + 1, length - 1))
-    {
-      ui.applyThermostatState(stateDecoder.getState(), stateDecoder.getStateLength());
-    }
+    ui.applyThermostatState(message, messageLength);
   }
   else if (messageType == HmiMessageType::ControlStateChanged)
   {
     ControlCallState controlState;
-    if (ControlStateParser::parse(buffer + 1, length - 1, controlState))
+    if (ControlStateParser::parse(message, messageLength, controlState))
     {
       ui.applyControlState(controlState);
     }
@@ -55,7 +60,7 @@ void handleDownlinkMessages()
   else if (messageType == HmiMessageType::EnvironmentReadingChanged)
   {
     EnvironmentAverageReading reading;
-    if (EnvironmentReadingParser::parse(buffer + 1, length - 1, reading))
+    if (EnvironmentReadingParser::parse(message, messageLength, reading))
     {
       ui.applyEnvironmentAverage(reading);
     }

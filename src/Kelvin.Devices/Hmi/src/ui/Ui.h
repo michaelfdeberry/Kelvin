@@ -27,7 +27,7 @@ public:
   void begin(Communicator &communicatorRef);
   void tick();
 
-  // Called once a full ThermostatStateChunk set has been reassembled by HmiStateDecoder.
+  // Called once a full ThermostatStateChunk set has been reassembled by HmiFrameReassembler.
   void applyThermostatState(const uint8_t *state, size_t stateLength);
 
   // Called whenever a ControlStateChanged message arrives (already parsed - it's small enough to never

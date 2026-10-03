@@ -10,7 +10,7 @@ public record BroadcastHmiEnvironmentReadingRequest(EnvironmentReading Reading) 
 
 /// <summary>
 /// Pushes the latest system-wide average reading to every registered panel, mirroring what
-/// <see cref="Hubs.EnvironmentReadingsHub" /> pushes to web clients - this is what keeps the panel's current
+/// <see cref="Hubs.RealtimeHub" /> pushes to web clients - this is what keeps the panel's current
 /// reading live between (far less frequent) ControlStateChanged pushes.
 /// </summary>
 public class BroadcastHmiEnvironmentReadingHandler(KelvinContext context, IHmiOutboundChannel outboundChannel)
@@ -27,9 +27,13 @@ public class BroadcastHmiEnvironmentReadingHandler(KelvinContext context, IHmiOu
       return Result.Success();
 
     var payload = HmiEnvironmentReadingEncoder.Encode(request.Reading);
+    var frames = HmiEnvelope.Encode(HmiMessageType.EnvironmentReadingChanged, payload);
     foreach (var macAddress in macAddresses)
     {
-      outboundChannel.Write(macAddress, payload);
+      foreach (var frame in frames)
+      {
+        outboundChannel.Write(macAddress, frame);
+      }
     }
 
     return Result.Success();

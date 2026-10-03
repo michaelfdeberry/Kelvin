@@ -5,14 +5,14 @@ namespace HmiCommandEncoder
 {
   size_t encodeSensorReading(float temperatureC, float humidityPercentage, float batteryLevelPercentage, uint8_t *buffer, size_t bufferSize)
   {
-    const size_t required = 15; // type + temp(4) + humidity(4) + co2(2) + battery(4)
-    if (bufferSize < required)
+    const uint16_t bodyLength = 14; // temp(4) + humidity(4) + co2(2) + battery(4)
+    if (bufferSize < HmiEnvelope::HEADER_SIZE + bodyLength)
     {
       return 0;
     }
 
-    size_t offset = 0;
-    buffer[offset++] = (uint8_t)HmiMessageType::SensorReading;
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SensorReading, 0, 1, bodyLength);
+    size_t offset = HmiEnvelope::HEADER_SIZE;
     memcpy(buffer + offset, &temperatureC, sizeof(float));
     offset += sizeof(float);
     memcpy(buffer + offset, &humidityPercentage, sizeof(float));
@@ -27,40 +27,43 @@ namespace HmiCommandEncoder
 
   size_t encodeSetMode(RunMode mode, uint8_t *buffer, size_t bufferSize)
   {
-    if (bufferSize < 2)
+    const uint16_t bodyLength = 1;
+    if (bufferSize < HmiEnvelope::HEADER_SIZE + bodyLength)
     {
       return 0;
     }
 
-    buffer[0] = (uint8_t)HmiMessageType::SetMode;
-    buffer[1] = (uint8_t)mode;
-    return 2;
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetMode, 0, 1, bodyLength);
+    buffer[HmiEnvelope::HEADER_SIZE] = (uint8_t)mode;
+    return HmiEnvelope::HEADER_SIZE + bodyLength;
   }
 
   size_t encodeSetFanEnabled(bool enabled, uint8_t *buffer, size_t bufferSize)
   {
-    if (bufferSize < 2)
+    const uint16_t bodyLength = 1;
+    if (bufferSize < HmiEnvelope::HEADER_SIZE + bodyLength)
     {
       return 0;
     }
 
-    buffer[0] = (uint8_t)HmiMessageType::SetFanEnabled;
-    buffer[1] = enabled ? 1 : 0;
-    return 2;
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetFanEnabled, 0, 1, bodyLength);
+    buffer[HmiEnvelope::HEADER_SIZE] = enabled ? 1 : 0;
+    return HmiEnvelope::HEADER_SIZE + bodyLength;
   }
 
   size_t encodeSetSetPoint(RunType type, float targetTemperatureC, uint8_t *buffer, size_t bufferSize)
   {
-    const size_t required = 6; // type + RunType(1) + target(4)
-    if (bufferSize < required)
+    const uint16_t bodyLength = 5; // RunType(1) + target(4)
+    if (bufferSize < HmiEnvelope::HEADER_SIZE + bodyLength)
     {
       return 0;
     }
 
-    buffer[0] = (uint8_t)HmiMessageType::SetSetPoint;
-    buffer[1] = (uint8_t)type;
-    memcpy(buffer + 2, &targetTemperatureC, sizeof(float));
-    return required;
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetSetPoint, 0, 1, bodyLength);
+    size_t offset = HmiEnvelope::HEADER_SIZE;
+    buffer[offset++] = (uint8_t)type;
+    memcpy(buffer + offset, &targetTemperatureC, sizeof(float));
+    return HmiEnvelope::HEADER_SIZE + bodyLength;
   }
 
   size_t encodeUpsertSchedule(
@@ -72,14 +75,14 @@ namespace HmiCommandEncoder
       uint8_t *buffer,
       size_t bufferSize)
   {
-    const size_t required = scheduleId ? 27 : 11; // type + hasId + [16] + RunType + start(2) + end(2) + target(4)
-    if (bufferSize < required)
+    const uint16_t bodyLength = scheduleId ? 26 : 10; // hasId + [16] + RunType(1) + start(2) + end(2) + target(4)
+    if (bufferSize < HmiEnvelope::HEADER_SIZE + bodyLength)
     {
       return 0;
     }
 
-    size_t offset = 0;
-    buffer[offset++] = (uint8_t)HmiMessageType::UpsertSchedule;
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::UpsertSchedule, 0, 1, bodyLength);
+    size_t offset = HmiEnvelope::HEADER_SIZE;
     buffer[offset++] = scheduleId ? 1 : 0;
     if (scheduleId)
     {
@@ -98,27 +101,27 @@ namespace HmiCommandEncoder
 
   size_t encodeRemoveSchedule(const uint8_t scheduleId[16], uint8_t *buffer, size_t bufferSize)
   {
-    const size_t required = 17; // type + id(16)
-    if (bufferSize < required)
+    const uint16_t bodyLength = 16;
+    if (bufferSize < HmiEnvelope::HEADER_SIZE + bodyLength)
     {
       return 0;
     }
 
-    buffer[0] = (uint8_t)HmiMessageType::RemoveSchedule;
-    memcpy(buffer + 1, scheduleId, 16);
-    return required;
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::RemoveSchedule, 0, 1, bodyLength);
+    memcpy(buffer + HmiEnvelope::HEADER_SIZE, scheduleId, 16);
+    return HmiEnvelope::HEADER_SIZE + bodyLength;
   }
 
   size_t encodeSetForecastLockouts(const float *heatingLockoutC, const float *coolingLockoutC, uint8_t *buffer, size_t bufferSize)
   {
-    const size_t required = 2 + (heatingLockoutC ? sizeof(float) : 0) + (coolingLockoutC ? sizeof(float) : 0);
-    if (bufferSize < required)
+    const uint16_t bodyLength = 2 + (heatingLockoutC ? sizeof(float) : 0) + (coolingLockoutC ? sizeof(float) : 0);
+    if (bufferSize < HmiEnvelope::HEADER_SIZE + bodyLength)
     {
       return 0;
     }
 
-    size_t offset = 0;
-    buffer[offset++] = (uint8_t)HmiMessageType::SetForecastLockouts;
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetForecastLockouts, 0, 1, bodyLength);
+    size_t offset = HmiEnvelope::HEADER_SIZE;
     buffer[offset++] = heatingLockoutC ? 1 : 0;
     if (heatingLockoutC)
     {

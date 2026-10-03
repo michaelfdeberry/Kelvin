@@ -31,16 +31,14 @@ public class ReceiveHmiCommandHandler(
   {
     await RegisterHmiAsync(request.MacAddress, ct);
 
-    if (request.Payload.Length == 0)
+    if (!HmiEnvelope.TryDecode(request.Payload, out var messageType, out _, out _, out _))
       return Result.Failure(ReceiveHmiCommandErrors.EmptyPayload);
-
-    var messageType = (HmiMessageType)request.Payload[0];
 
     if (messageType == HmiMessageType.SensorReading)
     {
-      // A ReadOnlySpan<byte> can't be kept as a local across an `await`, so it's re-sliced at each use
+      // A ReadOnlySpan<byte> can't be kept as a local across an `await`, so it's re-decoded at each use
       // site below instead of stored once in a shared variable.
-      var packet = BuildSensorPacket(request.MacAddress, request.Payload.AsSpan(1));
+      var packet = BuildSensorPacket(request.MacAddress, DecodeBody(request.Payload));
       return await saveSensorPacket.HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Hmi), ct);
     }
 
@@ -51,26 +49,35 @@ public class ReceiveHmiCommandHandler(
     return messageType switch
     {
       HmiMessageType.SetMode => await updateThermostat.HandleAsync(
-        new UpdateThermostatRequest((RunMode)request.Payload[1], thermostat.FanEnabled),
+        new UpdateThermostatRequest((RunMode)DecodeBody(request.Payload)[0], thermostat.FanEnabled),
         ct
       ),
-      HmiMessageType.SetFanEnabled => await updateThermostat.HandleAsync(new UpdateThermostatRequest(thermostat.Mode, request.Payload[1] != 0), ct),
+      HmiMessageType.SetFanEnabled => await updateThermostat.HandleAsync(
+        new UpdateThermostatRequest(thermostat.Mode, DecodeBody(request.Payload)[0] != 0),
+        ct
+      ),
       HmiMessageType.SetForecastLockouts => await updateThermostatSettings.HandleAsync(
-        BuildForecastLockoutsRequest(thermostat, request.Payload.AsSpan(1)),
+        BuildForecastLockoutsRequest(thermostat, DecodeBody(request.Payload)),
         ct
       ),
-      HmiMessageType.SetSetPoint => await updateThermostatSettings.HandleAsync(BuildSetPointRequest(thermostat, request.Payload.AsSpan(1)), ct),
+      HmiMessageType.SetSetPoint => await updateThermostatSettings.HandleAsync(
+        BuildSetPointRequest(thermostat, DecodeBody(request.Payload)),
+        ct
+      ),
       HmiMessageType.UpsertSchedule => await updateThermostatSettings.HandleAsync(
-        BuildUpsertScheduleRequest(thermostat, request.Payload.AsSpan(1)),
+        BuildUpsertScheduleRequest(thermostat, DecodeBody(request.Payload)),
         ct
       ),
       HmiMessageType.RemoveSchedule => await updateThermostatSettings.HandleAsync(
-        BuildRemoveScheduleRequest(thermostat, request.Payload.AsSpan(1)),
+        BuildRemoveScheduleRequest(thermostat, DecodeBody(request.Payload)),
         ct
       ),
       _ => Result.Failure(ReceiveHmiCommandErrors.UnknownCommand),
     };
   }
+
+  private static ReadOnlySpan<byte> DecodeBody(byte[] payload) =>
+    HmiEnvelope.TryDecode(payload, out _, out _, out _, out var body) ? body : default;
 
   private static SensorPacket BuildSensorPacket(string macAddress, ReadOnlySpan<byte> body) =>
     new()

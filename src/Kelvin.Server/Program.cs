@@ -42,6 +42,7 @@ builder.Services.AddDbContext<KelvinContext>(
       .AddInterceptors(serviceProvider.GetRequiredService<EntityUpdateInterceptor>())
 );
 builder.Services.AddSingleton<IDispatcher, Dispatcher>();
+builder.Services.AddSingleton<IEventBus, EventBus>();
 builder.Services.AddHttpClient("OpenMeteoGeoCoding", client => client.BaseAddress = new Uri("https://geocoding-api.open-meteo.com/v1/"));
 builder.Services.AddHttpClient("OpenMeteoWeather", client => client.BaseAddress = new Uri("https://api.open-meteo.com/v1/"));
 builder.Services.AddSingleton<IWeatherApi, OpenMeteoWeatherApi>();

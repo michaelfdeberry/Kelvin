@@ -7,12 +7,12 @@
 // it verbatim, the server dispatches purely on the tag.
 static const uint8_t hmiFrameTag[4] = {0x4B, 0x48, 0x4D, 0x49}; // "KHMI"
 
-// Mirrors Kelvin.Server's Models/HmiMessageType.cs - keep in sync. The first byte of every message body
-// (after Communicator's frame tag is stripped) identifies how to decode the rest.
+// Mirrors Kelvin.Server's Models/HmiMessageType.cs - keep in sync. Identifies how to decode an Hmi
+// message's body (the content of the HmiEnvelope below, both directions).
 enum class HmiMessageType : uint8_t
 {
-  // Server -> Hmi. One chunk of the full thermostat state.
-  // Body: uint8 chunkIndex, uint8 chunkCount, [chunk bytes of the encoding documented below].
+  // Server -> Hmi. The full thermostat state, possibly spanning multiple envelope chunks.
+  // Body: [chunk bytes of the encoding documented below].
   ThermostatStateChunk = 1,
 
   // Hmi -> Server. The panel's own onboard reading.
@@ -21,8 +21,7 @@ enum class HmiMessageType : uint8_t
   SensorReading = 2,
 
   // Server -> Hmi. The live HVAC call state (only ever a Call-kind ControlState change - Dwell/Heating/
-  // Cooling), for the HEATING/COOLING badge. Small enough to never need chunking, unlike
-  // ThermostatStateChunk.
+  // Cooling), for the HEATING/COOLING badge. Never needs more than one envelope chunk.
   // Body: uint8 ControlState, uint8 hasEnvironmentTemperature, [float environmentTemperatureC],
   // uint8 hasTargetTemperature, [float targetTemperatureC], uint8 hasHumidity, [float humidityPercentage],
   // uint8 hasCO2, [float co2LevelPpm]. The environment/humidity/CO2 values are the system-wide average
@@ -56,6 +55,42 @@ enum class HmiMessageType : uint8_t
   // Hmi -> Server. Body: uint8 hasHeating, [float heatingLockoutC], uint8 hasCooling, [float coolingLockoutC].
   SetForecastLockouts = 0x15,
 };
+
+// Mirrors Kelvin.Server's Features/Hmi/HmiEnvelope.cs - keep in sync. Every Hmi message, both directions,
+// is framed with this 5-byte header before its HmiMessageType-specific body: message type, chunk index,
+// chunk count, and this frame's body length (little-endian uint16). A chunkCount of 1 means the body is
+// complete in this single frame; uplink commands never chunk in practice but still carry the same header
+// for protocol symmetry.
+namespace HmiEnvelope
+{
+  static const size_t HEADER_SIZE = 5;
+
+  inline void writeHeader(uint8_t *buffer, HmiMessageType type, uint8_t chunkIndex, uint8_t chunkCount, uint16_t bodyLength)
+  {
+    buffer[0] = (uint8_t)type;
+    buffer[1] = chunkIndex;
+    buffer[2] = chunkCount;
+    buffer[3] = (uint8_t)(bodyLength & 0xFF);
+    buffer[4] = (uint8_t)((bodyLength >> 8) & 0xFF);
+  }
+
+  // `frameLength` is the full physical frame (header + body). Returns false if the frame is too short to
+  // even hold the header, or shorter than the header's own declared body length.
+  inline bool readHeader(const uint8_t *frame, size_t frameLength, HmiMessageType &type, uint8_t &chunkIndex, uint8_t &chunkCount, uint16_t &bodyLength)
+  {
+    if (frameLength < HEADER_SIZE)
+    {
+      return false;
+    }
+
+    type = (HmiMessageType)frame[0];
+    chunkIndex = frame[1];
+    chunkCount = frame[2];
+    bodyLength = (uint16_t)(frame[3] | (frame[4] << 8));
+    return frameLength >= HEADER_SIZE + bodyLength;
+  }
+}
+
 
 // Mirrors Kelvin.Server's Models/RunMode.cs ordinal values - keep in sync.
 enum class RunMode : uint8_t

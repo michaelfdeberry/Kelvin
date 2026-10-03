@@ -64,6 +64,11 @@ export abstract class SignalRHubBase extends LitElement {
     });
   }
 
+  /** Registers a raw handler with no automatic event dispatch, for callers that need to decide per-message what (if anything) to dispatch. */
+  protected registerRawHandler<T>(handlerName: string, callback: (payload: T) => void): void {
+    this.connection?.on(handlerName, callback);
+  }
+
   private ensureConnection(): HubConnection {
     if (this.connection) {
       return this.connection;

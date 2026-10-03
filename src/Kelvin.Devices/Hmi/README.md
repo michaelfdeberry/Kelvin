@@ -69,8 +69,9 @@ Replace `COMX` with the board's actual serial port.
 - `src/io/IoExtension.h`/`.cpp` - drives the IO extension chip's Mode/Output registers directly (backlight,
   touch-reset), bypassing `ESP32_Display_Panel`'s expander abstraction for the reason above.
 - `src/battery/` - battery voltage/percentage via the same IO extension chip's I2C ADC register.
-- `src/protocol/` - `HmiCommandEncoder` (builds outgoing command bytes), `HmiStateDecoder` (reassembles
-  chunked thermostat state pushes from the server), `ThermostatStateParser` (decodes a reassembled state
+- `src/protocol/` - `HmiCommandEncoder` (builds outgoing command bytes), `HmiFrameReassembler` (reassembles
+  any chunked downlink message via the shared HmiEnvelope header, including the thermostat state pushes),
+  `ThermostatStateParser` (decodes a reassembled state
   blob into a `ThermostatState` struct), `ControlStateParser` (decodes the small, unchunked
   `ControlStateChanged` push into a `ControlCallState` struct) and `EnvironmentReadingParser` (decodes the
   small, unchunked `EnvironmentReadingChanged` push - the real-time system-wide average reading - into an

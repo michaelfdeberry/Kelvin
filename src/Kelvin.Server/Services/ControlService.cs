@@ -2,10 +2,8 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
-using Kelvin.Server.Features.Hmi;
-using Kelvin.Server.Hubs;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
-using Microsoft.AspNetCore.SignalR;
 
 namespace Kelvin.Server.Services;
 
@@ -25,7 +23,7 @@ public class ControlService(
   IRelayController relays,
   TimeProvider time,
   IHostApplicationLifetime lifetime,
-  IHubContext<ControlHub, IControlClient> hub
+  IEventBus bus
 ) : BackgroundService
 {
   private static readonly Guid subscriberId = Guid.NewGuid();
@@ -533,24 +531,9 @@ public class ControlService(
     {
       foreach (var change in _pendingChanges)
       {
-        try
-        {
-          await hub.Clients.All.ControlStateChanged(ControlStateChangeDto.FromEntity(change));
-        }
-        catch (Exception ex)
-        {
-          // The change is still persisted, so a client that missed the broadcast can read the current state.
-          logger.LogError(ex, "Failed to broadcast the {Kind} state change to {State}.", change.Kind, change.State);
-        }
-
-        try
-        {
-          await dispatcher.DispatchAsync(new BroadcastHmiControlStateRequest(change), cancellationToken);
-        }
-        catch (Exception ex)
-        {
-          logger.LogError(ex, "Failed to broadcast the {Kind} state change to {State} to the Hmi panels.", change.Kind, change.State);
-        }
+        // The change is still persisted below even if a destination fails to receive it, so a client/panel that
+        // missed the broadcast can still read the current state - the bus already isolates failures per destination.
+        await bus.PublishAsync(new ControlStateChangedEvent(change), cancellationToken);
 
         var result = await dispatcher.DispatchAsync(new SaveControlStateChangeRequest(change), cancellationToken);
         if (result.IsFailure)
