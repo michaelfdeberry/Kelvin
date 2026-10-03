@@ -9,7 +9,7 @@
 #define TIMER_WAKE_INTERVAL_S 60ULL
 #define HEARTBEAT_INTERVAL_S 300ULL
 
-// This board (ESP32-S3-Touch-LCD-7B, not the plain -7) uses an "IO EXTENSION" helper chip for backlight,
+// This board (ESP32-S3-Touch-LCD-7B) uses an "IO EXTENSION" helper chip for backlight,
 // touch reset, LCD reset, SD card CS, and battery ADC - confirmed via Waveshare's official Arduino demo
 // source (github.com/waveshareteam/ESP32-S3-Touch-LCD-7B, examples/06_LCD and 08_TOUCH: io_extension.h/
 // .cpp) to be a single-I2C-address, register-mapped chip (Mode=0x02, Output=0x03, Input=0x04, PWM=0x05,
@@ -27,10 +27,8 @@
 #define BATTERY_EMPTY_VOLTAGE 3.2f
 #define BATTERY_FULL_VOLTAGE 4.2f
 
-// TODO: an onboard temperature/humidity sensor is not confirmed on this board at all - if/when one is
-// wired up, it most likely shares the IO_EXPANDER_SDA_PIN/SCL_PIN bus above (the display leaves little
-// room for a second bus); only its I2C address would differ. EnvironmentMonitor::begin() takes whichever
-// TwoWire is passed in, so no further plumbing should be needed once that's confirmed.
+// The SHT40 is wired to the board's I2C port, so it shares the IO_EXPANDER_SDA_PIN/SCL_PIN bus above
+// (address 0x44, set by EnvironmentMonitor::begin) - Hmi.ino passes that same Wire to the monitor.
 
 // Confirmed via Waveshare's official ESP32-S3-Touch-LCD-7B Arduino demo (rgb_lcd_port.h: EXAMPLE_LCD_H_RES/
 // V_RES) - 1024x600, matching the original product-description guess. `esp_panel_board_custom_conf.h` in
