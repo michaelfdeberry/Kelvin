@@ -30,9 +30,13 @@ Compile from the repository root:
 arduino-cli compile --fqbn "esp32:esp32:esp32s3_powerfeather:Revision=V2" --libraries "src/Kelvin.Devices" "src/Kelvin.Devices/Node"
 ```
 
-The `--libraries` flag points at `Common`'s parent folder - `Common` is a proper Arduino library (shared with the Hmi panel sketch), not a plain include folder, so its `.cpp` files need to be found and compiled that way.
+Upload from the repository root:
 
-To flash the board, connect it over USB-C and select the matching ESP32-S3 PowerFeather V2 board and serial port in Arduino IDE or Arduino CLI. If the board does not accept an upload, hold `BTN`, press `RST` momentarily, then release `BTN` to enter download mode.
+```powershell
+arduino-cli compile --fqbn "esp32:esp32:esp32s3_powerfeather:Revision=V2" --libraries "src/Kelvin.Devices" --upload -p COMX "src/Kelvin.Devices/Node"
+```
+
+Replace `COMX` with the board's actual serial port.
 
 ## Charging Mode
 

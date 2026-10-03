@@ -2,6 +2,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
+using Kelvin.Server.Features.Hmi;
 using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Microsoft.AspNetCore.SignalR;
@@ -540,6 +541,15 @@ public class ControlService(
         {
           // The change is still persisted, so a client that missed the broadcast can read the current state.
           logger.LogError(ex, "Failed to broadcast the {Kind} state change to {State}.", change.Kind, change.State);
+        }
+
+        try
+        {
+          await dispatcher.DispatchAsync(new BroadcastHmiControlStateRequest(change), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+          logger.LogError(ex, "Failed to broadcast the {Kind} state change to {State} to the Hmi panels.", change.Kind, change.State);
         }
 
         var result = await dispatcher.DispatchAsync(new SaveControlStateChangeRequest(change), cancellationToken);

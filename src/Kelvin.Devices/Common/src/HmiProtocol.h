@@ -20,6 +20,23 @@ enum class HmiMessageType : uint8_t
   // float batteryLevelPercentage - all little-endian, tightly packed (14 bytes).
   SensorReading = 2,
 
+  // Server -> Hmi. The live HVAC call state (only ever a Call-kind ControlState change - Dwell/Heating/
+  // Cooling), for the HEATING/COOLING badge. Small enough to never need chunking, unlike
+  // ThermostatStateChunk.
+  // Body: uint8 ControlState, uint8 hasEnvironmentTemperature, [float environmentTemperatureC],
+  // uint8 hasTargetTemperature, [float targetTemperatureC], uint8 hasHumidity, [float humidityPercentage],
+  // uint8 hasCO2, [float co2LevelPpm]. The environment/humidity/CO2 values are the system-wide average
+  // across every sensor, not any one sensor's raw reading - the panel has no need for (and does not
+  // receive) individual sensor values.
+  ControlStateChanged = 3,
+
+  // Server -> Hmi. The same system-wide average reading pushed to web clients via EnvironmentReadingsHub -
+  // fires far more often than ControlStateChanged (every sensor packet, not just on an HVAC state
+  // transition), so this is the panel's real-time source for the current reading.
+  // Body: float temperatureC, float humidityPercentage, float co2LevelPpm - all little-endian, tightly
+  // packed (12 bytes).
+  EnvironmentReadingChanged = 4,
+
   // Hmi -> Server. Body: uint8 RunMode.
   SetMode = 0x10,
 
@@ -55,6 +72,21 @@ enum class RunType : uint8_t
 {
   Heating = 0,
   Cooling = 1,
+};
+
+// Mirrors Kelvin.Server's Models/ControlMessage.cs ControlState enum ordinals - keep in sync. Only
+// Dwell/Heating/Cooling are ever sent in a ControlStateChanged message (Kind=Call changes).
+enum class ControlState : uint8_t
+{
+  Disable = 0,
+  Enable = 1,
+  Dwell = 2,
+  Heating = 3,
+  Cooling = 4,
+  FanOn = 5,
+  FanOff = 6,
+  Startup = 7,
+  Fault = 8,
 };
 
 // The full thermostat state, as reassembled from one or more ThermostatStateChunk messages (see

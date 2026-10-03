@@ -10,6 +10,8 @@
 #include "./src/battery/BatteryMonitor.h"
 #include "./src/protocol/HmiCommandEncoder.h"
 #include "./src/protocol/HmiStateDecoder.h"
+#include "./src/protocol/ControlStateParser.h"
+#include "./src/protocol/EnvironmentReadingParser.h"
 #include "./src/ui/Ui.h"
 
 Communicator communicator;
@@ -38,6 +40,30 @@ void handleDownlinkMessages()
       ui.applyThermostatState(stateDecoder.getState(), stateDecoder.getStateLength());
     }
   }
+  else if (messageType == HmiMessageType::ControlStateChanged)
+  {
+    ControlCallState controlState;
+    if (ControlStateParser::parse(buffer + 1, length - 1, controlState))
+    {
+      ui.applyControlState(controlState);
+    }
+    else
+    {
+      LOG_PRINTLN("Failed to parse a ControlStateChanged message (truncated/malformed) - ignoring.");
+    }
+  }
+  else if (messageType == HmiMessageType::EnvironmentReadingChanged)
+  {
+    EnvironmentAverageReading reading;
+    if (EnvironmentReadingParser::parse(buffer + 1, length - 1, reading))
+    {
+      ui.applyEnvironmentAverage(reading);
+    }
+    else
+    {
+      LOG_PRINTLN("Failed to parse an EnvironmentReadingChanged message (truncated/malformed) - ignoring.");
+    }
+  }
 }
 
 // Reads the onboard sensor and sends a reading when it's changed enough or the heartbeat interval elapsed.
@@ -52,6 +78,9 @@ void sendReadingIfNeeded()
 
   battery_status battery = batteryMonitor.getStatus();
   payload.batteryLevel = battery.level;
+
+  // The UI reflects every fresh reading immediately, independent of the send-throttling below.
+  ui.applyEnvironmentReading(payload.temperature, payload.humidity);
 
   if (!environmentMonitor.shouldSendUpdate(payload))
   {
@@ -72,7 +101,11 @@ void setup()
 {
   LOG_BEGIN(9600, true);
 
-  Wire.begin(IO_EXPANDER_SDA_PIN, IO_EXPANDER_SCL_PIN);
+  // Must run before ui.begin(): the display panel library (CH422G/GT911) shares this exact bus and is
+  // configured to skip its own host init, reusing whatever Wire.begin() already set up here (see
+  // esp_panel_board_custom_conf.h's SKIP_INIT_HOST comments) - installing the I2C driver twice on the
+  // same port fails.
+  Wire.begin(IO_EXPANDER_SDA_PIN, IO_EXPANDER_SCL_PIN, 400000);
 
   environmentMonitor.begin(Wire);
   batteryMonitor.begin(Wire);

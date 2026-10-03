@@ -12,7 +12,10 @@
 class HmiStateDecoder
 {
 public:
-  static const size_t MAX_STATE_SIZE = 512;
+  // Comfortably covers mode/fan/hysteresis/lockouts/set points plus up to a few dozen schedules (see
+  // ThermostatStateParser::MAX_SCHEDULES) - well above the server's ~200 byte-per-chunk budget, so this is
+  // reassembling at most a handful of chunks.
+  static const size_t MAX_STATE_SIZE = 2048;
 
   // Feeds one ThermostatStateChunk's payload, i.e. everything after the HmiMessageType byte (starting at
   // chunkIndex). Returns true once the final chunk has been received and the full state is ready.

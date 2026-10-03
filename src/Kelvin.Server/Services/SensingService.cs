@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
+using Kelvin.Server.Features.Hmi;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
@@ -147,6 +148,15 @@ public class SensingService(
 
     await environmentReadingChannel.WriteAsync(_environment, stoppingToken);
     await environmentReadingsHub.Clients.All.ReadingsUpdated(_environment);
+
+    try
+    {
+      await dispatcher.DispatchAsync(new BroadcastHmiEnvironmentReadingRequest(_environment), stoppingToken);
+    }
+    catch (Exception ex)
+    {
+      logger.LogError(ex, "Failed to broadcast the updated environment reading to the Hmi panels.");
+    }
   }
 
   private async Task<bool> PruneEnvironmentReadingAsync(IEnumerable<SensorResponse> sensors, CancellationToken stoppingToken)
