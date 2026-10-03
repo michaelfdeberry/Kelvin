@@ -22,9 +22,12 @@ public class UpdateThermostatSettingsTests
         var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
         var bus = CreateFakeEventBus();
 
-        var result = await new UpdateThermostatSettingsHandler(context, cache, validator, bus).HandleAsync(
-            new UpdateThermostatSettingsRequest(null, null, [], [])
-        );
+        var result = await new UpdateThermostatSettingsHandler(
+            context,
+            cache,
+            validator,
+            bus
+        ).HandleAsync(new UpdateThermostatSettingsRequest(null, null, [], []));
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldBe(UpdateThermostatSettingsErrors.ThermostatNotFound);

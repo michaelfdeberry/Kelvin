@@ -37,13 +37,7 @@ public static class HmiEnvelope
     return frames;
   }
 
-  public static bool TryDecode(
-    byte[] frame,
-    out HmiMessageType type,
-    out byte chunkIndex,
-    out byte chunkCount,
-    out ReadOnlySpan<byte> payload
-  )
+  public static bool TryDecode(byte[] frame, out HmiMessageType type, out byte chunkIndex, out byte chunkCount, out ReadOnlySpan<byte> payload)
   {
     if (frame.Length < HeaderSize)
     {

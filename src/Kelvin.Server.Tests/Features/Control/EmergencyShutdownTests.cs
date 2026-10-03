@@ -57,7 +57,8 @@ public class EmergencyShutdownTests
                 )
             )
             .MustHaveHappenedOnceExactly();
-        A.CallTo(() => bus.PublishAsync(A<ThermostatConfigChangedEvent>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+        A.CallTo(() => bus.PublishAsync(A<ThermostatConfigChangedEvent>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
 
         await using var readContext = harness.CreateContext();
         var thermostat = readContext.Thermostats.Single();

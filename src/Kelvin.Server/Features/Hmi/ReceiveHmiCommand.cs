@@ -60,10 +60,7 @@ public class ReceiveHmiCommandHandler(
         BuildForecastLockoutsRequest(thermostat, DecodeBody(request.Payload)),
         ct
       ),
-      HmiMessageType.SetSetPoint => await updateThermostatSettings.HandleAsync(
-        BuildSetPointRequest(thermostat, DecodeBody(request.Payload)),
-        ct
-      ),
+      HmiMessageType.SetSetPoint => await updateThermostatSettings.HandleAsync(BuildSetPointRequest(thermostat, DecodeBody(request.Payload)), ct),
       HmiMessageType.UpsertSchedule => await updateThermostatSettings.HandleAsync(
         BuildUpsertScheduleRequest(thermostat, DecodeBody(request.Payload)),
         ct
@@ -76,8 +73,7 @@ public class ReceiveHmiCommandHandler(
     };
   }
 
-  private static ReadOnlySpan<byte> DecodeBody(byte[] payload) =>
-    HmiEnvelope.TryDecode(payload, out _, out _, out _, out var body) ? body : default;
+  private static ReadOnlySpan<byte> DecodeBody(byte[] payload) => HmiEnvelope.TryDecode(payload, out _, out _, out _, out var body) ? body : default;
 
   private static SensorPacket BuildSensorPacket(string macAddress, ReadOnlySpan<byte> body) =>
     new()

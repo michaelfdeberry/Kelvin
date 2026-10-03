@@ -91,7 +91,6 @@ namespace HmiEnvelope
   }
 }
 
-
 // Mirrors Kelvin.Server's Models/RunMode.cs ordinal values - keep in sync.
 enum class RunMode : uint8_t
 {

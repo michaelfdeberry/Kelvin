@@ -15,12 +15,8 @@ public static class UpdateThermostatErrors
   public static readonly Error ThermostatNotFound = new("UpdateThermostat.ThermostatNotFound", "The thermostat with the specified ID was not found.");
 }
 
-public class UpdateThermostatHandler(
-  KelvinContext context,
-  IMemoryCache cache,
-  IControlChannel controlChannel,
-  IEventBus bus
-) : IHandler<UpdateThermostatRequest>
+public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, IControlChannel controlChannel, IEventBus bus)
+  : IHandler<UpdateThermostatRequest>
 {
   public async Task<Result> HandleAsync(UpdateThermostatRequest request, CancellationToken ct = default)
   {

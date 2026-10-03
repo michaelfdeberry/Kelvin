@@ -35,7 +35,6 @@ public enum HmiMessageType : byte
   /// </summary>
   EnvironmentReadingChanged = 4,
 
-
   /// <summary>Hmi -> Server. Body: byte RunMode.</summary>
   SetMode = 0x10,
 

@@ -123,9 +123,12 @@ public class UpdateThermostatTests
             var (channel, _) = CreateFakeControlChannel();
             var bus = CreateFakeEventBus();
 
-            var result = await new UpdateThermostatHandler(context, cache, channel, bus).HandleAsync(
-                new UpdateThermostatRequest(RunMode.Heating, true)
-            );
+            var result = await new UpdateThermostatHandler(
+                context,
+                cache,
+                channel,
+                bus
+            ).HandleAsync(new UpdateThermostatRequest(RunMode.Heating, true));
             result.IsSuccess.ShouldBeTrue();
         }
 

@@ -35,7 +35,9 @@ public class DeleteSensorTests
 
         result.IsSuccess.ShouldBeTrue();
         cache.TryGetValue(SensorsCache.Key, out _).ShouldBeFalse();
-        FakeItEasy.A.CallTo(() => bus.PublishAsync(A<SensorsChangedEvent>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+        FakeItEasy
+            .A.CallTo(() => bus.PublishAsync(A<SensorsChangedEvent>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
         (await harness.CreateContext().Sensors.FindAsync(sensorId))!.DeletedAt.ShouldNotBeNull();
     }
 }
