@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kelvin HMI - layout mockups (1024x600)</title>
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Same tokens as Kelvin.Client app/styles.css / Hmi UiTheme.h */
+      :root {
+        --bg-dark: #0f172a;
+        --bg-panel: #1e293b;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --heat: #f97316;
+        --cool: #3b82f6;
+        --idle: #475569;
+        --border: #334155;
+        --primary: #2563eb;
+        --success: #22c55e;
+        --danger: #ef4444;
+        --accent: var(--idle);
+        --accent-overlay: rgb(71 85 105 / 30%);
+      }
+      body[data-state='heating'] {
+        --accent: var(--heat);
+        --accent-overlay: rgb(249 115 22 / 22%);
+      }
+      body[data-state='cooling'] {
+        --accent: var(--cool);
+        --accent-overlay: rgb(59 130 246 / 22%);
+      }
+      body[data-state='off'] {
+        --accent: var(--idle);
+        --accent-overlay: rgb(71 85 105 / 30%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #020617;
+        color: var(--text-main);
+        font-family: Montserrat, 'Segoe UI', sans-serif;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 10px 20px;
+        background: #0b1220;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
+        color: var(--text-muted);
+      }
+      .toolbar button,
+      .toolbar select {
+        background: var(--bg-panel);
+        color: var(--text-main);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 12px;
+        font: inherit;
+        cursor: pointer;
+      }
+      .toolbar button.on {
+        background: var(--primary);
+        border-color: var(--primary);
+      }
+      main {
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+        align-items: center;
+      }
+      .frame h2 {
+        margin: 0 0 4px;
+        font-size: 18px;
+        font-weight: 500;
+      }
+      .frame p {
+        margin: 0 0 10px;
+        max-width: 1024px;
+        color: var(--text-muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .scale {
+        transform-origin: top left;
+      }
+
+      /* ---- 1024x600 screen; only Montserrat 14/20/32/48 exist today, 96 needs a generated digits-only font ---- */
+      .screen {
+        width: 1024px;
+        height: 600px;
+        background: var(--bg-dark);
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        user-select: none;
+      }
+      .f14 {
+        font-size: 14px;
+      }
+      .f20 {
+        font-size: 20px;
+      }
+      .f32 {
+        font-size: 32px;
+      }
+      .f48 {
+        font-size: 48px;
+      }
+      .f96 {
+        font-size: 96px;
+        font-weight: 400;
+      }
+      .muted {
+        color: var(--text-muted);
+      }
+      .accent {
+        color: var(--accent);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+      }
+      .col {
+        display: flex;
+        flex-direction: column;
+      }
+      .card {
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 18px;
+      }
+      .btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-panel);
+        border-radius: 8px;
+        font-size: 20px;
+        cursor: pointer;
+        border: 0;
+        color: var(--text-main);
+        font-family: inherit;
+      }
+      .btn:active {
+        filter: brightness(1.25);
+      }
+      .mbtn.active[data-mode='auto'] {
+        background: var(--success);
+      }
+      .mbtn.active[data-mode='heat'] {
+        background: var(--heat);
+      }
+      .mbtn.active[data-mode='cool'] {
+        background: var(--cool);
+      }
+      .mbtn.active[data-mode='off'] {
+        background: var(--idle);
+      }
+      .fan.on {
+        background: var(--primary);
+      }
+      .step {
+        background: var(--bg-dark);
+        border: 2px solid var(--border);
+        font-size: 48px;
+        line-height: 1;
+      }
+      .badge {
+        padding: 4px 14px;
+        border-radius: 20px;
+        border: 1px solid var(--accent);
+        background: var(--accent-overlay);
+        font-size: 14px;
+      }
+      .badge.hidden {
+        visibility: hidden;
+      }
+      .batt {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--text-muted);
+      }
+      .batt i {
+        display: inline-block;
+        width: 30px;
+        height: 14px;
+        border: 2px solid var(--text-muted);
+        border-radius: 3px;
+        position: relative;
+      }
+      .batt i::after {
+        content: '';
+        position: absolute;
+        left: 1px;
+        top: 1px;
+        bottom: 1px;
+        width: 70%;
+        background: var(--success);
+        border-radius: 1px;
+      }
+      .topbar {
+        height: 52px;
+        padding: 0 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .topbar .grow {
+        flex: 1;
+      }
+      svg.ring {
+        display: block;
+        overflow: visible;
+      }
+
+      /* A */
+      .A .body {
+        display: flex;
+        gap: 20px;
+        padding: 14px 20px 20px;
+        height: 548px;
+      }
+      .A .left {
+        width: 530px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .A .center {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+      .A .right {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      /* B */
+      .B .grid {
+        padding: 16px;
+        height: 600px;
+        display: grid;
+        gap: 16px;
+        grid-template-rows: 292px 116px 1fr;
+      }
+      .B .r1 {
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        gap: 16px;
+      }
+      .B .r2 {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      .B .r3 {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      .B .tile-cur {
+        border-top: 5px solid var(--accent);
+        justify-content: space-between;
+      }
+      /* C */
+      .C .grid {
+        padding: 16px;
+        height: 600px;
+        display: grid;
+        grid-template-columns: 200px 1fr 232px;
+        gap: 16px;
+      }
+      .C .rail {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .C .mid {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        position: relative;
+      }
+      .C .stats {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .C .stats .card {
+        flex: 1;
+        justify-content: center;
+      }
+      /* D */
+      .D .main {
+        padding: 14px 28px 20px;
+        display: flex;
+        flex-direction: column;
+        height: 548px;
+        justify-content: space-between;
+      }
+      .D .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+      }
+      .D .track {
+        position: relative;
+        height: 70px;
+        margin: 0 30px;
+        cursor: pointer;
+        touch-action: none;
+      }
+      .D .rail-bar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 28px;
+        height: 16px;
+        border-radius: 8px;
+        background: var(--bg-panel);
+      }
+      .D .fill {
+        position: absolute;
+        left: 0;
+        top: 28px;
+        height: 16px;
+        border-radius: 8px;
+        background: var(--accent);
+      }
+      .D .knob {
+        position: absolute;
+        top: 8px;
+        width: 56px;
+        height: 56px;
+        margin-left: -28px;
+        border-radius: 50%;
+        background: var(--text-main);
+        border: 6px solid var(--accent);
+        box-shadow: 0 0 0 6px var(--accent-overlay);
+      }
+      .D .mark {
+        position: absolute;
+        top: 0;
+        margin-left: -1px;
+        width: 2px;
+        height: 28px;
+        background: var(--text-muted);
+      }
+      .D .mark span {
+        position: absolute;
+        top: -22px;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-size: 14px;
+        color: var(--text-muted);
+      }
+      .D .ends {
+        display: flex;
+        justify-content: space-between;
+        margin: 0 30px;
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+      .D .bar {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr) 1.2fr 1.2fr;
+        gap: 12px;
+        height: 84px;
+      }
+    </style>
+  </head>
+  <body data-state="heating">
+    <div class="toolbar">
+      <span>Preview state:</span>
+      <button data-set="idle">Idle (Auto)</button
+      ><button
+        data-set="heating"
+        class="on"
+      >
+        Heating
+      </button>
+      <button data-set="cooling">Cooling</button><button data-set="off">Off</button>
+      <span style="margin-left: 16px">Zoom:</span>
+      <select id="zoom">
+        <option value="1">100%</option>
+        <option
+          value="0.8"
+          selected
+        >
+          80%
+        </option>
+        <option value="0.6">60%</option>
+      </select>
+      <span>Mode buttons, +/-, Fan and the slider in D are live.</span>
+    </div>
+    <main id="main"></main>
+
+    <script>
+      const S = { call: 'heating', mode: 'heat', target: 72, cur: 70.4, hum: 58, co2: 650, obT: 71.2, obH: 44.8, batt: 87, fan: false };
+      const MIN = 50,
+        MAX = 90,
+        frac = t => Math.min(1, Math.max(0, (t - MIN) / (MAX - MIN)));
+      const fmt = t => t.toFixed(1) + '\u00B0F';
+      const modeToCall = { auto: 'idle', heat: 'heating', cool: 'cooling', off: 'off' };
+      const BADGE = { heating: 'HEATING', cooling: 'COOLING' };
+
+      const topbar = title => `<div class="topbar"><span class="f20">${title}</span><span class="grow"></span>
+  <span class="badge js-badge"></span><span class="batt"><i></i><span class="js-batt"></span></span></div>`;
+      const modes = (extra = '') =>
+        ['auto:Auto', 'heat:Heat', 'cool:Cool', 'off:Off']
+          .map(m => {
+            const [k, l] = m.split(':');
+            return `<button class="btn mbtn ${extra}" data-mode="${k}">${l}</button>`;
+          })
+          .join('');
+      const fanBtn = (cls = '') => `<button class="btn fan js-fan ${cls}"></button>`;
+      const sched = (cls = '') => `<button class="btn ${cls}">Schedules</button>`;
+      const ring = (size, r, w, start, sweep, id) => `<svg class="ring" id="${id}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"
+  data-size="${size}" data-r="${r}" data-w="${w}" data-start="${start}" data-sweep="${sweep}"></svg>`;
+
+      const frames = [
+        {
+          id: 'A',
+          title: 'A - Dial + control column',
+          note: 'Keeps the thermostat-dial look from the kiosk but fills the screen: a 480px ring on the left, everything you touch on the right. Set point +/- on the main screen (no modal for the common case). Widgets: lv_arc (270 deg) + flex column of labels, lv_button x N, lv_switch/button for fan.',
+          html: () => `<div class="screen A">${topbar('Kelvin')}
+    <div class="body"><div class="left">${ring(500, 226, 26, 225, 270, 'ringA')}
+      <div class="center"><div class="f20 accent js-settxt"></div><div class="f96 js-cur"></div>
+        <div class="f20 muted js-env"></div><div style="height:6px"></div></div></div>
+      <div class="right">
+        <div class="card row" style="height:170px;justify-content:space-between">
+          <button class="btn step js-dec" style="width:100px;height:100px">&minus;</button>
+          <div class="col" style="align-items:center"><span class="f14 muted">SET POINT</span><span class="f48 accent js-target"></span></div>
+          <button class="btn step js-inc" style="width:100px;height:100px">+</button></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;height:140px">${modes()}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;height:64px">${fanBtn()}${sched()}</div>
+        <div class="card row" style="flex:1;justify-content:space-between"><div class="col"><span class="f14 muted">Onboard sensor</span><span class="f32 js-obt"></span></div>
+          <span class="f20 muted js-obh"></span></div>
+      </div></div></div>`,
+        },
+
+        {
+          id: 'B',
+          title: 'B - Dashboard tiles',
+          note: 'No ring: a card grid like the web dashboard. One huge current-temperature tile with an accent edge that changes with heating/cooling, set point stepper beside it, full-width mode row, and a strip of small stat tiles. Simplest to build and to tweak. Widgets: lv_obj grid/flex cards, lv_label, lv_button. The 96px digit font is custom.',
+          html: () =>
+            `<div class="screen B"><div class="grid">
+    <div class="r1">
+      <div class="card col tile-cur" style="padding:18px 24px"><div class="row" style="justify-content:space-between"><span class="f14 muted">CURRENT &middot; SYSTEM AVERAGE</span><span class="badge js-badge"></span></div>
+        <div class="f96 js-cur" style="margin:-6px 0"></div>
+        <div class="row" style="justify-content:space-between"><span class="f20 accent js-settxt"></span><span class="f20 muted js-env"></span></div></div>
+      <div class="card col" style="justify-content:space-between"><span class="f14 muted">SET POINT</span>
+        <div class="f48 accent js-target" style="text-align:center"></div>
+        <div class="row" style="gap:12px"><button class="btn step js-dec" style="flex:1;height:96px">&minus;</button><button class="btn step js-inc" style="flex:1;height:96px">+</button></div></div></div>
+    <div class="r2">${modes()}</div>
+    <div class="r3">
+      <div class="card col" style="justify-content:center"><span class="f14 muted">Avg humidity</span><span class="f32 js-hum"></span></div>
+      <div class="card col" style="justify-content:center"><span class="f14 muted">Avg CO&#8322;</span><span class="f32 js-co2"></span></div>
+      <div class="card col" style="justify-content:center"><span class="f14 muted">Onboard sensor</span><span class="f32 js-obt"></span><span class="f14 muted js-obh"></span></div>
+      <div class="col" style="gap:12px">${fanBtn('')}${sched('')}</div></div>
+  </div></div>`
+              .replace('class="btn fan js-fan "', 'class="btn fan js-fan" style="flex:1"')
+              .replace('<button class="btn">Schedules', '<button class="btn" style="flex:1">Schedules'),
+        },
+
+        {
+          id: 'C',
+          title: 'C - Mode rail + half gauge',
+          note: 'Three zones: mode/fan rail on the left (big, thumb-friendly), a half-circle gauge with the temperature in the middle, live stat cards on the right (including battery). Calmer than A and uses the full width. Widgets: lv_arc (180 deg), lv_button column, small lv_obj cards.',
+          html: () => `<div class="screen C"><div class="grid">
+    <div class="rail">${modes('')}${fanBtn()}</div>
+    <div class="mid">${ring(520, 236, 24, 270, 180, 'ringC')}
+      <div class="col" style="align-items:center;position:absolute;top:128px;gap:2px"><span class="f20 accent js-settxt"></span><span class="f96 js-cur"></span><span class="badge js-badge" style="margin-top:6px"></span></div>
+      <div class="row" style="gap:16px;margin-top:-250px;width:100%;position:absolute;top:322px;justify-content:center">
+        <button class="btn step js-dec" style="width:120px;height:92px">&minus;</button>
+        <div class="col" style="align-items:center;width:150px"><span class="f14 muted">SET POINT</span><span class="f48 js-target"></span></div>
+        <button class="btn step js-inc" style="width:120px;height:92px">+</button></div>
+      ${sched('').replace('class="btn"', 'class="btn" style="position:absolute;bottom:0;width:100%;height:64px"')}</div>
+    <div class="stats">
+      <div class="card col"><span class="f14 muted">Avg humidity</span><span class="f48 js-hum"></span></div>
+      <div class="card col"><span class="f14 muted">Avg CO&#8322;</span><span class="f48 js-co2"></span></div>
+      <div class="card col"><span class="f14 muted">Onboard sensor</span><span class="f32 js-obt"></span><span class="f14 muted js-obh"></span></div>
+      <div class="card col"><span class="f14 muted">Battery</span><span class="f32 js-batt"></span></div></div>
+  </div></div>`,
+        },
+
+        {
+          id: 'D',
+          title: 'D - Big number + set-point slider',
+          note: 'Most different: the set point is a full-width slider you drag (or tap) instead of +/- buttons, with a tick showing where the current temperature sits relative to it - you see the gap the system is closing. Hero number top-left, stats top-right, mode bar along the bottom. Widgets: lv_slider (the tick is a small lv_obj positioned manually), lv_label, lv_button row.',
+          html: () => `<div class="screen D">${topbar('Kelvin')}<div class="main">
+    <div class="hero"><div class="col"><span class="f20 accent js-settxt"></span><span class="f96 js-cur" style="margin-top:-6px"></span></div>
+      <div class="row" style="gap:36px;padding-bottom:12px">
+        <div class="col"><span class="f14 muted">Avg humidity</span><span class="f32 js-hum"></span></div>
+        <div class="col"><span class="f14 muted">Avg CO&#8322;</span><span class="f32 js-co2"></span></div>
+        <div class="col"><span class="f14 muted">Onboard</span><span class="f32 js-obt"></span></div></div></div>
+    <div><div class="track" id="trackD"><div class="rail-bar"></div><div class="fill"></div><div class="mark"><span class="js-curtick"></span></div><div class="knob"></div></div>
+      <div class="ends"><span>${MIN}\u00B0F</span><span class="f20 accent js-target"></span><span>${MAX}\u00B0F</span></div></div>
+    <div class="bar">${modes()}${fanBtn()}${sched()}</div></div></div>`,
+        },
+      ];
+
+      const main = document.getElementById('main');
+      frames.forEach(f => {
+        const el = document.createElement('section');
+        el.className = 'frame';
+        el.innerHTML = `<h2>${f.title}</h2><p>${f.note}</p><div class="scale">${f.html()}</div>`;
+        main.appendChild(el);
+      });
+
+      function arcPath(cx, cy, r, a0, sweep) {
+        const pt = d => [cx + r * Math.sin((d * Math.PI) / 180), cy - r * Math.cos((d * Math.PI) / 180)];
+        const [x0, y0] = pt(a0),
+          [x1, y1] = pt(a0 + sweep);
+        return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${sweep > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+      }
+      function drawRing(svg) {
+        const size = +svg.dataset.size,
+          r = +svg.dataset.r,
+          w = +svg.dataset.w,
+          start = +svg.dataset.start,
+          sweep = +svg.dataset.sweep,
+          c = size / 2;
+        const pt = d => [c + r * Math.sin((d * Math.PI) / 180), c - r * Math.cos((d * Math.PI) / 180)];
+        const [tx, ty] = pt(start + sweep * frac(S.target));
+        svg.innerHTML = `<path d="${arcPath(c, c, r, start, sweep)}" fill="none" stroke="#1e293b" stroke-width="${w}" stroke-linecap="round"/>
+    <path d="${arcPath(c, c, r, start, Math.max(1, sweep * frac(S.cur)))}" fill="none" stroke="var(--accent)" stroke-width="${w}" stroke-linecap="round"/>
+    <circle cx="${tx}" cy="${ty}" r="${w / 2 + 6}" fill="#f8fafc" stroke="var(--accent)" stroke-width="5"/>`;
+      }
+      function setText(sel, txt) {
+        document.querySelectorAll(sel).forEach(e => (e.textContent = txt));
+      }
+      function render() {
+        document.body.dataset.state = S.call;
+        document.querySelectorAll('.mbtn').forEach(b => b.classList.toggle('active', b.dataset.mode === S.mode));
+        document.querySelectorAll('.badge').forEach(b => {
+          b.textContent = BADGE[S.call] || '';
+          b.classList.toggle('hidden', !BADGE[S.call]);
+        });
+        const off = S.call === 'off';
+        setText('.js-cur', fmt(S.cur));
+        setText('.js-settxt', off ? '' : 'Set to ' + S.target + '\u00B0F');
+        setText('.js-target', S.target + '\u00B0F');
+        setText('.js-env', S.hum + '% RH \u2022 ' + S.co2 + ' ppm CO\u2082');
+        setText('.js-hum', S.hum + '%');
+        setText('.js-co2', S.co2 + ' ppm');
+        setText('.js-obt', fmt(S.obT));
+        setText('.js-obh', S.obH.toFixed(1) + '% RH');
+        setText('.js-batt', S.batt + '%');
+        setText('.js-curtick', 'now ' + S.cur.toFixed(1) + '\u00B0');
+        document.querySelectorAll('.js-fan').forEach(b => {
+          b.classList.toggle('on', S.fan);
+          b.textContent = S.fan ? 'Fan: On' : 'Fan: Auto';
+        });
+        document.querySelectorAll('svg.ring').forEach(drawRing);
+        document.querySelectorAll('.D .knob').forEach(k => (k.style.left = frac(S.target) * 100 + '%'));
+        document.querySelectorAll('.D .fill').forEach(k => (k.style.width = frac(S.target) * 100 + '%'));
+        document.querySelectorAll('.D .mark').forEach(k => (k.style.left = frac(S.cur) * 100 + '%'));
+      }
+      document.addEventListener('click', e => {
+        const t = e.target.closest('button');
+        if (!t) return;
+        if (t.dataset.mode) {
+          S.mode = t.dataset.mode;
+          S.call = modeToCall[S.mode];
+        } else if (t.classList.contains('js-inc')) S.target = Math.min(MAX, S.target + 1);
+        else if (t.classList.contains('js-dec')) S.target = Math.max(MIN, S.target - 1);
+        else if (t.classList.contains('js-fan')) S.fan = !S.fan;
+        else if (t.dataset.set) {
+          S.call = t.dataset.set;
+          S.mode = { idle: 'auto', heating: 'heat', cooling: 'cool', off: 'off' }[S.call];
+          document.querySelectorAll('.toolbar [data-set]').forEach(b => b.classList.toggle('on', b === t));
+        } else return;
+        render();
+      });
+      document.querySelectorAll('.D .track').forEach(track => {
+        const set = e => {
+          const r = track.getBoundingClientRect();
+          const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+          S.target = Math.round(MIN + f * (MAX - MIN));
+          render();
+        };
+        track.addEventListener('pointerdown', e => {
+          track.setPointerCapture(e.pointerId);
+          set(e);
+        });
+        track.addEventListener('pointermove', e => {
+          if (track.hasPointerCapture(e.pointerId)) set(e);
+        });
+      });
+      const zoom = document.getElementById('zoom');
+      function applyZoom() {
+        document.querySelectorAll('.scale').forEach(s => {
+          s.style.zoom = zoom.value;
+        });
+      }
+      zoom.addEventListener('change', applyZoom);
+      applyZoom();
+      render();
+    </script>
+  </body>
+</html>

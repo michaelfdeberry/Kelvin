@@ -1,7 +1,8 @@
 #pragma once
 
 // EspNow Configuration
-#define GATEWAY_MAC_ADDRESS_BYTES {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // replace with your gateway MAC address
+// #define GATEWAY_MAC_ADDRESS_BYTES {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // replace with your gateway MAC address
+#define GATEWAY_MAC_ADDRESS_BYTES {0x58, 0x2A, 0xBD, 0x70, 0xAD, 0xD8}
 
 // EnvironmentMonitor's shouldSendUpdate() is shared with Node, so it reuses the same knobs even though this
 // panel is always-on (no deep sleep): TIMER_WAKE_INTERVAL_S is really "how often we poll the sensor in
@@ -31,9 +32,8 @@
 // (address 0x44, set by EnvironmentMonitor::begin) - Hmi.ino passes that same Wire to the monitor.
 
 // Confirmed via Waveshare's official ESP32-S3-Touch-LCD-7B Arduino demo (rgb_lcd_port.h: EXAMPLE_LCD_H_RES/
-// V_RES) - 1024x600, matching the original product-description guess. `esp_panel_board_custom_conf.h` in
-// this sketch folder carries the matching RGB timing/pin configuration - these two values MUST keep
-// matching what's configured there.
+// V_RES) - 1024x600. `src/display/RgbPanel.cpp` carries the matching RGB timing/pin configuration - these
+// two values MUST keep matching what's configured there.
 #define DISPLAY_HORIZONTAL_RESOLUTION 1024
 #define DISPLAY_VERTICAL_RESOLUTION 600
 

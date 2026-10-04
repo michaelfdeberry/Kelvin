@@ -2,6 +2,9 @@
 
 #include <lvgl.h>
 
+// Generated digits-only (0-9 . - degree F) 96px Montserrat - see fonts/.
+LV_FONT_DECLARE(lv_font_montserrat_96_digits);
+
 // Mirrors Kelvin.Client's app/styles.css `:root` design tokens (see the kelvin-client repo memory note) so
 // the panel's look and feel stays consistent with the web app, adjusted only where the embedded display
 // needs it (e.g. no CSS custom properties, so these are plain functions instead).
@@ -27,4 +30,5 @@ namespace UiTheme
   inline const lv_font_t *fontLabel() { return &lv_font_montserrat_20; }
   inline const lv_font_t *fontValue() { return &lv_font_montserrat_32; }
   inline const lv_font_t *fontHero() { return &lv_font_montserrat_48; }
+  inline const lv_font_t *fontHuge() { return &lv_font_montserrat_96_digits; }
 }

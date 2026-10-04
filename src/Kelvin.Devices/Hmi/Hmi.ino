@@ -83,6 +83,7 @@ void sendReadingIfNeeded()
 
   battery_status battery = batteryMonitor.getStatus();
   payload.batteryLevel = battery.level;
+  ui.applyBattery(battery.level, battery.externalPower);
 
   // The UI reflects every fresh reading immediately, independent of the send-throttling below.
   ui.applyEnvironmentReading(payload.temperature, payload.humidity);
@@ -104,12 +105,9 @@ void sendReadingIfNeeded()
 
 void setup()
 {
-  LOG_BEGIN(9600, true);
+  LOG_BEGIN(115200, false);
+  LOG_PRINTLN("Hmi booting");
 
-  // Must run before ui.begin(): the display panel library (CH422G/GT911) shares this exact bus and is
-  // configured to skip its own host init, reusing whatever Wire.begin() already set up here (see
-  // esp_panel_board_custom_conf.h's SKIP_INIT_HOST comments) - installing the I2C driver twice on the
-  // same port fails.
   Wire.begin(IO_EXPANDER_SDA_PIN, IO_EXPANDER_SCL_PIN, 400000);
 
   environmentMonitor.begin(Wire);
@@ -128,7 +126,7 @@ void loop()
   ui.tick();
   handleDownlinkMessages();
 
-  if (millis() - lastReadTime >= (unsigned long)(TIMER_WAKE_INTERVAL_S * 1000ULL))
+  if (lastReadTime == 0 || millis() - lastReadTime >= (unsigned long)(TIMER_WAKE_INTERVAL_S * 1000ULL))
   {
     lastReadTime = millis();
     sendReadingIfNeeded();
