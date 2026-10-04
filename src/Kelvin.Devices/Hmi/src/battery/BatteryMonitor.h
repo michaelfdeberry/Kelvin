@@ -24,4 +24,8 @@ public:
 
 private:
   TwoWire *bus = &Wire;
+  float _emaVoltage = 0.0f;
+  bool _isInitialized = false;
+
+  float readRawVoltage();
 };
