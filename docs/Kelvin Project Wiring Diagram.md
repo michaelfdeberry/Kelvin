@@ -1,12 +1,14 @@
 # Project Kelvin — Wiring Diagrams
 
-Derived from [Kelvin Project Reference Guide.md](Kelvin%20Project%20Reference%20Guide.md). Everything below reflects the **intended** build as described in that guide.
+This file covers system topology and the gateway enclosure.
 
-This file covers system topology and the gateway enclosure. Per-device wiring lives in:
+Per-device wiring lives in:
 
 - [Kelvin Node Wiring Diagram.md](Kelvin%20Node%20Wiring%20Diagram.md) — ESP32-S3 PowerFeather V2R2, ST7789 SPI display, SHT4x
 - [Kelvin HMI Wiring Diagram.md](Kelvin%20HMI%20Wiring%20Diagram.md) — Waveshare ESP32-S3-Touch-LCD-7B, shared I2C bus
 - [Kelvin Kiosk Wiring Diagram.md](Kelvin%20Kiosk%20Wiring%20Diagram.md) — Raspberry Pi 3B+, SCD40
+
+These are proper wiring diagrams, but the circuity is simple enough that it should suffice.
 
 ---
 
