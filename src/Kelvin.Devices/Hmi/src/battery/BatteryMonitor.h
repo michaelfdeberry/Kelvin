@@ -26,6 +26,8 @@ private:
   TwoWire *bus = &Wire;
   float _emaVoltage = 0.0f;
   bool _isInitialized = false;
+  bool _isCharging = false;
+  unsigned long _lastStateChangeTime = 0;
 
   float readRawVoltage();
 };

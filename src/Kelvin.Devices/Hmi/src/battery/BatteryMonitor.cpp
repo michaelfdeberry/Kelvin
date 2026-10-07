@@ -8,6 +8,7 @@ namespace
   const float ADC_REFERENCE_VOLTAGE = 9.9f; // empirical default from that same component
   const float ADC_MAX_VALUE = 1023.0f;      // 10-bit ADC
   const float EXTERNAL_POWER_VOLTAGE_THRESHOLD = 4.15f;
+  const unsigned long DEBOUNCE_TIME_MS = 4000;
 
   struct VoltagePoint
   {
@@ -28,10 +29,31 @@ namespace
       {3.20f, 0}};
   const size_t CURVE_POINT_COUNT = sizeof(LIPO_DISCHARGE_CURVE) / sizeof(LIPO_DISCHARGE_CURVE[0]);
 
-  int interpolatePercentage(float voltage)
+  int interpolatePercentage(float voltage, bool isCharging)
   {
+    // If the battery is charging, use a simplified linear interpolation between 4.22V and 4.45V to estimate the charge percentage.
+    if (isCharging)
+    {
+      int pct = 0;
+      if (voltage >= 4.45)
+      {
+        pct = 100;
+      }
+      else if (voltage <= 4.22)
+      {
+        pct = 0;
+      }
+      else
+      {
+        pct = (int)((voltage - 4.22) / (4.45 - 4.22) * 100.0);
+      }
+      return constrain(pct, 0, 100);
+    }
+
+    // If the battery is not charging, use the standard LiPo discharge curve for interpolation.
     if (voltage >= LIPO_DISCHARGE_CURVE[0].voltage)
       return 100;
+
     if (voltage <= LIPO_DISCHARGE_CURVE[CURVE_POINT_COUNT - 1].voltage)
       return 0;
 
@@ -67,7 +89,7 @@ float BatteryMonitor::readRawVoltage()
 
   uint32_t totalAdc = 0;
   int validSamples = 0;
-  const int burstSamples = 5; // Rapid I2C burst reads to damp out electrical noise
+  const int burstSamples = 10;
 
   for (int i = 0; i < burstSamples; i++)
   {
@@ -85,7 +107,7 @@ float BatteryMonitor::readRawVoltage()
         validSamples++;
       }
     }
-    delay(2); // Short delay to let the I2C bus and converter settle
+    delay(20);
   }
 
   if (validSamples == 0)
@@ -121,8 +143,32 @@ battery_status BatteryMonitor::getStatus()
     _emaVoltage = (alpha * rawVoltage) + ((1.0f - alpha) * _emaVoltage);
   }
 
-  status.level = interpolatePercentage(_emaVoltage);
-  status.externalPower = _emaVoltage >= EXTERNAL_POWER_VOLTAGE_THRESHOLD;
+  if (_emaVoltage >= EXTERNAL_POWER_VOLTAGE_THRESHOLD)
+  {
+    if (!_isCharging)
+    {
+      _isCharging = true;
+      _lastStateChangeTime = millis();
+    }
+  }
+  else if (_emaVoltage < EXTERNAL_POWER_VOLTAGE_THRESHOLD)
+  {
+    if (_isCharging)
+    {
+      if (millis() - _lastStateChangeTime > DEBOUNCE_TIME_MS)
+      {
+        _isCharging = false;
+        _lastStateChangeTime = millis();
+      }
+    }
+    else
+    {
+      _lastStateChangeTime = millis();
+    }
+  }
+
+  status.level = interpolatePercentage(_emaVoltage, _isCharging);
+  status.externalPower = _isCharging;
 
   return status;
 }
