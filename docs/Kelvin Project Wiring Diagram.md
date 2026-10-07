@@ -4,11 +4,11 @@ This file covers system topology and the gateway enclosure.
 
 Per-device wiring lives in:
 
-- [Kelvin Node Wiring Diagram.md](Kelvin%20Node%20Wiring%20Diagram.md) — ESP32-S3 PowerFeather V2R2, ST7789 SPI display, SHT4x
-- [Kelvin HMI Wiring Diagram.md](Kelvin%20HMI%20Wiring%20Diagram.md) — Waveshare ESP32-S3-Touch-LCD-7B, shared I2C bus
+- [Kelvin Node Wiring Diagram.md](Kelvin%20Node%20Wiring%20Diagram.md) — ESP32-S3 PowerFeather V2R2, ST7789 SPI display, SHT40
+- [Kelvin HMI Wiring Diagram.md](Kelvin%20HMI%20Wiring%20Diagram.md) — Waveshare ESP32-S3-Touch-LCD-7B, SHT40
 - [Kelvin Kiosk Wiring Diagram.md](Kelvin%20Kiosk%20Wiring%20Diagram.md) — Raspberry Pi 3B+, SCD40
 
-These are proper wiring diagrams, but the circuity is simple enough that it should suffice.
+These aren't proper wiring diagrams, but the circuity is simple enough that it should suffice.
 
 ---
 
@@ -17,13 +17,12 @@ These are proper wiring diagrams, but the circuity is simple enough that it shou
 ```mermaid
 flowchart LR
     subgraph Field["Field devices"]
-        N1["Node<br/>ESP32-S3 PowerFeather V2R2<br/>SHT4x + ST7789"]
-        N2["Node (xN)"]
-        H1["HMI<br/>Waveshare ESP32-S3-Touch-LCD-7B<br/>7in 1024x600 capacitive"]
+        N1["Node<br/>ESP32-S3 PowerFeather V2R2<br/>SHT40 + ST7789"]
+        H1["HMI<br/>Waveshare ESP32-S3-Touch-LCD-7B + SHT40"]
         K1["Kiosk<br/>Raspberry Pi 3B+<br/>SCD40 + 8in touchscreen"]
     end
 
-    subgraph Enclosure["Gateway enclosure (ABS, DIN rail)"]
+    subgraph Enclosure["Gateway enclosure (ABS Cabinet w/ DIN rail)"]
         ESP["ESP32 receiver<br/>(ESP-NOW transceiver)"]
         PI["Raspberry Pi 5<br/>.NET application"]
         RB["4-channel relay bank<br/>5V coil, active low"]
@@ -34,7 +33,6 @@ flowchart LR
     WT["Legacy wall thermostat"]
 
     N1 -- "ESP-NOW, KNOD frames" --> ESP
-    N2 -- "ESP-NOW, KNOD frames" --> ESP
     H1 <-- "ESP-NOW two-way, KHMI frames" --> ESP
     ESP <-- "USB serial<br/>MAC + length + frame tag" --> PI
     K1 -- "HTTP POST /api/sensors/packets" --> PI
@@ -45,7 +43,7 @@ flowchart LR
     HVAC -- "24V AC R supply" --> Enclosure
 ```
 
-Kiosks deliberately bypass the ESP32 gateway and talk straight to the server over HTTP.
+Kiosks deliberately bypass the ESP32 gateway and talks straight to the server over HTTP.
 
 ---
 
@@ -120,13 +118,13 @@ flowchart TD
 
 **Failsafe behavior**
 
-| Condition                                      | Result                                                                                                                 |
-| :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- |
-| DPDT in **Legacy Override**                    | 24V AC routed straight to the wall thermostat; JD-VCC cut, relay bank completely dead.                                 |
-| DPDT in **Auto**, Relay 4 de-energized         | Relay 4 NC hands 24V AC to the wall thermostat. This is the state after a Pi crash, power loss, or thermostat Disable. |
-| DPDT in **Auto**, Relay 4 energized (GPIO LOW) | Relay 4 NO feeds the COM of Heat/Cool/Fan; Kelvin owns the HVAC.                                                       |
+| Condition                                      | Result                                                                                                                                                  |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DPDT in **Legacy Override**                    | 24V AC routed straight to the wall thermostat; JD-VCC cut, relay bank completely dead.                                                                  |
+| DPDT in **Auto**, Relay 4 de-energized         | Kelvin's HVAC control disabled. Relay 4 NC hands 24V AC to the wall thermostat. This is the state after a Pi crash, unrecoverable error, or power loss. |
+| DPDT in **Auto**, Relay 4 energized (GPIO LOW) | Kelvin's HVAC control enabled. Relay 4 NO feeds the COM of Heat/Cool/Fan.                                                                               |
 
-Relays 1–3 can only pass current when both the DPDT switch is in Auto **and** Relay 4 is energized, so there is no path for software to call heat while the user has chosen manual override.
+Relays 1–3 can only pass current when both the DPDT switch is in Auto **and** Relay 4 is energized, so there is no path for software to call for operation while the user has chosen manual override.
 
 ---
 
@@ -144,12 +142,12 @@ flowchart LR
     C --> RED
 ```
 
-| LED    | Tap point                                                     | Lit when                                                                   |
-| :----- | :------------------------------------------------------------ | :------------------------------------------------------------------------- |
-| Green  | Relay 4 **NO** terminal, referenced to C                      | DPDT in Auto **and** the .NET app has seized control                       |
-| Red    | R wire where it enters the legacy thermostat, referenced to C | Either the DPDT switch or Relay 4 has handed control back to the wall unit |
-| Orange | Parallel across W and C                                       | Relay 2 bridges R→W                                                        |
-| Blue   | Parallel across Y and C                                       | Relay 1 bridges R→Y                                                        |
+| LED    | Tap point                                                     | Lit when                                                      |
+| :----- | :------------------------------------------------------------ | :------------------------------------------------------------ |
+| Green  | Relay 4 **NO** terminal, referenced to C                      | DPDT in Auto **and** Kelvin's HVAC control is enabled         |
+| Red    | R wire where it enters the legacy thermostat, referenced to C | Either the DPDT switch or Kelvin's HVAC control is disabled   |
+| Orange | Parallel across W output to furnace and C                     | Relay 2 bridges R→W or the wall thermostat calls for heat.    |
+| Blue   | Parallel across Y output to furnace and C                     | Relay 1 bridges R→Y or the wall thermostat calls for cooling. |
 
 Green and Red are mutually exclusive — they are the two sides of the Relay 4 transfer contact.
 
