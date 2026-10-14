@@ -115,6 +115,7 @@ public class ThermostatService(
     var isHeatingMode = false;
     var isCoolingMode = false;
     var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresisOffset = hysteresis / 2;
     var hysteresisRange = 2 * hysteresis;
     var forecastRange = 5;
 
@@ -136,8 +137,8 @@ public class ThermostatService(
         };
       }
 
-      isHeatingMode = heatingTargetTemp is not null && environment.TemperatureC <= (heatingTargetTemp - hysteresis);
-      isCoolingMode = coolingTargetTemp is not null && environment.TemperatureC >= (coolingTargetTemp + hysteresis);
+      isHeatingMode = heatingTargetTemp is not null && environment.TemperatureC <= (heatingTargetTemp - hysteresisOffset);
+      isCoolingMode = coolingTargetTemp is not null && environment.TemperatureC >= (coolingTargetTemp + hysteresisOffset);
     }
     else
     {
@@ -223,17 +224,17 @@ public class ThermostatService(
     }
 
     var callForCooling = false;
-    var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresisOffset = GetHysteresis(thermostat.HysteresisC) / 2;
     var coolingTargetTemp = coolingSchedule?.TargetTemperatureC ?? coolingSetPoint?.TargetTemperatureC;
     var shouldCheckForCooling = (useForecastForCooling && forecastAllowsForCooling) || !useForecastForCooling;
 
     if (shouldCheckForCooling)
     {
-      if (_activeCall == ControlState.Dwell && environmentTemperatureC >= (coolingTargetTemp + hysteresis))
+      if (_activeCall == ControlState.Dwell && environmentTemperatureC >= (coolingTargetTemp + hysteresisOffset))
       {
         callForCooling = true;
       }
-      else if (_activeCall == ControlState.Cooling && environmentTemperatureC > (coolingTargetTemp - hysteresis))
+      else if (_activeCall == ControlState.Cooling && environmentTemperatureC > (coolingTargetTemp - hysteresisOffset))
       {
         // all ready cooling, calling for cool is a noop, but we will still return a control message to keep the state updated.
         callForCooling = true;
@@ -287,17 +288,17 @@ public class ThermostatService(
     }
 
     var callForHeating = false;
-    var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresisOffset = GetHysteresis(thermostat.HysteresisC) / 2;
     var heatingTargetTemp = heatingSchedule?.TargetTemperatureC ?? heatingSetPoint?.TargetTemperatureC;
     var shouldCheckForHeating = (useForecastForHeating && forecastAllowsForHeating) || !useForecastForHeating;
 
     if (shouldCheckForHeating)
     {
-      if (_activeCall == ControlState.Dwell && environmentTemperatureC <= (heatingTargetTemp - hysteresis))
+      if (_activeCall == ControlState.Dwell && environmentTemperatureC <= (heatingTargetTemp - hysteresisOffset))
       {
         callForHeating = true;
       }
-      else if (_activeCall == ControlState.Heating && environmentTemperatureC < (heatingTargetTemp + hysteresis))
+      else if (_activeCall == ControlState.Heating && environmentTemperatureC < (heatingTargetTemp + hysteresisOffset))
       {
         // all ready heating, calling for heat is a noop, but we will still return a control message to keep the state updated.
         callForHeating = true;
