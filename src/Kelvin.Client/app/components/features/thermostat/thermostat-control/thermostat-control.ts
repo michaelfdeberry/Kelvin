@@ -3,7 +3,7 @@ import '../../../shared/temperature/temperature.js';
 
 import { consume } from '@lit/context';
 import { html, LitElement, nothing, TemplateResult } from 'lit';
-import { customElement, query } from 'lit/decorators.js';
+import { customElement, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import { when } from 'lit/directives/when.js';
@@ -45,10 +45,28 @@ export class ThermostatControl extends LitElement {
   @query('app-thermostat-editor')
   private thermostatEditor!: ThermostatEditor;
 
+  @state()
+  private controlTargetTempC?: number;
+
+  @state()
+  private currentControlState?: 'Heating' | 'Cooling';
+
+  protected override updated(): void {
+    // this component really only cares about the call changes
+    // so track the call state and temp independently
+    if (this.controlState.targetTemperatureC !== undefined) {
+      this.controlTargetTempC = this.controlState.targetTemperatureC;
+    }
+
+    if (this.controlState.state !== undefined && ['Heating', 'Cooling'].includes(this.controlState.state)) {
+      this.currentControlState = this.controlState.state === 'Heating' ? 'Heating' : 'Cooling';
+    }
+  }
+
   private renderSetpoint(): TemplateResult | typeof nothing {
     if (this.thermostat.mode === 'Disabled') return nothing;
     if (this.thermostat.mode === 'Off') return nothing;
-    if (!this.controlState.targetTemperatureC) return nothing;
+    if (!this.controlTargetTempC) return nothing;
 
     // Known issue, when changing the setpoint when a run mode is active, the set point in the UI
     // will continue to display the old set point until the control state updates.
@@ -57,7 +75,7 @@ export class ThermostatControl extends LitElement {
     return html`
       Set to
       <app-temperature
-        .temperature=${this.controlState.targetTemperatureC}
+        .temperature=${this.controlTargetTempC}
         show-unit
       ></app-temperature>
     `;
@@ -97,8 +115,8 @@ export class ThermostatControl extends LitElement {
       <div
         class="${classMap({
           thermostat: true,
-          'thermostat--heating': this.controlState.state === 'Heating',
-          'thermostat--cooling': this.controlState.state === 'Cooling',
+          'thermostat--heating': this.currentControlState === 'Heating',
+          'thermostat--cooling': this.currentControlState === 'Cooling',
         })}"
       >
         <app-thermostat-editor></app-thermostat-editor>
@@ -122,8 +140,8 @@ export class ThermostatControl extends LitElement {
               )}
             </div>
             <div class="thermostat__status">
-              ${when(this.controlState.state === 'Heating', () => html`<div class="thermostat__status-badge">🔥 HEATING</div>`)}
-              ${when(this.controlState.state === 'Cooling', () => html`<div class="thermostat__status-badge">❄️ COOLING</div>`)}
+              ${when(this.currentControlState === 'Heating', () => html`<div class="thermostat__status-badge">🔥 HEATING</div>`)}
+              ${when(this.currentControlState === 'Cooling', () => html`<div class="thermostat__status-badge">❄️ COOLING</div>`)}
             </div>
             <div class="thermostat__edit-button-container">
               ${when(

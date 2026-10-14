@@ -48,7 +48,8 @@ public class GetControlStateHandler(KelvinContext context) : IHandler<GetControl
       CallSince: call?.CreatedAt,
       FanOn: fan?.State == ControlState.FanOn,
       FanSince: fan?.CreatedAt,
-      LastChange: lastChange is null ? null : ControlStateChangeDto.FromEntity(lastChange)
+      // this only needs the last call to ensure the UI is displaying the correct state.
+      LastChange: call is null ? null : ControlStateChangeDto.FromEntity(call)
     );
 
     return Result<GetControlStateResponse>.Success(response);
