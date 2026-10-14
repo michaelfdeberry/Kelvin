@@ -25,6 +25,11 @@ export class ControlHub extends SignalRHubBase {
 
   protected override onSignalrConnected(): void {
     this.registerHubHandler<ControlStateChange>(CONTROL_STATE_CHANGED_HANDLER, signalrEvents.controlHub.controlStateChanged);
+    this.registerHubHandler<ControlStateChange>(CONTROL_STATE_CHANGED_HANDLER, signalrEvents.controlHub.callStateChanged, data => {
+      if (data.kind === 'Call') {
+        return data;
+      }
+    });
     this.registerHubHandler<void>(THERMOSTAT_STATE_CHANGED_HANDLER, events.thermostatUpdated);
     this.registerHubHandler<void>(SENSORS_STATE_CHANGED_HANDLER, events.sensorsUpdated);
   }

@@ -10,7 +10,7 @@ import { when } from 'lit/directives/when.js';
 
 import thermostatControlStyles from './thermostat-control.styles.js';
 import editIcon from '../../../../../assets/icons/edit.svg?raw';
-import { controlContext } from '../../../../contexts/control-context.js';
+import { callContext } from '../../../../contexts/control-context.js';
 import { environmentReadingsContext } from '../../../../contexts/sensors-context.js';
 import { schedulesContext, setPointsContext, thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
@@ -39,8 +39,8 @@ export class ThermostatControl extends LitElement {
   @consume({ context: environmentReadingsContext, subscribe: true })
   environment!: EnvironmentReading;
 
-  @consume({ context: controlContext, subscribe: true })
-  controlState!: Partial<ControlStateChange>;
+  @consume({ context: callContext, subscribe: true })
+  callState!: Partial<ControlStateChange>;
 
   @query('app-thermostat-editor')
   private thermostatEditor!: ThermostatEditor;
@@ -54,15 +54,15 @@ export class ThermostatControl extends LitElement {
   protected override updated(): void {
     // this component really only cares about the call changes
     // so track the call state and temp independently
-    if (this.controlState.targetTemperatureC !== undefined) {
-      this.controlTargetTempC = this.controlState.targetTemperatureC;
+    if (this.callState.targetTemperatureC !== undefined) {
+      this.controlTargetTempC = this.callState.targetTemperatureC;
     }
 
-    if (this.controlState.state !== undefined && ['Heating', 'Cooling', 'Dwell'].includes(this.controlState.state)) {
-      if (this.controlState.state === 'Dwell') {
+    if (this.callState.state !== undefined && ['Heating', 'Cooling', 'Dwell'].includes(this.callState.state)) {
+      if (this.callState.state === 'Dwell') {
         this.currentControlState = undefined;
       } else {
-        this.currentControlState = this.controlState.state === 'Heating' ? 'Heating' : 'Cooling';
+        this.currentControlState = this.callState.state === 'Heating' ? 'Heating' : 'Cooling';
       }
     }
   }
@@ -133,10 +133,10 @@ export class ThermostatControl extends LitElement {
             <div class="thermostat__target-temp">${this.renderSetpoint()}</div>
             <div class="thermostat__current-temp">
               ${when(
-                this.environment.temperatureC ?? this.controlState.environmentTemperatureC,
+                this.environment.temperatureC ?? this.callState.environmentTemperatureC,
                 () => html`
                   <app-temperature
-                    temperature="${this.environment.temperatureC ?? this.controlState.environmentTemperatureC}"
+                    temperature="${this.environment.temperatureC ?? this.callState.environmentTemperatureC}"
                     show-unit
                   ></app-temperature>
                 `,
