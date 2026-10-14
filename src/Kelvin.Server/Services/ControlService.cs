@@ -531,13 +531,12 @@ public class ControlService(
     {
       foreach (var change in _pendingChanges)
       {
-        // The change is still persisted below even if a destination fails to receive it, so a client/panel that
-        // missed the broadcast can still read the current state - the bus already isolates failures per destination.
-        await bus.PublishAsync(new ControlStateChangedEvent(change), cancellationToken);
-
         var result = await dispatcher.DispatchAsync(new SaveControlStateChangeRequest(change), cancellationToken);
+
         if (result.IsFailure)
           logger.LogError("Failed to record the {Kind} state change to {State}: {Error}", change.Kind, change.State, result.Error.Message);
+
+        await bus.PublishAsync(new ControlStateChangedEvent(change), cancellationToken);
       }
     }
     catch (Exception ex)

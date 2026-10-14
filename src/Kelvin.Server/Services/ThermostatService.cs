@@ -127,8 +127,8 @@ public class ThermostatService(
         return false;
       }
 
-      isHeatingMode = heatingTargetTemp is not null && environment.TemperatureC <= (heatingTargetTemp - hysteresis);
-      isCoolingMode = coolingTargetTemp is not null && environment.TemperatureC >= (coolingTargetTemp + hysteresis);
+      isHeatingMode = heatingTargetTemp is not null && environment.TemperatureC <= (heatingTargetTemp - (hysteresis / 2));
+      isCoolingMode = coolingTargetTemp is not null && environment.TemperatureC >= (coolingTargetTemp + (hysteresis / 2));
       return true;
     }
 
@@ -244,7 +244,7 @@ public class ThermostatService(
     }
 
     var callForCooling = false;
-    var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresis = GetHysteresis(thermostat.HysteresisC) / 2;
     var coolingTargetTemp = coolingSchedule?.TargetTemperatureC ?? coolingSetPoint?.TargetTemperatureC;
     var shouldCheckForCooling = (useForecastForCooling && forecastAllowsForCooling) || !useForecastForCooling;
 
@@ -308,7 +308,7 @@ public class ThermostatService(
     }
 
     var callForHeating = false;
-    var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresis = GetHysteresis(thermostat.HysteresisC) / 2;
     var heatingTargetTemp = heatingSchedule?.TargetTemperatureC ?? heatingSetPoint?.TargetTemperatureC;
     var shouldCheckForHeating = (useForecastForHeating && forecastAllowsForHeating) || !useForecastForHeating;
 
