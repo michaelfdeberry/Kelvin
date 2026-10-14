@@ -58,8 +58,12 @@ export class ThermostatControl extends LitElement {
       this.controlTargetTempC = this.controlState.targetTemperatureC;
     }
 
-    if (this.controlState.state !== undefined && ['Heating', 'Cooling'].includes(this.controlState.state)) {
-      this.currentControlState = this.controlState.state === 'Heating' ? 'Heating' : 'Cooling';
+    if (this.controlState.state !== undefined && ['Heating', 'Cooling', 'Dwell'].includes(this.controlState.state)) {
+      if (this.controlState.state === 'Dwell') {
+        this.currentControlState = undefined;
+      } else {
+        this.currentControlState = this.controlState.state === 'Heating' ? 'Heating' : 'Cooling';
+      }
     }
   }
 
