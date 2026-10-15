@@ -155,9 +155,10 @@ export class StatsPanel extends LitElement {
       ];
     }
 
+    const hysteresisOffset = hysteresisC / 2;
     if (type === 'Heating') {
-      const heatingTrigger = source.targetTemperatureC - hysteresisC;
-      const heatingSatisfied = source.targetTemperatureC + hysteresisC;
+      const heatingTrigger = source.targetTemperatureC - hysteresisOffset;
+      const heatingSatisfied = source.targetTemperatureC + hysteresisOffset;
       return [
         {
           label: 'Heating Target:',
@@ -174,8 +175,8 @@ export class StatsPanel extends LitElement {
       ];
     }
 
-    const coolingTrigger = source.targetTemperatureC + hysteresisC;
-    const coolingSatisfied = source.targetTemperatureC - hysteresisC;
+    const coolingTrigger = source.targetTemperatureC + hysteresisOffset;
+    const coolingSatisfied = source.targetTemperatureC - hysteresisOffset;
     return [
       {
         label: 'Cooling Target:',

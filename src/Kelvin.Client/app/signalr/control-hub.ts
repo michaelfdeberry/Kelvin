@@ -25,16 +25,18 @@ export class ControlHub extends SignalRHubBase {
 
   protected override onSignalrConnected(): void {
     this.registerHubHandler<ControlStateChange>(CONTROL_STATE_CHANGED_HANDLER, signalrEvents.controlHub.controlStateChanged);
+    this.registerHubHandler<ControlStateChange>(CONTROL_STATE_CHANGED_HANDLER, signalrEvents.controlHub.callStateChanged, data => {
+      if (data.kind === 'Call') {
+        return data;
+      }
+    });
     this.registerHubHandler<void>(THERMOSTAT_STATE_CHANGED_HANDLER, events.thermostatUpdated);
     this.registerHubHandler<void>(SENSORS_STATE_CHANGED_HANDLER, events.sensorsUpdated);
   }
 
   private async loadInitialState(): Promise<void> {
     try {
-      // TODO this is wrong. the last change won't represent the current state of the control
-      // The response will have the current state, but it won't have the full state. I'm not sure if this is what I
-      // really want here. I really just need the state of the relays, anything else is just noise
-      // for how this is used. <-- I don't know if this is still true.
+      // last change will now always contain the last call control change
       const response = await apiGet<ControlStateResponse>(resources.control.getControlState);
       if (!response.lastChange) {
         console.warn('No control state change found in the response.');

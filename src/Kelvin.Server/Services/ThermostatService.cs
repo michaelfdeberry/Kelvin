@@ -115,55 +115,77 @@ public class ThermostatService(
     var isHeatingMode = false;
     var isCoolingMode = false;
     var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresisOffset = hysteresis / 2;
     var hysteresisRange = 2 * hysteresis;
     var forecastRange = 5;
 
-    // no forecast integration at all, both lockouts are required if forecast is used in automatic mode.
-    if (forecastTemperatureC is null || thermostat.HeatingLockoutC is null || thermostat.CoolingLockoutC is null)
+    bool ApplyHysteresisControl()
     {
       var hasInvalidTargets = heatingTargetTemp > coolingTargetTemp;
       var hasInvalidHysteresis = coolingTargetTemp - heatingTargetTemp < hysteresisRange;
       if (hasInvalidTargets || hasInvalidHysteresis)
       {
+        return false;
+      }
+
+      isHeatingMode = heatingTargetTemp is not null && environment.TemperatureC <= (heatingTargetTemp - hysteresisOffset);
+      isCoolingMode = coolingTargetTemp is not null && environment.TemperatureC >= (coolingTargetTemp + hysteresisOffset);
+      return true;
+    }
+
+    // no forecast integration at all, both lockouts are required if forecast is used in automatic mode.
+    if (forecastTemperatureC is null || thermostat.HeatingLockoutC is null || thermostat.CoolingLockoutC is null)
+    {
+      if (!ApplyHysteresisControl())
+      {
+        logger.LogCritical("Failed to apply hysteresis control due to invalid target temperatures, falling back to failsafe.");
         return context with
         {
           State = ControlState.Disable,
           Reason =
             @$"
               The heating target temperature ({heatingTargetTemp}C) is higher than the cooling target temperature ({coolingTargetTemp}C). 
-              This is an invalid configuration.
+              Check the configuration for the heating and cooling target temperatures before re-enabling Kelvin.
             ",
         };
       }
-
-      isHeatingMode = heatingTargetTemp is not null && environment.TemperatureC <= (heatingTargetTemp - hysteresis);
-      isCoolingMode = coolingTargetTemp is not null && environment.TemperatureC >= (coolingTargetTemp + hysteresis);
     }
     else
     {
-      // Cooling has to be greater than heating, and the forecast temperature has to be within the range of the two targets,
-      // otherwise it is an invalid configuration.
-      var invalidForecastRange = thermostat.CoolingLockoutC - thermostat.HeatingLockoutC < forecastRange;
+      // The forecast range exist to ensure that there is a sufficient buffer between the heating and cooling lockout temperatures
+      // to prevent quick cycling between heating and cooling modes. Currently, the forecast range is set to 5C.
+      var invalidForecastRange = forecastRange > thermostat.CoolingLockoutC - thermostat.HeatingLockoutC;
       if (invalidForecastRange)
       {
         logger.LogWarning(
           @"
-            The forecast temperature ({ForecastTemperatureC}C) is outside the valid range of the heating target temperature ({HeatingTargetTemp}C) and cooling target temperature ({CoolingTargetTemp}C). 
-            This is an invalid configuration.
+            A forecast differences of at least {ForecastRange}C is required between the heating lockout ({HeatingLockoutC}C) and cooling lockout ({CoolingLockoutC}C) temperatures.
+            This is an invalid configuration, falling back to hysteresis-based control.
           ",
-          forecastTemperatureC,
-          heatingTargetTemp,
-          coolingTargetTemp
+          forecastRange,
+          thermostat.HeatingLockoutC,
+          thermostat.CoolingLockoutC
         );
 
-        return context with
+        if (!ApplyHysteresisControl())
         {
-          State = ControlState.Dwell,
-          Reason = "the forecast temperature is outside the valid range of the heating and cooling target temperatures",
-        };
+          logger.LogCritical("Failed to apply hysteresis control after detecting an invalid forecast range, falling back to failsafe.");
+          return context with
+          {
+            State = ControlState.Disable,
+            Reason =
+              @"
+                The forecast temperature is outside the valid range of the heating and cooling target temperatures, and no suitable configuration available for hysteresis control.
+                Check the configuration for the heating and cooling target temperatures before re-enabling Kelvin.
+              ",
+          };
+        }
       }
-      isHeatingMode = heatingTargetTemp is not null && forecastTemperatureC <= thermostat.HeatingLockoutC;
-      isCoolingMode = coolingTargetTemp is not null && forecastTemperatureC >= thermostat.CoolingLockoutC;
+      else
+      {
+        isHeatingMode = heatingTargetTemp is not null && forecastTemperatureC <= thermostat.HeatingLockoutC;
+        isCoolingMode = coolingTargetTemp is not null && forecastTemperatureC >= thermostat.CoolingLockoutC;
+      }
     }
 
     // shouldn't be possible given the above logic, but just in case, log a warning and revert control to the failsafe thermostat
@@ -223,17 +245,17 @@ public class ThermostatService(
     }
 
     var callForCooling = false;
-    var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresisOffset = GetHysteresis(thermostat.HysteresisC) / 2;
     var coolingTargetTemp = coolingSchedule?.TargetTemperatureC ?? coolingSetPoint?.TargetTemperatureC;
     var shouldCheckForCooling = (useForecastForCooling && forecastAllowsForCooling) || !useForecastForCooling;
 
     if (shouldCheckForCooling)
     {
-      if (_activeCall == ControlState.Dwell && environmentTemperatureC >= (coolingTargetTemp + hysteresis))
+      if (_activeCall == ControlState.Dwell && environmentTemperatureC >= (coolingTargetTemp + hysteresisOffset))
       {
         callForCooling = true;
       }
-      else if (_activeCall == ControlState.Cooling && environmentTemperatureC > (coolingTargetTemp - hysteresis))
+      else if (_activeCall == ControlState.Cooling && environmentTemperatureC > (coolingTargetTemp - hysteresisOffset))
       {
         // all ready cooling, calling for cool is a noop, but we will still return a control message to keep the state updated.
         callForCooling = true;
@@ -287,17 +309,17 @@ public class ThermostatService(
     }
 
     var callForHeating = false;
-    var hysteresis = GetHysteresis(thermostat.HysteresisC);
+    var hysteresisOffset = GetHysteresis(thermostat.HysteresisC) / 2;
     var heatingTargetTemp = heatingSchedule?.TargetTemperatureC ?? heatingSetPoint?.TargetTemperatureC;
     var shouldCheckForHeating = (useForecastForHeating && forecastAllowsForHeating) || !useForecastForHeating;
 
     if (shouldCheckForHeating)
     {
-      if (_activeCall == ControlState.Dwell && environmentTemperatureC <= (heatingTargetTemp - hysteresis))
+      if (_activeCall == ControlState.Dwell && environmentTemperatureC <= (heatingTargetTemp - hysteresisOffset))
       {
         callForHeating = true;
       }
-      else if (_activeCall == ControlState.Heating && environmentTemperatureC < (heatingTargetTemp + hysteresis))
+      else if (_activeCall == ControlState.Heating && environmentTemperatureC < (heatingTargetTemp + hysteresisOffset))
       {
         // all ready heating, calling for heat is a noop, but we will still return a control message to keep the state updated.
         callForHeating = true;
