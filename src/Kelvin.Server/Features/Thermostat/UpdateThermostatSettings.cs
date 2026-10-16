@@ -75,39 +75,45 @@ public class UpdateThermostatSettingsHandler(
     return Result.Success();
   }
 
+  private static void ApplySetPoint(KelvinContext context, Models.Thermostat thermostat, SetPointInput? setPoint)
+  {
+    if (setPoint is null)
+      return;
+
+    var existingSetPoints = thermostat.SetPoints.Where(x => x.Type == setPoint.Type && x.DeletedAt is null).ToList();
+    var updatedSetPoint = existingSetPoints.FirstOrDefault(x => x.Id == setPoint.Id);
+
+    if (updatedSetPoint is null)
+    {
+      updatedSetPoint = new SetPoint
+      {
+        Type = setPoint.Type,
+        ThermostatId = thermostat.Id,
+        TargetTemperatureC = setPoint.TargetTemperatureC,
+      };
+      thermostat.SetPoints.Add(updatedSetPoint);
+    }
+    else
+    {
+      updatedSetPoint.TargetTemperatureC = setPoint.TargetTemperatureC;
+      existingSetPoints.Remove(updatedSetPoint);
+    }
+
+    foreach (var existing in existingSetPoints)
+    {
+      thermostat.SetPoints.Remove(existing);
+      context.SetPoints.Remove(existing);
+    }
+  }
+
   private static void ApplySetPoints(KelvinContext context, Models.Thermostat thermostat, IEnumerable<SetPointInput> setPoints)
   {
-    // thermostat.SetPoints/Schedules can still contain soft-deleted rows (DeletedAt set) since no
-    // global query filter excludes them - only diff against the still-active ones.
-    var activeSetPoints = thermostat.SetPoints.Where(existing => existing.DeletedAt is null).ToList();
-    var incomingIds = setPoints.Where(setPoint => setPoint.Id.HasValue).Select(setPoint => setPoint.Id!.Value).ToHashSet();
+    // there can never be more than one heating or cooling set point in the incoming request.
+    var heatingSetPoint = setPoints.FirstOrDefault(x => x.Type == RunType.Heating);
+    var coolingSetPoint = setPoints.FirstOrDefault(x => x.Type == RunType.Cooling);
 
-    foreach (var removed in activeSetPoints.Where(existing => !incomingIds.Contains(existing.Id)))
-    {
-      thermostat.SetPoints.Remove(removed);
-      context.SetPoints.Remove(removed);
-    }
-
-    foreach (var input in setPoints)
-    {
-      var existing = input.Id.HasValue ? activeSetPoints.FirstOrDefault(setPoint => setPoint.Id == input.Id) : null;
-      if (existing is not null)
-      {
-        existing.Type = input.Type;
-        existing.TargetTemperatureC = input.TargetTemperatureC;
-      }
-      else
-      {
-        thermostat.SetPoints.Add(
-          new SetPoint
-          {
-            ThermostatId = thermostat.Id,
-            Type = input.Type,
-            TargetTemperatureC = input.TargetTemperatureC,
-          }
-        );
-      }
-    }
+    ApplySetPoint(context, thermostat, heatingSetPoint);
+    ApplySetPoint(context, thermostat, coolingSetPoint);
   }
 
   private static void ApplySchedules(KelvinContext context, Models.Thermostat thermostat, IEnumerable<ScheduleInput> schedules)

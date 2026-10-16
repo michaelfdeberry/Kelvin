@@ -12,6 +12,7 @@ public class SensingService(
   ILogger<SensingService> logger,
   ISensorPacketChannel sensorPacketChannel,
   IEnvironmentReadingsChannel environmentReadingChannel,
+  IEnvironmentReplayChannel environmentReplayChannel,
   IEventBus bus,
   IDispatcher dispatcher,
   TimeProvider time
@@ -38,8 +39,32 @@ public class SensingService(
   {
     var monitorSensorHealthTask = MonitorSensorHealthAsync(stoppingToken);
     var listenForSensorPacketsTask = ListenForSensorPacketsAsync(stoppingToken);
+    var listenForEnvironmentReplayTask = ListenForEnvironmentReplayAsync(stoppingToken);
 
-    await Task.WhenAll(monitorSensorHealthTask, listenForSensorPacketsTask);
+    await Task.WhenAll(monitorSensorHealthTask, listenForSensorPacketsTask, listenForEnvironmentReplayTask);
+  }
+
+  private async Task ListenForEnvironmentReplayAsync(CancellationToken stoppingToken)
+  {
+    while (!stoppingToken.IsCancellationRequested)
+    {
+      try
+      {
+        var replaySignal = await environmentReplayChannel.ReadAsync(subscriberId, stoppingToken);
+        if (replaySignal)
+        {
+          await UpdateReadingsAsync(stoppingToken);
+        }
+      }
+      catch (OperationCanceledException)
+      {
+        logger.LogInformation("SensingService is stopping due to cancellation.");
+      }
+      catch (Exception ex)
+      {
+        logger.LogError(ex, "An error occurred in SensingService while listening for environment replay signals.");
+      }
+    }
   }
 
   private async Task MonitorSensorHealthAsync(CancellationToken stoppingToken)
@@ -54,9 +79,9 @@ public class SensingService(
         sensorsResponse.EnsureSuccess();
 
         var sensors = sensorsResponse.Value!.Sensors;
+        var requiresUpdate = false;
 
         await _environmentLock.WaitAsync(stoppingToken);
-        var requiresUpdate = false;
         try
         {
           _environment ??= new();
@@ -69,7 +94,7 @@ public class SensingService(
 
         if (requiresUpdate)
         {
-          await UpdateReadingsAsync(sensors, stoppingToken);
+          await UpdateReadingsAsync(stoppingToken);
         }
       }
       catch (OperationCanceledException)
@@ -120,7 +145,7 @@ public class SensingService(
           _environmentLock.Release();
         }
 
-        await UpdateReadingsAsync(sensors, stoppingToken);
+        await UpdateReadingsAsync(stoppingToken);
       }
       catch (OperationCanceledException)
       {
@@ -131,20 +156,6 @@ public class SensingService(
         logger.LogError(ex, "An error occurred in SensingService while processing sensor packets.");
       }
     }
-  }
-
-  private async Task UpdateReadingsAsync(IEnumerable<SensorResponse> sensors, CancellationToken stoppingToken)
-  {
-    if (_environment?.Areas.IsEmpty ?? true)
-      return;
-
-    _environment.Timestamp = time.GetUtcNow();
-    _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
-    _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
-    _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
-
-    await environmentReadingChannel.WriteAsync(_environment, stoppingToken);
-    await bus.PublishAsync(new EnvironmentReadingChangedEvent(_environment), stoppingToken);
   }
 
   private async Task<bool> PruneEnvironmentReadingAsync(IEnumerable<SensorResponse> sensors, CancellationToken stoppingToken)
@@ -201,5 +212,19 @@ public class SensingService(
     }
 
     return removedDisabled > 0 || sensorsToCleanup.Count > 0;
+  }
+
+  private async Task UpdateReadingsAsync(CancellationToken stoppingToken)
+  {
+    if (_environment?.Areas.IsEmpty ?? true)
+      return;
+
+    _environment.Timestamp = time.GetUtcNow();
+    _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
+    _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
+    _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
+
+    await environmentReadingChannel.WriteAsync(_environment, stoppingToken);
+    await bus.PublishAsync(new EnvironmentReadingChangedEvent(_environment), stoppingToken);
   }
 }
