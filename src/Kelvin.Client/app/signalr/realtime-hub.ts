@@ -58,9 +58,16 @@ export class RealtimeHub extends SignalRHubBase {
 
   private handleMessage(message: RealtimeMessage): void {
     switch (message.type) {
-      case MessageType.ControlStateChanged:
-        dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.controlStateChanged, message.payload as ControlStateChange);
+      case MessageType.ControlStateChanged: {
+        const controlStateChange = message.payload as ControlStateChange;
+        dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.controlStateChanged, controlStateChange);
+
+        if (controlStateChange.kind === 'Call') {
+          dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.callStateChanged, controlStateChange);
+        }
+
         break;
+      }
       case MessageType.ThermostatStateChanged:
         dispatchCustomEvent(this, events.thermostatUpdated);
         break;

@@ -4,7 +4,7 @@ import { ContextProvider } from '@lit/context';
 import { css, html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
 
-import { controlContext, defaultControlStateChange } from '../contexts/control-context';
+import { callContext, controlContext, defaultCallStateChange, defaultControlStateChange } from '../contexts/control-context';
 import { defaultEnvironmentReadings, environmentReadingsContext } from '../contexts/sensors-context';
 import { signalrEvents } from '../events';
 import { ControlStateChange } from '../models/control-state-change';
@@ -17,6 +17,11 @@ export class SignalRContext extends LitElement {
       display: contents;
     }
   `;
+
+  private callProvider = new ContextProvider(this, {
+    context: callContext,
+    initialValue: defaultCallStateChange,
+  });
 
   private controlProvider = new ContextProvider(this, {
     context: controlContext,
@@ -40,6 +45,12 @@ export class SignalRContext extends LitElement {
     this.addEventListener(signalrEvents.controlHub.controlStateChanged, event => {
       const customEvent = event as CustomEvent<ControlStateChange>;
       this.controlProvider.setValue(customEvent.detail);
+    });
+
+    // subset of control state changes that specifically pertain to call kind
+    this.addEventListener(signalrEvents.controlHub.callStateChanged, event => {
+      const customEvent = event as CustomEvent<ControlStateChange>;
+      this.callProvider.setValue(customEvent.detail);
     });
   }
 
