@@ -53,6 +53,8 @@ public class SensingService(
         var replaySignal = await environmentReplayChannel.ReadAsync(subscriberId, stoppingToken);
         if (replaySignal)
         {
+          // Process the last reading to determine, done so the thermostat service will reevaluate
+          // the reading to determine if there should be a state change.
           await UpdateReadingsAsync(stoppingToken);
         }
       }
