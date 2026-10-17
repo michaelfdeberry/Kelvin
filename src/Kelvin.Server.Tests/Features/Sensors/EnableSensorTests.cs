@@ -24,7 +24,7 @@ public class EnableSensorTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         cache.Set(SensorsCache.Key, new object());
-        var bus = SensorTestHelpers.CreateEventBus();
+        var bus = SensorTestHelpers.CreateDispatcher();
 
         var result = await new EnableSensorHandler(context, cache, bus).HandleAsync(
             new EnableSensorRequest(sensorId)

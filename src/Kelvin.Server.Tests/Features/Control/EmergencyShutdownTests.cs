@@ -26,16 +26,14 @@ public class EmergencyShutdownTests
         await context.SaveChangesAsync();
 
         var controlChannel = A.Fake<IControlChannel>();
-        var bus = A.Fake<IEventBus>();
-        var sendNotificationHandler = A.Fake<IHandler<SendNotificationRequest>>();
+        var dispatcher = A.Fake<IDispatcher>();
 
         var handler = new EmergencyShutdownHandler(
             context,
             NullLogger<EmergencyShutdownHandler>.Instance,
             new MemoryCache(new MemoryCacheOptions()),
             controlChannel,
-            bus,
-            sendNotificationHandler
+            dispatcher
         );
 
         var result = await handler.HandleAsync(new EmergencyShutdownRequest("sensor failure"));
@@ -51,7 +49,7 @@ public class EmergencyShutdownTests
             )
             .MustHaveHappenedOnceExactly();
         A.CallTo(() =>
-                sendNotificationHandler.HandleAsync(
+                dispatcher.DispatchAsync(
                     A<SendNotificationRequest>.That.Matches(e =>
                         e.Heading == "Emergency Shutdown" && e.Message == "sensor failure"
                     ),
@@ -59,7 +57,9 @@ public class EmergencyShutdownTests
                 )
             )
             .MustHaveHappenedOnceExactly();
-        A.CallTo(() => bus.PublishAsync(A<ThermostatConfigChangedEvent>._, A<CancellationToken>._))
+        A.CallTo(() =>
+                dispatcher.PublishAsync(A<ThermostatConfigChangedEvent>._, A<CancellationToken>._)
+            )
             .MustHaveHappenedOnceExactly();
 
         await using var readContext = harness.CreateContext();

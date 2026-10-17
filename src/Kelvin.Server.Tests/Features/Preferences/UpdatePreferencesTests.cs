@@ -1,3 +1,5 @@
+using FakeItEasy;
+using Kelvin.Server.Application;
 using Kelvin.Server.Features.Preferences;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
@@ -27,7 +29,7 @@ public class UpdatePreferencesTests
         }
 
         await using var context = harness.CreateContext();
-        var result = await new UpdatePreferencesHandler(context).HandleAsync(
+        var result = await new UpdatePreferencesHandler(context, A.Fake<IDispatcher>()).HandleAsync(
             new UpdatePreferencesRequest(
                 TimeFormat.Hour12,
                 TemperatureUnit.Fahrenheit,

@@ -97,8 +97,7 @@ public sealed class ControlServiceHarness
             _dispatcher,
             Relays,
             Time,
-            _lifetime,
-            A.Fake<IEventBus>()
+            _lifetime
         );
     }
 
