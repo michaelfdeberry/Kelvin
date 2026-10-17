@@ -15,4 +15,12 @@ public record ThermostatConfigChangedEvent();
 public record SensorsChangedEvent();
 
 /// <summary>Raised to surface a user-facing notification (toast or banner).</summary>
-public record NotificationEvent(Notification Notification);
+public record SendNotificationEvent(Notification Notification);
+
+/// <summary>Raised whenever a user dismisses a notification.</summary>
+public record DismissNotificationEvent(Guid NotificationId);
+
+/// <summary>
+/// Raised whenever the system preferences are changed.
+/// </summary>
+public record PreferencesChangedEvent();

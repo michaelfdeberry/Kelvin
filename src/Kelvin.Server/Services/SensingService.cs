@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
+using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
@@ -11,9 +12,7 @@ namespace Kelvin.Server.Services;
 public class SensingService(
   ILogger<SensingService> logger,
   ISensorPacketChannel sensorPacketChannel,
-  IEnvironmentReadingsChannel environmentReadingChannel,
   IEnvironmentReplayChannel environmentReplayChannel,
-  IEventBus bus,
   IDispatcher dispatcher,
   TimeProvider time
 ) : BackgroundService
@@ -197,11 +196,13 @@ public class SensingService(
         await dispatcher.DispatchAsync(new DisableSensorRequest(sensorId), stoppingToken);
 
         var sensor = sensors.FirstOrDefault(s => s.Id == sensorId);
-        var notification = new Notification(
-          $"Sensor '{sensor?.Name ?? sensorId.ToString()}' has been disabled due to inactivity.",
-          NotificationType.Warning
+        await dispatcher.DispatchAsync(
+          new SendNotificationRequest(
+            $"Sensor '{sensor?.Name ?? sensorId.ToString()}' has been disabled due to inactivity.",
+            NotificationType.Warning
+          ),
+          stoppingToken
         );
-        await bus.PublishAsync(new NotificationEvent(notification), stoppingToken);
       }
 
       logger.LogInformation("Removed {Count} timed out sensors from environment reading.", sensorsToCleanup.Count);
@@ -226,7 +227,6 @@ public class SensingService(
     _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
     _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
 
-    await environmentReadingChannel.WriteAsync(_environment, stoppingToken);
-    await bus.PublishAsync(new EnvironmentReadingChangedEvent(_environment), stoppingToken);
+    await dispatcher.PublishAsync(new EnvironmentReadingChangedEvent(_environment), stoppingToken);
   }
 }

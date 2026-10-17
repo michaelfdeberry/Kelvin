@@ -6,7 +6,7 @@ import { events, signalrEvents } from '../events.js';
 import { SignalRHubBase } from './signalr-hub-base.js';
 import apiResources from '../services/api-resources.js';
 import { apiGet } from '../services/api.js';
-import { dispatchCustomEvent } from '../services/utilities.js';
+import { dispatchCustomEvent, dispatchToast } from '../services/utilities.js';
 
 import type { ControlStateChange } from '../models/control-state-change.js';
 import type { ControlStateResponse } from '../models/control-state.js';
@@ -22,6 +22,7 @@ const MessageType = {
   SensorsStateChanged: 'SensorsStateChanged',
   ReadingsUpdated: 'ReadingsUpdated',
   Notify: 'Notify',
+  DismissNotification: 'DismissNotification',
 } as const;
 
 type RealtimeMessage<T = unknown> = {
@@ -29,7 +30,7 @@ type RealtimeMessage<T = unknown> = {
   payload: T;
 };
 
-type Notification = ToastDetail & { banner?: boolean };
+type Notification = ToastDetail & { id?: string; banner?: boolean };
 
 /**
  * The single real-time pipe from the server: every push (control state, thermostat/sensors config
@@ -80,6 +81,9 @@ export class RealtimeHub extends SignalRHubBase {
       case MessageType.Notify:
         this.handleNotify(message.payload as Notification);
         break;
+      case MessageType.DismissNotification:
+        this.handleDismissNotification(message.payload as string);
+        break;
       default:
         console.warn(`Unhandled realtime message type: ${message.type}`);
     }
@@ -91,7 +95,17 @@ export class RealtimeHub extends SignalRHubBase {
       return;
     }
 
-    dispatchCustomEvent<ToastDetail>(this, events.toast, notification);
+    dispatchToast(this, notification);
+  }
+
+  private handleDismissNotification(notificationId: string): void {
+    const banner = this.bannerContextProvider.value as Notification;
+    if (banner?.id === notificationId) {
+      this.bannerContextProvider.setValue(undefined);
+      return;
+    }
+
+    dispatchCustomEvent<string>(this, events.clearToast, notificationId);
   }
 
   private async loadInitialControlState(): Promise<void> {

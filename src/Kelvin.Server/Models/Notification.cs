@@ -8,15 +8,12 @@ public enum NotificationType
   Error,
 }
 
-/// <summary>
-/// For now notifications will either display a toast on the UI or a pinned alert at the top of the page.
-/// Both use the alert component, so the notification contract just matches the alert component properties.
-/// </summary>
-public record Notification(
-  string Message,
-  NotificationType Type = NotificationType.Information,
-  bool Dismissible = true,
-  string? Heading = null,
-  bool? Banner = false,
-  int? Duration = null
-);
+public class Notification : Entity
+{
+  public required string Message { get; set; }
+  public NotificationType Type { get; set; }
+  public bool Dismissible { get; set; }
+  public string? Heading { get; set; }
+  public bool? Banner { get; set; }
+  public int? Duration { get; set; }
+}

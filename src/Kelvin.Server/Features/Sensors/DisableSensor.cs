@@ -12,7 +12,7 @@ public static class DisableSensorErrors
   public static readonly Error NotFoundError = new("DisableSensor.NotFound", "The requested sensor was not found.");
 }
 
-public class DisableSensorHandler(KelvinContext context, IMemoryCache cache, IEventBus bus) : IHandler<DisableSensorRequest>
+public class DisableSensorHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher) : IHandler<DisableSensorRequest>
 {
   public async Task<Result> HandleAsync(DisableSensorRequest request, CancellationToken ct = default)
   {
@@ -26,7 +26,7 @@ public class DisableSensorHandler(KelvinContext context, IMemoryCache cache, IEv
     await context.SaveChangesAsync(ct);
     cache.Remove(SensorsCache.Key);
 
-    await bus.PublishAsync(new SensorsChangedEvent(), ct);
+    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
     return Result.Success();
   }
 }

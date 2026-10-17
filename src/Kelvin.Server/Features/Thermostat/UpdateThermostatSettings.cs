@@ -30,7 +30,7 @@ public class UpdateThermostatSettingsHandler(
   KelvinContext context,
   IMemoryCache cache,
   IHandler<ValidateThermostatSafetyRequest> safetyValidator,
-  IEventBus bus
+  IDispatcher dispatcher
 ) : IHandler<UpdateThermostatSettingsRequest>
 {
   public async Task<Result> HandleAsync(UpdateThermostatSettingsRequest request, CancellationToken ct = default)
@@ -71,7 +71,7 @@ public class UpdateThermostatSettingsHandler(
     await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
 
-    await bus.PublishAsync(new ThermostatConfigChangedEvent(), ct);
+    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(), ct);
     return Result.Success();
   }
 

@@ -3,8 +3,6 @@
 Kelvin is a smart thermostat platform with remote sensor nodes.
 It monitors temperature, CO2, and humidity across the home, then helps manage HVAC behavior from one place.
 
-![Kelvin system](/docs/kelvin_system.png)
-
 Built as a full-stack system, Kelvin combines:
 
 - embedded sensors and gateway devices,

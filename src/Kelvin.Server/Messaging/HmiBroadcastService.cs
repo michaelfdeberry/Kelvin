@@ -7,7 +7,8 @@ namespace Kelvin.Server.Messaging;
 public class HmiBroadcastService(IDispatcher dispatcher)
   : IEventHandler<ControlStateChangedEvent>,
     IEventHandler<EnvironmentReadingChangedEvent>,
-    IEventHandler<ThermostatConfigChangedEvent>
+    IEventHandler<ThermostatConfigChangedEvent>,
+    IEventHandler<PreferencesChangedEvent>
 {
   public Task HandleAsync(ControlStateChangedEvent @event, CancellationToken cancellationToken = default) =>
     dispatcher.DispatchAsync(new BroadcastHmiControlStateRequest(@event.Change), cancellationToken);
@@ -17,6 +18,9 @@ public class HmiBroadcastService(IDispatcher dispatcher)
 
   public Task HandleAsync(ThermostatConfigChangedEvent @event, CancellationToken cancellationToken = default) =>
     dispatcher.DispatchAsync(new BroadcastHmiStateRequest(), cancellationToken);
+
+  public Task HandleAsync(PreferencesChangedEvent @event, CancellationToken cancellationToken = default) =>
+    dispatcher.DispatchAsync(new BroadcastHmiPreferencesChangedRequest(), cancellationToken);
 }
 
 public class HmiBroadcastServiceRegistration : IRegistration
@@ -26,5 +30,6 @@ public class HmiBroadcastServiceRegistration : IRegistration
     services.AddScoped<IEventHandler<ControlStateChangedEvent>, HmiBroadcastService>();
     services.AddScoped<IEventHandler<EnvironmentReadingChangedEvent>, HmiBroadcastService>();
     services.AddScoped<IEventHandler<ThermostatConfigChangedEvent>, HmiBroadcastService>();
+    services.AddScoped<IEventHandler<PreferencesChangedEvent>, HmiBroadcastService>();
   }
 }

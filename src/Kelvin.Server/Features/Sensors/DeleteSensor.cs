@@ -13,14 +13,14 @@ public static class DeleteSensorErrors
   public static readonly Error DefaultError = new("DeleteSensor.Failed", "An error occurred processing the request.");
 }
 
-public class DeleteSensorHandler(KelvinContext context, IMemoryCache cache, IEventBus bus) : IHandler<DeleteSensorRequest>
+public class DeleteSensorHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher) : IHandler<DeleteSensorRequest>
 {
   public async Task<Result> HandleAsync(DeleteSensorRequest request, CancellationToken ct = default)
   {
     await context.Sensors.Where(s => s.Id == request.SensorId).ExecuteUpdateAsync(s => s.SetProperty(s => s.DeletedAt, DateTime.UtcNow), ct);
     cache.Remove(SensorsCache.Key);
 
-    await bus.PublishAsync(new SensorsChangedEvent(), ct);
+    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
     return Result.Success();
   }
 }

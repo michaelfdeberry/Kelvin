@@ -24,6 +24,8 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
 
   public DbSet<ControlStateChange> ControlStateChanges => Set<ControlStateChange>();
 
+  public DbSet<Notification> Notifications => Set<Notification>();
+
   public static string ResolveSqliteConnectionString(IConfiguration configuration)
   {
     var databaseDirectory = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "kelvin");

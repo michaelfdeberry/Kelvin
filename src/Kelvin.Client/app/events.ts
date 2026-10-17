@@ -4,6 +4,7 @@ export const events = {
   routeChanged: 'route-changed',
   alertDismissed: 'alert-dismissed',
   toast: 'toast',
+  clearToast: 'clear-toast',
   thermostatUpdated: 'thermostat-updated',
 };
 

@@ -15,7 +15,7 @@ public static class CreateSetPointErrors
   public static readonly Error ThermostatNotFound = new("CreateSetPoint.ThermostatNotFound", "The thermostat with the specified ID was not found.");
 }
 
-public class CreateSetPointHandler(KelvinContext context, IMemoryCache cache, IHandler<ValidateThermostatSafetyRequest> safetyValidator)
+public class CreateSetPointHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher)
   : IHandler<CreateSetPointRequest, CreateSetPointResponse>
 {
   public async Task<Result<CreateSetPointResponse>> HandleAsync(CreateSetPointRequest request, CancellationToken ct = default)
@@ -39,7 +39,7 @@ public class CreateSetPointHandler(KelvinContext context, IMemoryCache cache, IH
       schedule.TargetTemperatureC
     ));
 
-    var safetyResult = await safetyValidator.HandleAsync(
+    var safetyResult = await dispatcher.DispatchAsync(
       new ValidateThermostatSafetyRequest(new ThermostatProjection(thermostat.HysteresisC, projectedSetPoints, projectedSchedules)),
       ct
     );

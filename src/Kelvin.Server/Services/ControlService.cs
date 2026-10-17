@@ -22,8 +22,7 @@ public class ControlService(
   IDispatcher dispatcher,
   IRelayController relays,
   TimeProvider time,
-  IHostApplicationLifetime lifetime,
-  IEventBus bus
+  IHostApplicationLifetime lifetime
 ) : BackgroundService
 {
   private static readonly Guid subscriberId = Guid.NewGuid();
@@ -536,7 +535,7 @@ public class ControlService(
         if (result.IsFailure)
           logger.LogError("Failed to record the {Kind} state change to {State}: {Error}", change.Kind, change.State, result.Error.Message);
 
-        await bus.PublishAsync(new ControlStateChangedEvent(change), cancellationToken);
+        await dispatcher.PublishAsync(new ControlStateChangedEvent(change), cancellationToken);
       }
     }
     catch (Exception ex)

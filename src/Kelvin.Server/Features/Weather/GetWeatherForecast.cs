@@ -23,18 +23,14 @@ public static class GetWeatherForecastErrors
   public static readonly Error DefaultError = new("GetWeatherForecast.Failed", "An error occurred processing the request.");
 }
 
-public class GetWeatherForecastHandler(
-  IHandler<GetCurrentLocationRequest, GetCurrentLocationResponse> currentLocationHandler,
-  ILogger<GetWeatherForecastHandler> logger,
-  IMemoryCache cache,
-  IWeatherApi weatherApi
-) : IHandler<GetWeatherForecastRequest, GetWeatherForecastResponse>
+public class GetWeatherForecastHandler(IDispatcher dispatcher, ILogger<GetWeatherForecastHandler> logger, IMemoryCache cache, IWeatherApi weatherApi)
+  : IHandler<GetWeatherForecastRequest, GetWeatherForecastResponse>
 {
   public async Task<Result<GetWeatherForecastResponse>> HandleAsync(GetWeatherForecastRequest request, CancellationToken ct = default)
   {
     try
     {
-      var locationResult = await currentLocationHandler.HandleAsync(new GetCurrentLocationRequest(), ct);
+      var locationResult = await dispatcher.DispatchAsync<GetCurrentLocationRequest, GetCurrentLocationResponse>(new GetCurrentLocationRequest(), ct);
       if (!locationResult.IsSuccess)
       {
         return Result<GetWeatherForecastResponse>.Failure(locationResult.Error);

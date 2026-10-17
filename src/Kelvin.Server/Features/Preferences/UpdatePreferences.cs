@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +16,7 @@ public static class UpdatePreferencesErrors
   public static readonly Error DefaultError = new("UpdatePreferences.Failed", "An error occurred processing the request.");
 }
 
-public class UpdatePreferencesHandler(KelvinContext context) : IHandler<UpdatePreferencesRequest, UpdatePreferencesResponse>
+public class UpdatePreferencesHandler(KelvinContext context, IDispatcher dispatcher) : IHandler<UpdatePreferencesRequest, UpdatePreferencesResponse>
 {
   public async Task<Result<UpdatePreferencesResponse>> HandleAsync(UpdatePreferencesRequest request, CancellationToken ct = default)
   {
@@ -39,6 +40,8 @@ public class UpdatePreferencesHandler(KelvinContext context) : IHandler<UpdatePr
     );
 
     await context.SaveChangesAsync(ct);
+
+    await dispatcher.PublishAsync(new PreferencesChangedEvent(), ct);
     return Result<UpdatePreferencesResponse>.Success(response);
   }
 }

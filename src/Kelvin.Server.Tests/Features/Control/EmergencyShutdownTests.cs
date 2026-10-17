@@ -2,6 +2,7 @@ using FakeItEasy;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
+using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
@@ -26,13 +27,15 @@ public class EmergencyShutdownTests
 
         var controlChannel = A.Fake<IControlChannel>();
         var bus = A.Fake<IEventBus>();
+        var sendNotificationHandler = A.Fake<IHandler<SendNotificationRequest>>();
 
         var handler = new EmergencyShutdownHandler(
             context,
             NullLogger<EmergencyShutdownHandler>.Instance,
             new MemoryCache(new MemoryCacheOptions()),
             controlChannel,
-            bus
+            bus,
+            sendNotificationHandler
         );
 
         var result = await handler.HandleAsync(new EmergencyShutdownRequest("sensor failure"));
@@ -48,10 +51,9 @@ public class EmergencyShutdownTests
             )
             .MustHaveHappenedOnceExactly();
         A.CallTo(() =>
-                bus.PublishAsync(
-                    A<NotificationEvent>.That.Matches(e =>
-                        e.Notification.Heading == "Emergency Shutdown"
-                        && e.Notification.Message == "sensor failure"
+                sendNotificationHandler.HandleAsync(
+                    A<SendNotificationRequest>.That.Matches(e =>
+                        e.Heading == "Emergency Shutdown" && e.Message == "sensor failure"
                     ),
                     A<CancellationToken>._
                 )

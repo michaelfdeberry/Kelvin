@@ -15,7 +15,7 @@ public static class CreateScheduleErrors
   public static readonly Error ThermostatNotFound = new("CreateSchedule.ThermostatNotFound", "The thermostat with the specified ID was not found.");
 }
 
-public class CreateScheduleHandler(KelvinContext context, IMemoryCache cache, IHandler<ValidateThermostatSafetyRequest> safetyValidator)
+public class CreateScheduleHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher)
   : IHandler<CreateScheduleRequest, CreateScheduleResponse>
 {
   public async Task<Result<CreateScheduleResponse>> HandleAsync(CreateScheduleRequest request, CancellationToken ct = default)
@@ -39,7 +39,7 @@ public class CreateScheduleHandler(KelvinContext context, IMemoryCache cache, IH
       ))
       .Append(new ScheduleProjection(null, request.Type, request.StartTime, request.EndTime, request.TargetTemperatureC));
 
-    var safetyResult = await safetyValidator.HandleAsync(
+    var safetyResult = await dispatcher.DispatchAsync(
       new ValidateThermostatSafetyRequest(new ThermostatProjection(thermostat.HysteresisC, projectedSetPoints, projectedSchedules)),
       ct
     );

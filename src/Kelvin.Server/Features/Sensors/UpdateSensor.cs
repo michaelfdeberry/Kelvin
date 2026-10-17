@@ -13,7 +13,7 @@ public static class UpdateSensorErrors
   public static readonly Error DefaultError = new("UpdateSensor.NotFound", "The requested sensor was not found.");
 }
 
-public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IEventBus bus) : IHandler<UpdateSensorRequest>
+public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher) : IHandler<UpdateSensorRequest>
 {
   public async Task<Result> HandleAsync(UpdateSensorRequest request, CancellationToken ct = default)
   {
@@ -40,7 +40,7 @@ public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IEve
     }
 
     await context.SaveChangesAsync(ct);
-    await bus.PublishAsync(new SensorsChangedEvent(), ct);
+    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
     cache.Remove(SensorsCache.Key);
 
     return Result.Success();

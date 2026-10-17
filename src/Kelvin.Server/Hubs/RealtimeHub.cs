@@ -16,6 +16,8 @@ public static class RealtimeMessageTypes
   public const string SensorsStateChanged = "SensorsStateChanged";
   public const string ReadingsUpdated = "ReadingsUpdated";
   public const string Notify = "Notify";
+  public const string DismissNotification = "DismissNotification";
+  public const string PreferencesChanged = "PreferencesChanged";
 }
 
 public interface IRealtimeClient
