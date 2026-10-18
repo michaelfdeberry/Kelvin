@@ -89,12 +89,8 @@ public class SendHmiStateTests
         await handler.HandleAsync(new SendHmiStateRequest("AA:BB:CC:DD:EE:FF"));
 
         var frames = Drain(outbound);
-        frames[0]
-            .ShouldBe(
-                HmiEnvelope
-                    .Encode(HmiMessageType.ControlStateChanged, HmiControlStateEncoder.Encode(call))
-                    .Single()
-            );
+        frames[0][0].ShouldBe((byte)HmiMessageType.ControlStateChanged);
+        frames[0][HmiEnvelope.HeaderSize..].ShouldBe(HmiControlStateEncoder.Encode(call));
         frames
             .Where(frame => frame[0] == (byte)HmiMessageType.ThermostatStateChunk)
             .SelectMany(frame => frame.Skip(HmiEnvelope.HeaderSize))

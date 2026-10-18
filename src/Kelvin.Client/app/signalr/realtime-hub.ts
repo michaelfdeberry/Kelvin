@@ -4,6 +4,7 @@ import { customElement } from 'lit/decorators.js';
 import { bannerContext, defaultBanner } from '../contexts/banner-context.js';
 import { events, signalrEvents } from '../events.js';
 import { SignalRHubBase } from './signalr-hub-base.js';
+import { Preferences } from '../models/preferences.js';
 import apiResources from '../services/api-resources.js';
 import { apiGet } from '../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../services/utilities.js';
@@ -23,6 +24,7 @@ const MessageType = {
   ReadingsUpdated: 'ReadingsUpdated',
   Notify: 'Notify',
   DismissNotification: 'DismissNotification',
+  PreferencesChanged: 'PreferencesChanged',
 } as const;
 
 type RealtimeMessage<T = unknown> = {
@@ -74,6 +76,9 @@ export class RealtimeHub extends SignalRHubBase {
         break;
       case MessageType.SensorsStateChanged:
         dispatchCustomEvent(this, events.sensorsUpdated);
+        break;
+      case MessageType.PreferencesChanged:
+        dispatchCustomEvent(this, events.preferencesSaved, message.payload as Preferences);
         break;
       case MessageType.ReadingsUpdated:
         dispatchCustomEvent<EnvironmentReading>(this, signalrEvents.readingsHub.sensorReadingsUpdated, message.payload as EnvironmentReading);

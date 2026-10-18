@@ -1021,20 +1021,23 @@ internal sealed class GatewaySimulator
                 out var type,
                 out var chunkIndex,
                 out var chunkCount,
+                out var messageId,
                 out var body
             )
         )
         {
+            if (payload.Length > tag.Length && payload.AsSpan(0, tag.Length).SequenceEqual(tag))
+                hmi.DiscardPending((HmiMessageType)payload[tag.Length]);
             Console.WriteLine($"[{hmi.Label}] <- malformed frame: {Convert.ToHexString(payload)}");
             return;
         }
 
         LogDebug(
             DebugLevel.Verbose,
-            $"[{hmi.Label}] <- {type} chunk {chunkIndex + 1}/{chunkCount} ({body.Length} bytes)"
+            $"[{hmi.Label}] <- {type} message {messageId} chunk {chunkIndex + 1}/{chunkCount} ({body.Length} bytes)"
         );
 
-        if (!hmi.TryReassemble(type, chunkIndex, chunkCount, body, out var message))
+        if (!hmi.TryReassemble(type, chunkIndex, chunkCount, messageId, body, out var message))
         {
             return;
         }

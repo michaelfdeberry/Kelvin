@@ -6,7 +6,7 @@ import './thermostat-editor-set-points.js';
 
 import { consume } from '@lit/context';
 import { html, LitElement, nothing, TemplateResult } from 'lit';
-import { customElement, query, queryAll } from 'lit/decorators.js';
+import { customElement, query, queryAll, state } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 
 import { ThermostatEditorForecast } from './thermostat-editor-forecast.js';
@@ -15,7 +15,7 @@ import { ThermostatEditorSetPoints } from './thermostat-editor-set-points.js';
 import thermostatEditorStyles from './thermostat-editor.styles.js';
 import { thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
-import { Thermostat, UpdateThermostatSettingsRequest } from '../../../../models/thermostat.js';
+import { RunMode, Thermostat, UpdateThermostatSettingsRequest } from '../../../../models/thermostat.js';
 import resources from '../../../../services/api-resources.js';
 import { apiPut } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
@@ -41,17 +41,51 @@ export class ThermostatEditor extends LitElement {
   @consume({ context: thermostatContext, subscribe: true })
   thermostat!: Thermostat;
 
+  @state()
+  private targetMode?: RunMode;
+
   private get isHeatingAvailable(): boolean {
-    return this.thermostat.mode === 'Heating' || this.thermostat.mode === 'Automatic';
+    const mode = this.targetMode ?? this.thermostat.mode;
+    return mode === 'Heating' || mode === 'Automatic';
   }
 
   private get isCoolingAvailable(): boolean {
-    return this.thermostat.mode === 'Cooling' || this.thermostat.mode === 'Automatic';
+    const mode = this.targetMode ?? this.thermostat.mode;
+    return mode === 'Cooling' || mode === 'Automatic';
   }
 
-  open(): void {
-    this.schedulesPanels.forEach(panel => panel.resetSchedules());
-    this.modal.show();
+  open(targetMode: RunMode | undefined = undefined): Promise<boolean> {
+    this.targetMode = targetMode;
+
+    return new Promise<boolean>(resolve => {
+      this.schedulesPanels.forEach(panel => panel.resetSchedules());
+      this.modal.show();
+
+      let resolved = false;
+      // If the thermostat is updated before the modal is closed, resolve the promise with true.
+      this.addEventListener(
+        events.thermostatUpdated,
+        () => {
+          if (!resolved) {
+            resolved = true;
+            resolve(true);
+          }
+        },
+        { once: true },
+      );
+
+      //Otherwise, resolve with false when the modal is closed.
+      this.modal.addEventListener(
+        'modal-closed',
+        () => {
+          if (!resolved) {
+            resolved = true;
+            resolve(false);
+          }
+        },
+        { once: true },
+      );
+    });
   }
 
   private async handleFormSubmit(event: Event): Promise<void> {
@@ -114,11 +148,13 @@ export class ThermostatEditor extends LitElement {
             <app-thermostat-editor-set-points
               id="set-points-panel"
               slot="panel"
+              .targetMode="${this.targetMode}"
             >
             </app-thermostat-editor-set-points>
             <app-thermostat-editor-forecast
               id="forecast-lockout-panel"
               slot="panel"
+              .targetMode="${this.targetMode}"
             >
             </app-thermostat-editor-forecast>
             <div slot="panel">

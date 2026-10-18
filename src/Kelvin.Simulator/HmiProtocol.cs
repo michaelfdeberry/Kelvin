@@ -10,12 +10,14 @@ internal enum HmiMessageType : byte
     SensorReading = 2,
     ControlStateChanged = 3,
     EnvironmentReadingChanged = 4,
+    PreferencesChanged = 5,
     SetMode = 0x10,
     SetFanEnabled = 0x11,
     SetSetPoint = 0x12,
     UpsertSchedule = 0x13,
     RemoveSchedule = 0x14,
     SetForecastLockouts = 0x15,
+    RequestState = 0x16,
 }
 
 // Mirrors Kelvin.Server's Models/RunMode.cs ordinals.
@@ -89,7 +91,8 @@ internal sealed record HmiEnvironmentReading(
 /// </summary>
 internal static class HmiProtocol
 {
-    public const int EnvelopeHeaderSize = 5;
+    public const int EnvelopeHeaderSize = 9;
+    private static int nextMessageId = Random.Shared.Next();
 
     // Mirrors Kelvin.Server's Models/FrameTags.Hmi.
     public static readonly byte[] FrameTag = [0x4B, 0x48, 0x4D, 0x49]; // "KHMI"
@@ -102,6 +105,10 @@ internal static class HmiProtocol
         frame[1] = 0;
         frame[2] = 1;
         BitConverter.TryWriteBytes(frame.AsSpan(3, 2), (ushort)body.Length);
+        BitConverter.TryWriteBytes(
+            frame.AsSpan(5, 4),
+            unchecked((uint)Interlocked.Increment(ref nextMessageId))
+        );
         body.CopyTo(frame, EnvelopeHeaderSize);
         return frame;
     }
@@ -111,12 +118,14 @@ internal static class HmiProtocol
         out HmiMessageType type,
         out byte chunkIndex,
         out byte chunkCount,
+        out uint messageId,
         out byte[] body
     )
     {
         type = default;
         chunkIndex = 0;
         chunkCount = 0;
+        messageId = 0;
         body = [];
 
         if (frame.Length < EnvelopeHeaderSize)
@@ -125,7 +134,7 @@ internal static class HmiProtocol
         }
 
         var length = BitConverter.ToUInt16(frame[3..5]);
-        if (frame.Length < EnvelopeHeaderSize + length)
+        if (frame[2] == 0 || frame[1] >= frame[2] || frame.Length != EnvelopeHeaderSize + length)
         {
             return false;
         }
@@ -133,6 +142,7 @@ internal static class HmiProtocol
         type = (HmiMessageType)frame[0];
         chunkIndex = frame[1];
         chunkCount = frame[2];
+        messageId = BitConverter.ToUInt32(frame[5..9]);
         body = frame.Slice(EnvelopeHeaderSize, length).ToArray();
         return true;
     }

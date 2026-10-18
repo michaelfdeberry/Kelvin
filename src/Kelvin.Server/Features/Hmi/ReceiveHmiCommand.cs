@@ -32,7 +32,11 @@ public class ReceiveHmiCommandHandler(
   {
     await RegisterHmiAsync(request.MacAddress, ct);
 
-    if (!HmiEnvelope.TryDecode(request.Payload, out var messageType, out _, out _, out _))
+    if (
+      !HmiEnvelope.TryDecode(request.Payload, out var messageType, out var chunkIndex, out var chunkCount, out _, out _)
+      || chunkIndex != 0
+      || chunkCount != 1
+    )
       return Result.Failure(ReceiveHmiCommandErrors.EmptyPayload);
 
     if (messageType == HmiMessageType.SensorReading)
@@ -77,7 +81,8 @@ public class ReceiveHmiCommandHandler(
     };
   }
 
-  private static ReadOnlySpan<byte> DecodeBody(byte[] payload) => HmiEnvelope.TryDecode(payload, out _, out _, out _, out var body) ? body : default;
+  private static ReadOnlySpan<byte> DecodeBody(byte[] payload) =>
+    HmiEnvelope.TryDecode(payload, out _, out _, out _, out _, out var body) ? body : default;
 
   private static SensorPacket BuildSensorPacket(string macAddress, ReadOnlySpan<byte> body) =>
     new()

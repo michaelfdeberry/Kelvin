@@ -20,7 +20,7 @@ public class HmiBroadcastService(IDispatcher dispatcher)
     dispatcher.DispatchAsync(new BroadcastHmiStateRequest(), cancellationToken);
 
   public Task HandleAsync(PreferencesChangedEvent @event, CancellationToken cancellationToken = default) =>
-    dispatcher.DispatchAsync(new BroadcastHmiPreferencesRequest(), cancellationToken);
+    dispatcher.DispatchAsync(new BroadcastHmiPreferencesRequest(@event.Preferences), cancellationToken);
 }
 
 public class HmiBroadcastServiceRegistration : IRegistration

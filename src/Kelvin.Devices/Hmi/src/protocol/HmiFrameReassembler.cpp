@@ -1,14 +1,40 @@
 #include <string.h>
 #include "HmiFrameReassembler.h"
 
+HmiFrameReassembler::PendingMessage *HmiFrameReassembler::pendingFor(HmiMessageType messageType)
+{
+  switch (messageType)
+  {
+  case HmiMessageType::ThermostatStateChunk:
+    return &pendingMessages[0];
+  case HmiMessageType::ControlStateChanged:
+    return &pendingMessages[1];
+  case HmiMessageType::EnvironmentReadingChanged:
+    return &pendingMessages[2];
+  case HmiMessageType::PreferencesChanged:
+    return &pendingMessages[3];
+  default:
+    return nullptr;
+  }
+}
+
 bool HmiFrameReassembler::addFrame(const uint8_t *frame, size_t frameLength)
 {
+  type = (HmiMessageType)0;
+  messageLength = 0;
+  PendingMessage *pending = frameLength > 0 ? pendingFor((HmiMessageType)frame[0]) : nullptr;
+  if (!pending)
+    return false;
+
   HmiMessageType frameType;
   uint8_t chunkIndex;
   uint8_t chunkCount;
   uint16_t bodyLength;
-  if (!HmiEnvelope::readHeader(frame, frameLength, frameType, chunkIndex, chunkCount, bodyLength))
+  uint32_t messageId;
+  if (!HmiEnvelope::readHeader(frame, frameLength, frameType, chunkIndex, chunkCount, bodyLength, messageId))
   {
+    pending->length = 0;
+    pending->chunkCount = 0;
     return false;
   }
 
@@ -16,17 +42,31 @@ bool HmiFrameReassembler::addFrame(const uint8_t *frame, size_t frameLength)
 
   if (chunkIndex == 0)
   {
-    type = frameType;
-    messageLength = 0; // starting a fresh reassembly
+    pending->length = 0;
+    pending->chunkCount = chunkCount;
+    pending->nextChunkIndex = 0;
+    pending->messageId = messageId;
   }
 
-  if (messageLength + bodyLength > MAX_MESSAGE_SIZE)
+  if (pending->messageId != messageId || pending->chunkCount != chunkCount || pending->nextChunkIndex != chunkIndex ||
+      bodyLength > MAX_MESSAGE_SIZE - pending->length)
   {
-    return false; // larger than this stub supports - drop rather than overflow the buffer
+    pending->length = 0;
+    pending->chunkCount = 0;
+    return false;
   }
 
-  memcpy(message + messageLength, body, bodyLength);
-  messageLength += bodyLength;
+  memcpy(pending->data + pending->length, body, bodyLength);
+  pending->length += bodyLength;
+  pending->nextChunkIndex++;
 
-  return (size_t)(chunkIndex + 1) >= chunkCount;
+  if (pending->nextChunkIndex != pending->chunkCount)
+    return false;
+
+  type = frameType;
+  messageLength = pending->length;
+  memcpy(message, pending->data, messageLength);
+  pending->length = 0;
+  pending->chunkCount = 0;
+  return true;
 }

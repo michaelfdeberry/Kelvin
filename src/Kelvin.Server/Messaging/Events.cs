@@ -23,4 +23,4 @@ public record DismissNotificationEvent(Guid NotificationId);
 /// <summary>
 /// Raised whenever the system preferences are changed.
 /// </summary>
-public record PreferencesChangedEvent();
+public record PreferencesChangedEvent(Preferences Preferences);

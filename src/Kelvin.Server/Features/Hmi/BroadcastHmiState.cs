@@ -28,13 +28,10 @@ public class BroadcastHmiStateHandler(KelvinContext context, IHmiOutboundChannel
     if (thermostat is null)
       return Result.Success();
 
-    var frames = HmiEnvelope.Encode(HmiMessageType.ThermostatStateChunk, HmiThermostatStateEncoder.Encode(thermostat));
+    var payload = HmiThermostatStateEncoder.Encode(thermostat);
     foreach (var macAddress in macAddresses)
     {
-      foreach (var frame in frames)
-      {
-        outboundChannel.Write(macAddress, frame);
-      }
+      outboundChannel.Write(macAddress, HmiMessageType.ThermostatStateChunk, payload);
     }
 
     return Result.Success();

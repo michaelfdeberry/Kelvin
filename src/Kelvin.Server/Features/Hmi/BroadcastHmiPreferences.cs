@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kelvin.Server.Features.Hmi;
 
-public record BroadcastHmiPreferencesRequest() : IRequest;
+public record BroadcastHmiPreferencesRequest(Models.Preferences Preferences) : IRequest;
 
 public static class BroadcastHmiPreferencesErrors
 {
@@ -25,17 +25,14 @@ public class BroadcastHmiPreferencesHandler(KelvinContext context, IHmiOutboundC
     if (macAddresses.Count == 0)
       return Result.Success();
 
-    var preferences = await context.Preferences.FirstOrDefaultAsync(ct);
+    var preferences = request.Preferences;
     if (preferences is null)
       return Result.Success();
 
-    var frames = HmiEnvelope.Encode(HmiMessageType.PreferencesChanged, HmiPreferencesEncoder.Encode(preferences));
+    var payload = HmiPreferencesEncoder.Encode(preferences);
     foreach (var macAddress in macAddresses)
     {
-      foreach (var frame in frames)
-      {
-        outboundChannel.Write(macAddress, frame);
-      }
+      outboundChannel.Write(macAddress, HmiMessageType.PreferencesChanged, payload);
     }
 
     return Result.Success();

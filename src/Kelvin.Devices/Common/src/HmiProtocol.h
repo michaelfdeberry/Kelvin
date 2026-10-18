@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 // Mirrors Kelvin.Server's Models/FrameTags.cs (FrameTags.Hmi) - keep the byte values in sync. Every ESP-NOW
@@ -63,26 +64,27 @@ enum class HmiMessageType : uint8_t
 };
 
 // Mirrors Kelvin.Server's Features/Hmi/HmiEnvelope.cs - keep in sync. Every Hmi message, both directions,
-// is framed with this 5-byte header before its HmiMessageType-specific body: message type, chunk index,
-// chunk count, and this frame's body length (little-endian uint16). A chunkCount of 1 means the body is
-// complete in this single frame; uplink commands never chunk in practice but still carry the same header
-// for protocol symmetry.
+// is framed with this 9-byte header: type(1), index(1), count(1), body length(2 LE), message ID(4 LE).
+// All chunks of one message share an ID. Uplink commands are single-chunk messages with distinct IDs.
 namespace HmiEnvelope
 {
-  static const size_t HEADER_SIZE = 5;
+  static const size_t HEADER_SIZE = 9;
 
-  inline void writeHeader(uint8_t *buffer, HmiMessageType type, uint8_t chunkIndex, uint8_t chunkCount, uint16_t bodyLength)
+  inline void writeHeader(uint8_t *buffer, HmiMessageType type, uint8_t chunkIndex, uint8_t chunkCount, uint16_t bodyLength, uint32_t messageId)
   {
     buffer[0] = (uint8_t)type;
     buffer[1] = chunkIndex;
     buffer[2] = chunkCount;
     buffer[3] = (uint8_t)(bodyLength & 0xFF);
     buffer[4] = (uint8_t)((bodyLength >> 8) & 0xFF);
+    buffer[5] = (uint8_t)(messageId & 0xFF);
+    buffer[6] = (uint8_t)((messageId >> 8) & 0xFF);
+    buffer[7] = (uint8_t)((messageId >> 16) & 0xFF);
+    buffer[8] = (uint8_t)((messageId >> 24) & 0xFF);
   }
 
-  // `frameLength` is the full physical frame (header + body). Returns false if the frame is too short to
-  // even hold the header, or shorter than the header's own declared body length.
-  inline bool readHeader(const uint8_t *frame, size_t frameLength, HmiMessageType &type, uint8_t &chunkIndex, uint8_t &chunkCount, uint16_t &bodyLength)
+  // Validates chunk metadata and requires the physical frame to match its declared body length exactly.
+  inline bool readHeader(const uint8_t *frame, size_t frameLength, HmiMessageType &type, uint8_t &chunkIndex, uint8_t &chunkCount, uint16_t &bodyLength, uint32_t &messageId)
   {
     if (frameLength < HEADER_SIZE)
     {
@@ -93,7 +95,9 @@ namespace HmiEnvelope
     chunkIndex = frame[1];
     chunkCount = frame[2];
     bodyLength = (uint16_t)(frame[3] | (frame[4] << 8));
-    return frameLength >= HEADER_SIZE + bodyLength;
+    messageId = (uint32_t)frame[5] | ((uint32_t)frame[6] << 8) |
+                ((uint32_t)frame[7] << 16) | ((uint32_t)frame[8] << 24);
+    return chunkCount > 0 && chunkIndex < chunkCount && frameLength == HEADER_SIZE + bodyLength;
   }
 }
 

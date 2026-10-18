@@ -27,13 +27,9 @@ public class BroadcastHmiEnvironmentReadingHandler(KelvinContext context, IHmiOu
       return Result.Success();
 
     var payload = HmiEnvironmentReadingEncoder.Encode(request.Reading);
-    var frames = HmiEnvelope.Encode(HmiMessageType.EnvironmentReadingChanged, payload);
     foreach (var macAddress in macAddresses)
     {
-      foreach (var frame in frames)
-      {
-        outboundChannel.Write(macAddress, frame);
-      }
+      outboundChannel.Write(macAddress, HmiMessageType.EnvironmentReadingChanged, payload);
     }
 
     return Result.Success();

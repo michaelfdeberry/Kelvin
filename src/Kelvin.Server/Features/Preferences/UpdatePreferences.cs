@@ -41,7 +41,7 @@ public class UpdatePreferencesHandler(KelvinContext context, IDispatcher dispatc
 
     await context.SaveChangesAsync(ct);
 
-    await dispatcher.PublishAsync(new PreferencesChangedEvent(), ct);
+    await dispatcher.PublishAsync(new PreferencesChangedEvent(preferences), ct);
     return Result<UpdatePreferencesResponse>.Success(response);
   }
 }

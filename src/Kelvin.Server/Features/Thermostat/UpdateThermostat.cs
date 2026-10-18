@@ -20,13 +20,43 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
 {
   public async Task<Result> HandleAsync(UpdateThermostatRequest request, CancellationToken ct = default)
   {
-    var thermostat = await context.Thermostats.FirstOrDefaultAsync(ct);
+    // For now there is only support for one thermostat, so we just get the most recently created one.
+    // the order by is to get rid of the first or default without orderby warning.
+    var thermostat = await context
+      .Thermostats.Include(t => t.SetPoints)
+      .Include(t => t.Schedules)
+      .OrderByDescending(t => t.CreatedAt)
+      .FirstOrDefaultAsync(ct);
+
     if (thermostat is null)
       return Result.Failure(UpdateThermostatErrors.ThermostatNotFound);
+
+    if (thermostat.Mode != RunMode.Automatic && request.Mode == RunMode.Automatic)
+    {
+      // validate thermostat safety when switching to automatic mode. If the thermostat service runs
+      // in automatic with invalid configuration it will trigger the failsafe and the user would need to intervene.
+      // With this the model can be popped open similar to how it behaves if configuration is missing before entering automatic mode.
+      // This will maintain the current mode until the configuration is updated.
+      var validationRequest = new ValidateThermostatSafetyRequest(
+        new ThermostatProjection(
+          thermostat.HysteresisC,
+          thermostat.SetPoints.Where(s => s.DeletedAt is null).Select(s => new SetPointProjection(s.Id, s.Type, s.TargetTemperatureC)),
+          thermostat
+            .Schedules.Where(s => s.DeletedAt is null)
+            .Select(s => new ScheduleProjection(s.Id, s.Type, s.StartTime, s.EndTime, s.TargetTemperatureC))
+        )
+      );
+      var validationResult = await dispatcher.DispatchAsync(validationRequest, ct);
+      if (validationResult.IsFailure)
+      {
+        return Result.Failure(validationResult.Error);
+      }
+    }
 
     var currentFanState = thermostat.FanEnabled;
     thermostat.Mode = request.Mode;
     thermostat.FanEnabled = request.FanEnabled;
+
     await context.SaveChangesAsync(ct);
 
     var controlContext = new ControlMessage(

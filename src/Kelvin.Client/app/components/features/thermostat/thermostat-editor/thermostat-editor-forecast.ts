@@ -2,14 +2,14 @@ import '../../../shared/number-input/number-input.js';
 
 import { consume } from '@lit/context';
 import { html, LitElement, TemplateResult } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { customElement, property } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 
 import thermostatEditorForecastStyles from './thermostat-editor-forecast.styles.js';
 import { preferencesContext } from '../../../../contexts/preferences-context.js';
 import { thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { Preferences } from '../../../../models/preferences.js';
-import { Thermostat } from '../../../../models/thermostat.js';
+import { RunMode, Thermostat } from '../../../../models/thermostat.js';
 import { convertToPreferredUnit, fromPreferredUnit, getPreferredUnit } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 
@@ -23,16 +23,21 @@ export class ThermostatEditorForecast extends LitElement {
   @consume({ context: thermostatContext, subscribe: true })
   thermostat!: Thermostat;
 
+  @property()
+  targetMode?: RunMode;
+
   private get preferredUnit(): string {
     return getPreferredUnit(this.preferences.temperatureUnit);
   }
 
   private get isHeatingAvailable(): boolean {
-    return this.thermostat.mode === 'Heating' || this.thermostat.mode === 'Automatic';
+    const mode = this.targetMode ?? this.thermostat.mode;
+    return mode === 'Heating' || mode === 'Automatic';
   }
 
   private get isCoolingAvailable(): boolean {
-    return this.thermostat.mode === 'Cooling' || this.thermostat.mode === 'Automatic';
+    const mode = this.targetMode ?? this.thermostat.mode;
+    return mode === 'Cooling' || mode === 'Automatic';
   }
 
   getLockouts(): { heatingLockoutC?: number; coolingLockoutC?: number } {

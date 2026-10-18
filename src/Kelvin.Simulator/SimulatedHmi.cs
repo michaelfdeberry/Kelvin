@@ -4,6 +4,7 @@ internal sealed class SimulatedHmi
 {
     private static readonly Random Random = new();
     private const float InitialRoomOffsetRangeC = 0.6f;
+    private const int MaxMessageSize = 2048;
 
     private readonly Dictionary<HmiMessageType, PendingMessage> pendingMessages = [];
 
@@ -60,18 +61,36 @@ internal sealed class SimulatedHmi
         BatteryLevelPercentage = Math.Max(0.0f, BatteryLevelPercentage - 0.0001f);
     }
 
-    // Like the firmware's HmiFrameReassembler, chunks are assumed to arrive in order; anything else resets.
+    // Mirrors the firmware's bounded per-type reassembly and strict continuation validation.
     public bool TryReassemble(
         HmiMessageType type,
         byte chunkIndex,
         byte chunkCount,
+        uint messageId,
         byte[] body,
         out byte[] message
     )
     {
         message = [];
 
-        if (chunkCount <= 1)
+        if (
+            type
+            is not (
+                HmiMessageType.ThermostatStateChunk
+                or HmiMessageType.ControlStateChanged
+                or HmiMessageType.EnvironmentReadingChanged
+                or HmiMessageType.PreferencesChanged
+            )
+        )
+            return false;
+
+        if (chunkCount == 0 || chunkIndex >= chunkCount || body.Length > MaxMessageSize)
+        {
+            pendingMessages.Remove(type);
+            return false;
+        }
+
+        if (chunkCount == 1)
         {
             pendingMessages.Remove(type);
             message = body;
@@ -80,13 +99,15 @@ internal sealed class SimulatedHmi
 
         if (chunkIndex == 0)
         {
-            pendingMessages[type] = new PendingMessage(chunkCount);
+            pendingMessages[type] = new PendingMessage(chunkCount, messageId);
         }
 
         if (
             !pendingMessages.TryGetValue(type, out var pending)
+            || pending.MessageId != messageId
             || pending.ChunkCount != chunkCount
             || pending.NextChunkIndex != chunkIndex
+            || pending.Data.Count + body.Length > MaxMessageSize
         )
         {
             pendingMessages.Remove(type);
@@ -109,8 +130,12 @@ internal sealed class SimulatedHmi
     public override string ToString() =>
         $"{Label} {(Enabled ? "online" : "offline")} temp={TemperatureC:F2}C humidity={HumidityPercentage:F2}% battery={BatteryLevelPercentage:F2}%";
 
-    private sealed class PendingMessage(byte chunkCount)
+    public void DiscardPending(HmiMessageType type) => pendingMessages.Remove(type);
+
+    private sealed class PendingMessage(byte chunkCount, uint messageId)
     {
+        public uint MessageId { get; } = messageId;
+
         public byte ChunkCount { get; } = chunkCount;
 
         public int NextChunkIndex { get; set; }

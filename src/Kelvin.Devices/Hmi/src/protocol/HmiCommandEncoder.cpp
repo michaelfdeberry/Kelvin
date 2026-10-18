@@ -3,6 +3,12 @@
 
 namespace HmiCommandEncoder
 {
+  static uint32_t nextMessageId()
+  {
+    static uint32_t messageId = 0;
+    return ++messageId;
+  }
+
   size_t encodeSensorReading(float temperatureC, float humidityPercentage, float batteryLevelPercentage, uint8_t *buffer, size_t bufferSize)
   {
     const uint16_t bodyLength = 14; // temp(4) + humidity(4) + co2(2) + battery(4)
@@ -11,7 +17,7 @@ namespace HmiCommandEncoder
       return 0;
     }
 
-    HmiEnvelope::writeHeader(buffer, HmiMessageType::SensorReading, 0, 1, bodyLength);
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SensorReading, 0, 1, bodyLength, nextMessageId());
     size_t offset = HmiEnvelope::HEADER_SIZE;
     memcpy(buffer + offset, &temperatureC, sizeof(float));
     offset += sizeof(float);
@@ -33,7 +39,7 @@ namespace HmiCommandEncoder
       return 0;
     }
 
-    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetMode, 0, 1, bodyLength);
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetMode, 0, 1, bodyLength, nextMessageId());
     buffer[HmiEnvelope::HEADER_SIZE] = (uint8_t)mode;
     return HmiEnvelope::HEADER_SIZE + bodyLength;
   }
@@ -46,7 +52,7 @@ namespace HmiCommandEncoder
       return 0;
     }
 
-    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetFanEnabled, 0, 1, bodyLength);
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetFanEnabled, 0, 1, bodyLength, nextMessageId());
     buffer[HmiEnvelope::HEADER_SIZE] = enabled ? 1 : 0;
     return HmiEnvelope::HEADER_SIZE + bodyLength;
   }
@@ -59,7 +65,7 @@ namespace HmiCommandEncoder
       return 0;
     }
 
-    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetSetPoint, 0, 1, bodyLength);
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetSetPoint, 0, 1, bodyLength, nextMessageId());
     size_t offset = HmiEnvelope::HEADER_SIZE;
     buffer[offset++] = (uint8_t)type;
     memcpy(buffer + offset, &targetTemperatureC, sizeof(float));
@@ -81,7 +87,7 @@ namespace HmiCommandEncoder
       return 0;
     }
 
-    HmiEnvelope::writeHeader(buffer, HmiMessageType::UpsertSchedule, 0, 1, bodyLength);
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::UpsertSchedule, 0, 1, bodyLength, nextMessageId());
     size_t offset = HmiEnvelope::HEADER_SIZE;
     buffer[offset++] = scheduleId ? 1 : 0;
     if (scheduleId)
@@ -107,7 +113,7 @@ namespace HmiCommandEncoder
       return 0;
     }
 
-    HmiEnvelope::writeHeader(buffer, HmiMessageType::RemoveSchedule, 0, 1, bodyLength);
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::RemoveSchedule, 0, 1, bodyLength, nextMessageId());
     memcpy(buffer + HmiEnvelope::HEADER_SIZE, scheduleId, 16);
     return HmiEnvelope::HEADER_SIZE + bodyLength;
   }
@@ -120,7 +126,7 @@ namespace HmiCommandEncoder
       return 0;
     }
 
-    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetForecastLockouts, 0, 1, bodyLength);
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::SetForecastLockouts, 0, 1, bodyLength, nextMessageId());
     size_t offset = HmiEnvelope::HEADER_SIZE;
     buffer[offset++] = heatingLockoutC ? 1 : 0;
     if (heatingLockoutC)
@@ -145,7 +151,7 @@ namespace HmiCommandEncoder
       return 0;
     }
 
-    HmiEnvelope::writeHeader(buffer, HmiMessageType::RequestState, 0, 1, bodyLength);
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::RequestState, 0, 1, bodyLength, nextMessageId());
     return HmiEnvelope::HEADER_SIZE + bodyLength;
   }
 }

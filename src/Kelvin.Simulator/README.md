@@ -72,6 +72,11 @@ Device commands take an optional HMI index (defaults to `0`); temperatures are i
 Disabled (offline) HMIs neither send nor receive. Received messages are printed as they arrive,
 prefixed with `[hmi #NN MAC] <-`; sent commands are prefixed with `->`.
 
+The HMI envelope is 9 bytes: `[type:1][index:1][count:1][body length:2 LE][message ID:4 LE]`.
+Reassembly matches the panel firmware: one pending message per downlink type, at most 2048 bytes,
+consecutive indices, and consistent chunk counts and message IDs. Build this simulator with the matching
+Kelvin.Server and HMI firmware; the previous 5-byte envelope is incompatible. Gateway and Node are unchanged.
+
 Any unrecognized input prints `status`.
 
 ## Current scope

@@ -52,6 +52,31 @@ arduino-cli compile --fqbn "esp32:esp32:waveshare_esp32_s3_touch_lcd_7:PSRAM=ena
 
 Replace `COMX` with the board's actual serial port.
 
+## Message reassembly
+
+HMI messages use a 9-byte envelope: `[type:1][chunk index:1][chunk count:1][body length:2 LE][message ID:4 LE]`,
+followed by the body. Every chunk of one message shares the same ID. The panel retains one assembly for
+each of the four downlink types, up to 2048 body bytes each, separately from the completed-message buffer.
+Only consecutive indices starting at zero, with matching IDs and chunk counts, can complete a message.
+Malformed frames, gaps, duplicate continuations, changed IDs/counts, and overflow invalidate the affected
+assembly; a fresh chunk zero starts it again. Other message types can arrive between its chunks.
+
+This replaces the previous 5-byte envelope and is not wire-compatible with it. Deploy Kelvin.Server,
+rebuild Kelvin.Simulator, and reflash all HMI panels together. Gateway and Node firmware need no update.
+IDs identify assemblies, not acknowledgements or guaranteed delivery; interrupted messages still require
+a new full snapshot. IDs can repeat after sender restart or counter wraparound.
+
+The native regression tests compile the real reassembler and uplink encoder without Arduino hardware.
+From the repository root, with a C++ compiler available:
+
+```powershell
+g++ -std=c++17 -Wall -Wextra -Werror -I src/Kelvin.Devices/Common/src src/Kelvin.Devices/Hmi/tests/HmiFrameReassemblerTests.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiFrameReassembler.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiCommandEncoder.cpp -o "$env:TEMP/kelvin-hmi-tests.exe"
+& "$env:TEMP/kelvin-hmi-tests.exe"
+```
+
+MSVC is also supported: run `cl` from a Developer PowerShell with `/std:c++17 /EHsc /W4 /WX`, the same
+include directory (`/I`) and sources, and an output path specified with `/Fe`.
+
 ## Battery and power
 
 The panel is powered through USB from an external charger and regulated 5V boost converter. Its onboard

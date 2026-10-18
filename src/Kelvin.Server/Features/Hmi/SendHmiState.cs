@@ -55,10 +55,7 @@ public class SendHmiStateHandler(
 
   private void WriteFrames(string macAddress, HmiMessageType messageType, byte[] payload)
   {
-    foreach (var frame in HmiEnvelope.Encode(messageType, payload))
-    {
-      outboundChannel.Write(macAddress, frame);
-    }
+    outboundChannel.Write(macAddress, messageType, payload);
   }
 }
 

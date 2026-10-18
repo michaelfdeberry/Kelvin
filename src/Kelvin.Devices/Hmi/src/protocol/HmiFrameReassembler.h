@@ -8,8 +8,8 @@
 // a single-chunk message (chunkCount == 1) completes on the first call; a multi-chunk message accumulates
 // across calls, keyed by message type.
 //
-// STUB LIMITATION: assumes chunks arrive in order (chunkIndex 0, 1, 2, ...) and that only one message is
-// ever mid-reassembly at a time - holds for this simple point-to-point Gateway link.
+// Each supported downlink type has one bounded pending assembly. A gap, duplicate continuation,
+// changed chunk count/message ID, or malformed frame invalidates only that type's pending message.
 class HmiFrameReassembler
 {
 public:
@@ -29,6 +29,17 @@ public:
   size_t getMessageLength() const { return messageLength; }
 
 private:
+  struct PendingMessage
+  {
+    uint8_t data[MAX_MESSAGE_SIZE];
+    size_t length = 0;
+    uint8_t chunkCount = 0;
+    uint16_t nextChunkIndex = 0;
+    uint32_t messageId = 0;
+  };
+
+  PendingMessage *pendingFor(HmiMessageType messageType);
+  PendingMessage pendingMessages[4];
   HmiMessageType type = (HmiMessageType)0;
   uint8_t message[MAX_MESSAGE_SIZE];
   size_t messageLength = 0;

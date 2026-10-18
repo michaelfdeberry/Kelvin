@@ -17,6 +17,7 @@ import { events } from '../../../../events.js';
 import { ControlStateChange } from '../../../../models/control-state-change.js';
 import { EnvironmentReading } from '../../../../models/sensors.js';
 import { RunMode, Schedule, SetPoint, Thermostat } from '../../../../models/thermostat.js';
+import { ToastDetail } from '../../../../models/toast-detail.js';
 import resources from '../../../../services/api-resources.js';
 import { apiPut } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
@@ -91,26 +92,53 @@ export class ThermostatControl extends LitElement {
   }
 
   private async toggleFan(): Promise<void> {
-    this.updateThermostat({
+    await this.updateThermostat({
       ...this.thermostat,
       fanEnabled: !this.thermostat.fanEnabled,
     });
   }
 
   private async setMode(mode: RunMode): Promise<void> {
-    this.updateThermostat({
-      ...this.thermostat,
-      mode: mode,
-    });
-
     const isConfiguredForHeating = this.setPoints.some(setPoint => setPoint.type === 'Heating');
     const isConfiguredForCooling = this.setPoints.some(setPoint => setPoint.type === 'Cooling');
     const requiresHeatingConfiguration = (mode === 'Heating' || mode === 'Automatic') && !isConfiguredForHeating;
     const requiresCoolingConfiguration = (mode === 'Cooling' || mode === 'Automatic') && !isConfiguredForCooling;
 
+    const requiresConfigurationToast: ToastDetail = {
+      type: 'Information',
+      message: 'Configuration is required before this mode can be used. Please configure the thermostat settings.',
+      duration: 5000,
+      dismissible: true,
+    };
+
     if (requiresHeatingConfiguration || requiresCoolingConfiguration) {
-      this.thermostatEditor.open();
-      dispatchToast(this, 'Information', 'Configuration is required before this mode can be used. Please configure the thermostat settings.');
+      dispatchToast(this, requiresConfigurationToast);
+
+      const result = await this.thermostatEditor.open(mode);
+      if (!result) return;
+
+      requestAnimationFrame(() => this.setMode(mode));
+      return;
+    }
+
+    try {
+      await this.updateThermostat({ ...this.thermostat, mode: mode });
+    } catch (error) {
+      const validationErrorCodes = [
+        'ValidateThermostatSafety.DuplicateSetPointType',
+        'ValidateThermostatSafety.OverlappingSchedulesSameType',
+        'ValidateThermostatSafety.UnsafeTargetOverlap',
+        'ValidateThermostatSafety.UnsafeActivationOverlap',
+      ];
+      const errorCode = error instanceof Error ? (error as Error).message : '';
+      if (validationErrorCodes.includes(errorCode)) {
+        dispatchToast(this, requiresConfigurationToast);
+
+        const result = await this.thermostatEditor.open(mode);
+        if (!result) return;
+
+        requestAnimationFrame(() => this.setMode(mode));
+      }
     }
   }
 

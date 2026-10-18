@@ -20,6 +20,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
 
   // Main-loop reads must not block indefinitely, or a quiet Node/panel would starve outbound Hmi writes.
   const int MAIN_PORT_READ_TIMEOUT = 250;
+  const int MAX_OUTBOUND_FRAMES_PER_PASS = 4;
   static readonly byte[] GATEWAY_INFO_HEADER = [0xAB, 0x56];
 
   // Every device (Node, Hmi, and whatever comes next) is relayed generically as
@@ -52,7 +53,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
           await Task.Delay(GATEWAY_BOOT_DELAY, stoppingToken);
         }
 
-        DrainOutboundHmiMessages(port);
+        DrainOutboundHmiMessages(port, stoppingToken);
 
         var header = TryReadIncomingHeader(port, KNOWN_INCOMING_HEADERS, stoppingToken);
         if (header is null)
@@ -286,10 +287,13 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
 
   // GatewayService is the sole owner/writer of the serial port, so outbound frames are drained here rather
   // than written directly by whichever handler produced them (e.g. BroadcastHmiStateHandler).
-  private void DrainOutboundHmiMessages(SerialPort port)
+  private void DrainOutboundHmiMessages(SerialPort port, CancellationToken stoppingToken)
   {
-    while (hmiOutboundChannel.TryRead(out var message))
+    for (var count = 0; count < MAX_OUTBOUND_FRAMES_PER_PASS && !stoppingToken.IsCancellationRequested; count++)
     {
+      if (!hmiOutboundChannel.TryRead(out var message))
+        break;
+
       try
       {
         WriteDeviceDownlinkFrame(port, message.MacAddress, message.Payload);

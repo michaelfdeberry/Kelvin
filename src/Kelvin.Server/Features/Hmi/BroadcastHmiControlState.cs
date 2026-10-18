@@ -28,13 +28,9 @@ public class BroadcastHmiControlStateHandler(KelvinContext context, IHmiOutbound
       return Result.Success();
 
     var payload = HmiControlStateEncoder.Encode(request.Change);
-    var frames = HmiEnvelope.Encode(HmiMessageType.ControlStateChanged, payload);
     foreach (var macAddress in macAddresses)
     {
-      foreach (var frame in frames)
-      {
-        outboundChannel.Write(macAddress, frame);
-      }
+      outboundChannel.Write(macAddress, HmiMessageType.ControlStateChanged, payload);
     }
 
     return Result.Success();

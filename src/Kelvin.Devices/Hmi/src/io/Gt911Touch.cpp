@@ -13,6 +13,11 @@ bool Gt911Touch::read(int16_t &x, int16_t &y)
   uint8_t status = 0;
   if (!readRegister(STATUS_REGISTER, &status, 1))
   {
+    if (pressed)
+    {
+      x = lastX;
+      y = lastY;
+    }
     return pressed;
   }
 
