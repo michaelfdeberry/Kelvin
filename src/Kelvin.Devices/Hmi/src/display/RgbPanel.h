@@ -2,6 +2,9 @@
 
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_rgb.h>
+#include <esp_attr.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 // Drives the ESP32-S3-Touch-LCD-7B's parallel RGB panel directly through ESP-IDF's esp_lcd, mirroring the
 // official demo's rgb_lcd_port.cpp (examples/Arduino/examples/16_LVGL_V9_DEMO in
@@ -13,9 +16,14 @@ class RgbPanel
 public:
   // Returns false (and leaves the panel unusable) if the driver couldn't be installed.
   bool begin();
+  bool end();
+  bool synchronize();
 
   void draw(int xStart, int yStart, int xEnd, int yEnd, const void *pixels);
 
 private:
   esp_lcd_panel_handle_t handle = nullptr;
+  SemaphoreHandle_t vsyncSemaphore = nullptr;
+
+  static bool IRAM_ATTR onVsync(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *event, void *context);
 };

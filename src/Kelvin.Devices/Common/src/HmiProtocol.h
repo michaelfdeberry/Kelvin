@@ -36,6 +36,9 @@ enum class HmiMessageType : uint8_t
   // packed (12 bytes).
   EnvironmentReadingChanged = 4,
 
+  // Server -> Hmi. The system's preferences have changed.
+  PreferencesChanged = 5,
+
   // Hmi -> Server. Body: uint8 RunMode.
   SetMode = 0x10,
 
@@ -54,6 +57,9 @@ enum class HmiMessageType : uint8_t
 
   // Hmi -> Server. Body: uint8 hasHeating, [float heatingLockoutC], uint8 hasCooling, [float coolingLockoutC].
   SetForecastLockouts = 0x15,
+
+  // Hmi -> Server. Requests the last call state and preferences, replied to this panel only.
+  RequestState = 0x16,
 };
 
 // Mirrors Kelvin.Server's Features/Hmi/HmiEnvelope.cs - keep in sync. Every Hmi message, both directions,
@@ -121,6 +127,18 @@ enum class ControlState : uint8_t
   FanOff = 6,
   Startup = 7,
   Fault = 8,
+};
+
+enum class TemperatureUnit : uint8_t
+{
+  Celsius = 0,
+  Fahrenheit = 1,
+};
+
+enum class TimeFormat : uint8_t
+{
+  Hour24 = 0,
+  Hour12 = 1,
 };
 
 // The full thermostat state, as reassembled from one or more ThermostatStateChunk messages (see

@@ -15,9 +15,13 @@ static volatile bool txSucceeded = false;
 // Written by the ESP-NOW recv callback, drained by tryReceive() - see Communicator.h for why a single
 // slot (rather than a queue) is sufficient here.
 static uint8_t expectedFrameTag[FRAME_TAG_SIZE] = {0};
-static uint8_t receiveBuffer[Communicator::MAX_FRAME_CONTENT];
-static volatile size_t receiveLength = 0;
-static volatile bool receivePending = false;
+
+// A queue, not a single slot: the server sends several frames back to back (state, then preferences).
+static const size_t RECEIVE_QUEUE_DEPTH = 8;
+static uint8_t receiveQueue[RECEIVE_QUEUE_DEPTH][Communicator::MAX_FRAME_CONTENT];
+static size_t receiveQueueLengths[RECEIVE_QUEUE_DEPTH];
+static volatile size_t receiveHead = 0; // next slot tryReceive() reads
+static volatile size_t receiveTail = 0; // next slot onDataRecv() writes
 
 static void onDataSent(const esp_now_send_info_t *info, esp_now_send_status_t status)
 {
@@ -32,14 +36,22 @@ static void onDataRecv(const esp_now_recv_info *info, const uint8_t *incomingDat
     return; // not tagged for this device's protocol - ignore (radio noise or an unrelated frame)
   }
 
+  size_t nextTail = (receiveTail + 1) % RECEIVE_QUEUE_DEPTH;
+  if (nextTail == receiveHead)
+  {
+    return; // queue full - drop the newest frame rather than overwrite one not yet read
+  }
+
   size_t contentLength = min((size_t)(len - FRAME_TAG_SIZE), Communicator::MAX_FRAME_CONTENT);
-  memcpy(receiveBuffer, incomingData + FRAME_TAG_SIZE, contentLength);
-  receiveLength = contentLength;
-  receivePending = true;
+  memcpy(receiveQueue[receiveTail], incomingData + FRAME_TAG_SIZE, contentLength);
+  receiveQueueLengths[receiveTail] = contentLength;
+  receiveTail = nextTail;
 }
 
 void Communicator::begin(const uint8_t gatewayMac[6], const uint8_t frameTag[4])
 {
+  receiveHead = 0;
+  receiveTail = 0;
   memcpy(gatewayMacAddress, gatewayMac, sizeof(gatewayMacAddress));
   memcpy(expectedFrameTag, frameTag, sizeof(expectedFrameTag));
 
@@ -110,15 +122,14 @@ bool Communicator::send(const void *payload, size_t payloadLength)
 
 bool Communicator::tryReceive(uint8_t *buffer, size_t bufferSize, size_t &outLength)
 {
-  if (!receivePending)
+  if (receiveHead == receiveTail)
   {
     return false;
   }
 
-  size_t availableLength = receiveLength; // copy out of volatile storage before comparing
-  outLength = min(availableLength, bufferSize);
-  memcpy(buffer, receiveBuffer, outLength);
-  receivePending = false;
+  outLength = min(receiveQueueLengths[receiveHead], bufferSize);
+  memcpy(buffer, receiveQueue[receiveHead], outLength);
+  receiveHead = (receiveHead + 1) % RECEIVE_QUEUE_DEPTH;
   return true;
 }
 

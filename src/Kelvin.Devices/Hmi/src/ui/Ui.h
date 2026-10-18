@@ -23,9 +23,12 @@ class Ui
 public:
   void begin(Communicator &communicatorRef);
   void tick();
+  bool isScreenOff() const { return !backlightOn; }
+  bool sleepFor(uint64_t microseconds);
+  void wakeScreen();
 
   // Called once a full ThermostatStateChunk set has been reassembled by HmiFrameReassembler.
-  void applyThermostatState(const uint8_t *state, size_t stateLength);
+  bool applyThermostatState(const uint8_t *state, size_t stateLength);
 
   // Called whenever a ControlStateChanged message arrives (already parsed - it's small enough to never
   // need chunking, unlike the thermostat state).
@@ -42,6 +45,9 @@ public:
 
   // level is a percentage, or -1 when unknown.
   void applyBattery(int level, bool externalPower);
+
+  // Called after the preferred temperature unit changes (Hmi.ino writes it to NVS first).
+  void applyPreferences();
 
   void onModeSelected(RunMode mode);
   void onFanToggled(bool enabled);
@@ -69,6 +75,10 @@ private:
   RgbPanel panel;
   Gt911Touch touch;
   IoExtension ioExtension;
+  unsigned long lastTouchTime = 0;
+  bool backlightOn = true;
+  bool suppressTouchUntilRelease = false;
+  bool panelStopped = false;
 
   ThermostatState thermostatState;
   ControlCallState controlState;
@@ -89,6 +99,8 @@ private:
   // Set point slider (single knob in Heat/Cool, two knobs - heat..cool - in Auto)
   lv_obj_t *setPointSlider = nullptr;
   lv_obj_t *setPointReadout = nullptr;
+  lv_obj_t *sliderMinLabel = nullptr;
+  lv_obj_t *sliderMaxLabel = nullptr;
   lv_obj_t *currentMarker = nullptr;
   lv_obj_t *currentMarkerLabel = nullptr;
   bool sliderDragging = false;

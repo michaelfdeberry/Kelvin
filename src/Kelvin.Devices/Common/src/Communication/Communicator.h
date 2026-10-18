@@ -16,10 +16,8 @@ public:
   void end();
   bool send(const void *payload, size_t payloadLength);
 
-  // Copies the most recent inbound frame (tag already stripped, and already verified to match this
-  // Communicator's own frameTag) into `buffer`. Returns false if nothing new has arrived since the last
-  // call. This is a single-slot mailbox, not a queue - a frame received before the previous one is drained
-  // is overwritten, which is fine for Hmi's use (only the latest downlink state/ack matters).
+  // Copies the oldest queued inbound frame (tag already stripped, already verified to match this
+  // Communicator's frameTag) into `buffer`. Returns false if none is waiting.
   bool tryReceive(uint8_t *buffer, size_t bufferSize, size_t &outLength);
 
 private:

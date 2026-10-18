@@ -136,4 +136,16 @@ namespace HmiCommandEncoder
     }
     return offset;
   }
+
+  size_t encodeRequestState(uint8_t *buffer, size_t bufferSize)
+  {
+    const uint16_t bodyLength = 0;
+    if (bufferSize < HmiEnvelope::HEADER_SIZE + bodyLength)
+    {
+      return 0;
+    }
+
+    HmiEnvelope::writeHeader(buffer, HmiMessageType::RequestState, 0, 1, bodyLength);
+    return HmiEnvelope::HEADER_SIZE + bodyLength;
+  }
 }

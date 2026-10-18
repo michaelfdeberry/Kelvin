@@ -33,4 +33,6 @@ namespace HmiCommandEncoder
 
   // Pass nullptr for either lockout to clear/leave it unset.
   size_t encodeSetForecastLockouts(const float *heatingLockoutC, const float *coolingLockoutC, uint8_t *buffer, size_t bufferSize);
+
+  size_t encodeRequestState(uint8_t *buffer, size_t bufferSize);
 }

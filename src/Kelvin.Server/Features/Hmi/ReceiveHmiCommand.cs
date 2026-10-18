@@ -24,7 +24,8 @@ public class ReceiveHmiCommandHandler(
   KelvinContext context,
   IHandler<UpdateThermostatRequest> updateThermostat,
   IHandler<UpdateThermostatSettingsRequest> updateThermostatSettings,
-  IHandler<SaveSensorPacketRequest> saveSensorPacket
+  IHandler<SaveSensorPacketRequest> saveSensorPacket,
+  IHandler<SendHmiStateRequest> sendHmiState
 ) : IHandler<ReceiveHmiCommandRequest>
 {
   public async Task<Result> HandleAsync(ReceiveHmiCommandRequest request, CancellationToken ct = default)
@@ -41,6 +42,9 @@ public class ReceiveHmiCommandHandler(
       var packet = BuildSensorPacket(request.MacAddress, DecodeBody(request.Payload));
       return await saveSensorPacket.HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Hmi), ct);
     }
+
+    if (messageType == HmiMessageType.RequestState)
+      return await sendHmiState.HandleAsync(new SendHmiStateRequest(request.MacAddress), ct);
 
     var thermostat = await context.Thermostats.Include(t => t.SetPoints).Include(t => t.Schedules).FirstOrDefaultAsync(ct);
     if (thermostat is null)

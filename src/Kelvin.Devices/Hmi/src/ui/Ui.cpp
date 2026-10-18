@@ -6,6 +6,8 @@
 #include "../protocol/HmiCommandEncoder.h"
 #include <Logger.h>
 #include "Config.h"
+#include <esp_sleep.h>
+#include <driver/rtc_io.h>
 
 namespace
 {
@@ -23,9 +25,14 @@ namespace
   // ESP32-S3-Touch-LCD-7B demo's gt911.cpp) to select the GT911's 0x5D address, then released to an input.
   const int TOUCH_INT_PIN = 4;
 
-  void formatFahrenheit(float celsius, char *buffer, size_t bufferSize)
+  void formatTemperature(float celsius, char *buffer, size_t bufferSize)
   {
-    snprintf(buffer, bufferSize, "%.1f\u00B0F", celsius * 9.0f / 5.0f + 32.0f);
+    snprintf(buffer, bufferSize, "%.1f%s", TemperatureFormat::presentAsPreferredUnit(celsius), TemperatureFormat::unitSymbol());
+  }
+
+  void formatWholeTemperature(int32_t value, char *buffer, size_t bufferSize)
+  {
+    snprintf(buffer, bufferSize, "%d%s", (int)value, TemperatureFormat::unitSymbol());
   }
 
   const int CONTENT_PADDING = 28;
@@ -34,24 +41,35 @@ namespace
   const int SLIDER_TRACK_HEIGHT = 20;
   const int SLIDER_Y = 64;
   const int SLIDER_AREA_HEIGHT = 150;
+  // Slider bounds are designed in Fahrenheit and converted to the preferred unit.
   const int SLIDER_MIN_F = 50;
   const int SLIDER_MAX_F = 90;
 
-  int32_t clampSliderValue(int32_t fahrenheit)
+  int32_t sliderMin()
   {
-    return fahrenheit < SLIDER_MIN_F ? SLIDER_MIN_F : (fahrenheit > SLIDER_MAX_F ? SLIDER_MAX_F : fahrenheit);
+    return TemperatureFormat::preferredFromFahrenheit(SLIDER_MIN_F);
   }
 
-  // Single-knob mode only uses `highF`.
-  void formatReadout(char *buffer, size_t bufferSize, bool range, int32_t lowF, int32_t highF)
+  int32_t sliderMax()
+  {
+    return TemperatureFormat::preferredFromFahrenheit(SLIDER_MAX_F);
+  }
+
+  int32_t clampSliderValue(int32_t value)
+  {
+    return value < sliderMin() ? sliderMin() : (value > sliderMax() ? sliderMax() : value);
+  }
+
+  // Single-knob mode only uses `high`.
+  void formatReadout(char *buffer, size_t bufferSize, bool range, int32_t low, int32_t high)
   {
     if (range)
     {
-      snprintf(buffer, bufferSize, "%d\u00B0 - %d\u00B0F", (int)lowF, (int)highF);
+      snprintf(buffer, bufferSize, "%d\u00B0 - %d%s", (int)low, (int)high, TemperatureFormat::unitSymbol());
     }
     else
     {
-      snprintf(buffer, bufferSize, "%d\u00B0F", (int)highF);
+      formatWholeTemperature(high, buffer, bufferSize);
     }
   }
 
@@ -94,9 +112,24 @@ void Ui::touchReadCallback(lv_indev_t *indev, lv_indev_data_t *data)
   int16_t x, y;
   if (uiInstance->touch.read(x, y))
   {
+    uiInstance->lastTouchTime = millis();
+    if (!uiInstance->backlightOn)
+    {
+      uiInstance->wakeScreen();
+    }
+
+    if (uiInstance->suppressTouchUntilRelease)
+    {
+      return;
+    }
+
     data->point.x = x;
     data->point.y = y;
     data->state = LV_INDEV_STATE_PRESSED;
+  }
+  else
+  {
+    uiInstance->suppressTouchUntilRelease = false;
   }
 }
 
@@ -187,12 +220,110 @@ void Ui::begin(Communicator &communicatorRef)
   refreshFanButton();
   refreshSensorCard();
 
+  lastTouchTime = millis();
   LOG_PRINTLN("LVGL initialized.");
 }
 
 void Ui::tick()
 {
+  if (!backlightOn)
+  {
+    return;
+  }
+
   lv_timer_handler();
+  if (backlightOn && millis() - lastTouchTime >= DISPLAY_IDLE_TIMEOUT_MS)
+  {
+    ioExtension.setOutput(IoExtensionPin::BACKLIGHT, false);
+    backlightOn = false;
+  }
+}
+
+void Ui::wakeScreen()
+{
+  if (panelStopped)
+  {
+    if (!panel.begin())
+    {
+      LOG_PRINTLN("Failed to restart RGB panel after sleep.");
+      return;
+    }
+    panelStopped = false;
+    lv_obj_invalidate(lv_screen_active());
+    lv_refr_now(nullptr);
+    if (!panel.synchronize())
+    {
+      return;
+    }
+  }
+
+  ioExtension.setOutput(IoExtensionPin::BACKLIGHT, true);
+  backlightOn = true;
+  suppressTouchUntilRelease = true;
+  lastTouchTime = millis();
+}
+
+bool Ui::sleepFor(uint64_t microseconds)
+{
+  int16_t touchX, touchY;
+  if (touch.read(touchX, touchY))
+  {
+    return true;
+  }
+
+  bool activeHigh;
+  if (!touch.readInterruptLevel(activeHigh))
+  {
+    LOG_PRINTLN("Cannot read touch wake polarity; skipping sleep.");
+    return true;
+  }
+
+  if (!panel.end())
+  {
+    return true;
+  }
+  panelStopped = true;
+
+  esp_err_t error = esp_sleep_enable_ext0_wakeup(GPIO_NUM_4, activeHigh ? 1 : 0);
+  if (error == ESP_OK)
+  {
+    if (activeHigh)
+    {
+      rtc_gpio_pullup_dis(GPIO_NUM_4);
+      rtc_gpio_pulldown_en(GPIO_NUM_4);
+    }
+    else
+    {
+      rtc_gpio_pullup_en(GPIO_NUM_4);
+      rtc_gpio_pulldown_dis(GPIO_NUM_4);
+    }
+    error = esp_sleep_enable_timer_wakeup(microseconds);
+  }
+
+  if (error == ESP_OK)
+  {
+    LOG_PRINTLN("Hmi entering light sleep.");
+    error = esp_light_sleep_start();
+  }
+
+  esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT0);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+  rtc_gpio_deinit(GPIO_NUM_4);
+  pinMode(TOUCH_INT_PIN, INPUT);
+
+  if (error != ESP_OK)
+  {
+    LOG_PRINTF("Hmi light sleep failed: %s\n", esp_err_to_name(error));
+    return true;
+  }
+
+  if (cause == ESP_SLEEP_WAKEUP_EXT0)
+  {
+    return true;
+  }
+
+  return false;
 }
 
 void Ui::buildHeader(lv_obj_t *parent)
@@ -279,7 +410,7 @@ void Ui::buildSetPointSlider(lv_obj_t *parent)
   setPointSlider = lv_slider_create(area);
   lv_obj_set_size(setPointSlider, sliderWidth, SLIDER_TRACK_HEIGHT);
   lv_obj_set_pos(setPointSlider, KNOB_INSET, SLIDER_Y);
-  lv_slider_set_range(setPointSlider, SLIDER_MIN_F, SLIDER_MAX_F);
+  lv_slider_set_range(setPointSlider, sliderMin(), sliderMax());
   lv_obj_set_ext_click_area(setPointSlider, 24);
   lv_obj_set_style_bg_color(setPointSlider, UiTheme::bgPanel(), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(setPointSlider, LV_OPA_COVER, LV_PART_MAIN);
@@ -299,20 +430,20 @@ void Ui::buildSetPointSlider(lv_obj_t *parent)
   lv_obj_set_flex_align(ends, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
   char endText[16];
-  lv_obj_t *minLabel = lv_label_create(ends);
-  snprintf(endText, sizeof(endText), "%d\u00B0F", SLIDER_MIN_F);
-  lv_label_set_text(minLabel, endText);
-  lv_obj_set_style_text_font(minLabel, UiTheme::fontBody(), 0);
-  lv_obj_set_style_text_color(minLabel, UiTheme::textMuted(), 0);
+  sliderMinLabel = lv_label_create(ends);
+  formatWholeTemperature(sliderMin(), endText, sizeof(endText));
+  lv_label_set_text(sliderMinLabel, endText);
+  lv_obj_set_style_text_font(sliderMinLabel, UiTheme::fontBody(), 0);
+  lv_obj_set_style_text_color(sliderMinLabel, UiTheme::textMuted(), 0);
 
   setPointReadout = lv_label_create(ends);
   lv_obj_set_style_text_font(setPointReadout, UiTheme::fontLabel(), 0);
 
-  lv_obj_t *maxLabel = lv_label_create(ends);
-  snprintf(endText, sizeof(endText), "%d\u00B0F", SLIDER_MAX_F);
-  lv_label_set_text(maxLabel, endText);
-  lv_obj_set_style_text_font(maxLabel, UiTheme::fontBody(), 0);
-  lv_obj_set_style_text_color(maxLabel, UiTheme::textMuted(), 0);
+  sliderMaxLabel = lv_label_create(ends);
+  formatWholeTemperature(sliderMax(), endText, sizeof(endText));
+  lv_label_set_text(sliderMaxLabel, endText);
+  lv_obj_set_style_text_font(sliderMaxLabel, UiTheme::fontBody(), 0);
+  lv_obj_set_style_text_color(sliderMaxLabel, UiTheme::textMuted(), 0);
 }
 
 void Ui::buildControls(lv_obj_t *parent)
@@ -406,12 +537,12 @@ void Ui::refreshDial()
   char buffer[32];
   if (controlState.hasEnvironmentTemperature)
   {
-    formatFahrenheit(controlState.environmentTemperatureC, buffer, sizeof(buffer));
+    formatTemperature(controlState.environmentTemperatureC, buffer, sizeof(buffer));
     lv_label_set_text(currentTempLabel, buffer);
   }
   else if (hasEnvironmentReading)
   {
-    formatFahrenheit(environmentTemperatureC, buffer, sizeof(buffer));
+    formatTemperature(environmentTemperatureC, buffer, sizeof(buffer));
     lv_label_set_text(currentTempLabel, buffer);
   }
   else
@@ -486,8 +617,8 @@ void Ui::refreshSetPointSlider()
     }
     else if (range)
     {
-      int32_t low = clampSliderValue(TemperatureFormat::celsiusToWholeFahrenheit(heating->targetTemperatureC));
-      int32_t high = clampSliderValue(TemperatureFormat::celsiusToWholeFahrenheit(cooling->targetTemperatureC));
+      int32_t low = clampSliderValue(TemperatureFormat::convertToPreferredUnit(heating->targetTemperatureC));
+      int32_t high = clampSliderValue(TemperatureFormat::convertToPreferredUnit(cooling->targetTemperatureC));
       lv_slider_set_left_value(setPointSlider, low, LV_ANIM_OFF);
       lv_slider_set_value(setPointSlider, high, LV_ANIM_OFF);
       formatReadout(readout, sizeof(readout), true, low, high);
@@ -495,7 +626,7 @@ void Ui::refreshSetPointSlider()
     }
     else
     {
-      int32_t value = clampSliderValue(TemperatureFormat::celsiusToWholeFahrenheit(single->targetTemperatureC));
+      int32_t value = clampSliderValue(TemperatureFormat::convertToPreferredUnit(single->targetTemperatureC));
       lv_slider_set_value(setPointSlider, value, LV_ANIM_OFF);
       formatReadout(readout, sizeof(readout), false, value, value);
       lv_label_set_text(setPointReadout, readout);
@@ -506,13 +637,13 @@ void Ui::refreshSetPointSlider()
   if (hasCurrent)
   {
     float currentC = controlState.hasEnvironmentTemperature ? controlState.environmentTemperatureC : environmentTemperatureC;
-    float currentF = currentC * 9.0f / 5.0f + 32.0f;
-    float fraction = (currentF - SLIDER_MIN_F) / (float)(SLIDER_MAX_F - SLIDER_MIN_F);
+    float current = TemperatureFormat::presentAsPreferredUnit(currentC);
+    float fraction = (current - sliderMin()) / (float)(sliderMax() - sliderMin());
     fraction = fraction < 0.0f ? 0.0f : (fraction > 1.0f ? 1.0f : fraction);
     const int sliderWidth = DISPLAY_HORIZONTAL_RESOLUTION - 2 * CONTENT_PADDING - 2 * KNOB_INSET;
 
     char text[24];
-    snprintf(text, sizeof(text), "now %.1f\u00B0F", currentF);
+    snprintf(text, sizeof(text), "now %.1f%s", current, TemperatureFormat::unitSymbol());
     lv_label_set_text(currentMarkerLabel, text);
     lv_obj_set_x(currentMarker, KNOB_INSET + (int)(fraction * sliderWidth) - 1);
     lv_obj_update_layout(currentMarkerLabel);
@@ -547,9 +678,9 @@ float *Ui::findOrAddSetPoint(RunType type)
 
 void Ui::commitSliderSetPoints()
 {
-  auto commit = [this](RunType type, int32_t fahrenheit)
+  auto commit = [this](RunType type, int32_t value)
   {
-    float celsius = TemperatureFormat::wholeFahrenheitToCelsius(fahrenheit);
+    float celsius = TemperatureFormat::fromPreferredUnit(value);
     float *stored = findOrAddSetPoint(type);
     if (stored != nullptr)
     {
@@ -636,7 +767,7 @@ void Ui::refreshSensorCard()
   if (hasEnvironmentReading)
   {
     char buffer[32];
-    formatFahrenheit(environmentTemperatureC, buffer, sizeof(buffer));
+    formatTemperature(environmentTemperatureC, buffer, sizeof(buffer));
     lv_label_set_text(onboardLabel, buffer);
   }
   else
@@ -645,13 +776,13 @@ void Ui::refreshSensorCard()
   }
 }
 
-void Ui::applyThermostatState(const uint8_t *state, size_t stateLength)
+bool Ui::applyThermostatState(const uint8_t *state, size_t stateLength)
 {
   ThermostatState parsed;
   if (!ThermostatStateParser::parse(state, stateLength, parsed))
   {
     LOG_PRINTLN("Failed to parse a thermostat state sync (truncated/malformed) - ignoring.");
-    return;
+    return false;
   }
 
   thermostatState = parsed;
@@ -659,6 +790,7 @@ void Ui::applyThermostatState(const uint8_t *state, size_t stateLength)
   refreshModeButtons();
   refreshFanButton();
   settings.applyState(thermostatState);
+  return true;
 }
 
 void Ui::applyControlState(const ControlCallState &state)
@@ -687,6 +819,26 @@ void Ui::applyEnvironmentReading(float temperatureC, float humidityPercentage)
   environmentHumidityPercentage = humidityPercentage;
   refreshDial();
   refreshSensorCard();
+}
+
+void Ui::applyPreferences()
+{
+  lv_slider_set_range(setPointSlider, sliderMin(), sliderMax());
+
+  char endText[16];
+  formatWholeTemperature(sliderMin(), endText, sizeof(endText));
+  lv_label_set_text(sliderMinLabel, endText);
+  formatWholeTemperature(sliderMax(), endText, sizeof(endText));
+  lv_label_set_text(sliderMaxLabel, endText);
+
+  refreshDial();
+  refreshSensorCard();
+  settings.applyPreferences();
+  if (backlightOn)
+  {
+    lv_refr_now(nullptr);
+    panel.synchronize();
+  }
 }
 
 void Ui::onModeSelected(RunMode mode)

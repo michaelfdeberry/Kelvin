@@ -1,174 +1,63 @@
 #include <Arduino.h>
+#include <Logger.h>
 #include "Config.h"
 #include "BatteryMonitor.h"
 
-namespace
-{
-  const uint8_t ADC_REGISTER = 0x06;        // IO_EXTENSION_ADC_ADDR per esphome/esphome#10071
-  const float ADC_REFERENCE_VOLTAGE = 9.9f; // empirical default from that same component
-  const float ADC_MAX_VALUE = 1023.0f;      // 10-bit ADC
-  const float EXTERNAL_POWER_VOLTAGE_THRESHOLD = 4.15f;
-  const unsigned long DEBOUNCE_TIME_MS = 4000;
-
-  struct VoltagePoint
-  {
-    float voltage;
-    int percentage;
-  };
-
-  // Standard 3.7V LiPo discharge curve lookup table
-  const VoltagePoint LIPO_DISCHARGE_CURVE[] = {
-      {4.20f, 100},
-      {4.10f, 95},
-      {4.00f, 85},
-      {3.90f, 75},
-      {3.80f, 50},
-      {3.70f, 25},
-      {3.60f, 10},
-      {3.50f, 5},
-      {3.20f, 0}};
-  const size_t CURVE_POINT_COUNT = sizeof(LIPO_DISCHARGE_CURVE) / sizeof(LIPO_DISCHARGE_CURVE[0]);
-
-  int interpolatePercentage(float voltage, bool isCharging)
-  {
-    // If the battery is charging, use a simplified linear interpolation between 4.22V and 4.45V to estimate the charge percentage.
-    if (isCharging)
-    {
-      int pct = 0;
-      if (voltage >= 4.45)
-      {
-        pct = 100;
-      }
-      else if (voltage <= 4.22)
-      {
-        pct = 0;
-      }
-      else
-      {
-        pct = (int)((voltage - 4.22) / (4.45 - 4.22) * 100.0);
-      }
-      return constrain(pct, 0, 100);
-    }
-
-    // If the battery is not charging, use the standard LiPo discharge curve for interpolation.
-    if (voltage >= LIPO_DISCHARGE_CURVE[0].voltage)
-      return 100;
-
-    if (voltage <= LIPO_DISCHARGE_CURVE[CURVE_POINT_COUNT - 1].voltage)
-      return 0;
-
-    for (size_t i = 0; i < CURVE_POINT_COUNT - 1; i++)
-    {
-      if (voltage <= LIPO_DISCHARGE_CURVE[i].voltage &&
-          voltage >= LIPO_DISCHARGE_CURVE[i + 1].voltage)
-      {
-
-        float vUpper = LIPO_DISCHARGE_CURVE[i].voltage;
-        float vLower = LIPO_DISCHARGE_CURVE[i + 1].voltage;
-        int pUpper = LIPO_DISCHARGE_CURVE[i].percentage;
-        int pLower = LIPO_DISCHARGE_CURVE[i + 1].percentage;
-
-        return pLower + (int)((voltage - vLower) * (pUpper - pLower) / (vUpper - vLower));
-      }
-    }
-    return 0;
-  }
-}
+static_assert(BATTERY_PACK_APA >= 0 && BATTERY_PACK_APA <= 0xFF, "Battery APA must fit in one byte");
+static_assert(BATTERY_TEMPERATURE_C >= -20.0f && BATTERY_TEMPERATURE_C <= 60.0f, "Battery temperature must be between -20 and 60 C");
 
 void BatteryMonitor::begin(TwoWire &wire)
 {
   bus = &wire;
-  _isInitialized = false;
-  _emaVoltage = 0.0f;
-}
+  initialized = gauge.begin(bus) &&
+                gauge.setPackAPA(BATTERY_PACK_APA) &&
+                gauge.setTemperatureMode(LC709203F_TEMPERATURE_I2C) &&
+                gauge.writeWord(LC709203F_CMD_CELLTEMPERATURE, (uint16_t)((BATTERY_TEMPERATURE_C + 273.15f) * 10.0f + 0.5f));
 
-float BatteryMonitor::readRawVoltage()
-{
-  if (!bus)
-    return 0.0f;
-
-  uint32_t totalAdc = 0;
-  int validSamples = 0;
-  const int burstSamples = 10;
-
-  for (int i = 0; i < burstSamples; i++)
+  if (!initialized)
   {
-    bus->beginTransmission(IO_EXPANDER_I2C_ADDRESS);
-    bus->write(ADC_REGISTER);
-    if (bus->endTransmission() == 0)
-    {
-      if (bus->requestFrom((uint8_t)IO_EXPANDER_I2C_ADDRESS, (uint8_t)2) == 2)
-      {
-        uint8_t lowByte = bus->read();
-        uint8_t highByte = bus->read();
-        uint16_t adcValue = ((uint16_t)highByte << 8) | lowByte;
-
-        totalAdc += adcValue;
-        validSamples++;
-      }
-    }
-    delay(20);
+    LOG_PRINTLN("LC709203F initialization failed; battery level unavailable.");
   }
-
-  if (validSamples == 0)
-  {
-    return 0.0f;
-  }
-
-  float avgAdc = (float)totalAdc / validSamples;
-  return avgAdc * ADC_REFERENCE_VOLTAGE / ADC_MAX_VALUE;
 }
 
 battery_status BatteryMonitor::getStatus()
 {
   battery_status status;
-  status.level = 0;
-  status.externalPower = false;
-
-  float rawVoltage = readRawVoltage();
-  if (rawVoltage <= 0.0f)
+  if (!initialized)
   {
+    begin(*bus);
+    if (!initialized)
+    {
+      return status;
+    }
+  }
+
+  uint16_t voltageMillivolts = 0;
+  uint16_t percentageTenths = 0;
+  if (!gauge.readWord(LC709203F_CMD_CELLVOLTAGE, &voltageMillivolts) ||
+      !gauge.readWord(LC709203F_CMD_CELLITE, &percentageTenths) ||
+      voltageMillivolts < 2500 || voltageMillivolts > 4500 || percentageTenths > 1000)
+  {
+    LOG_PRINTLN("LC709203F read failed or invalid; battery level unavailable.");
+    initialized = false;
     return status;
   }
 
-  // Apply Exponential Moving Average (EMA) filtering (Alpha = 0.1)
-  const float alpha = 0.1f;
-  if (!_isInitialized)
+  if (hasPreviousReading)
   {
-    _emaVoltage = rawVoltage;
-    _isInitialized = true;
-  }
-  else
-  {
-    _emaVoltage = (alpha * rawVoltage) + ((1.0f - alpha) * _emaVoltage);
-  }
-
-  if (_emaVoltage >= EXTERNAL_POWER_VOLTAGE_THRESHOLD)
-  {
-    if (!_isCharging)
+    if (percentageTenths > previousPercentageTenths)
     {
-      _isCharging = true;
-      _lastStateChangeTime = millis();
+      charging = true;
     }
-  }
-  else if (_emaVoltage < EXTERNAL_POWER_VOLTAGE_THRESHOLD)
-  {
-    if (_isCharging)
+    else if (percentageTenths < previousPercentageTenths)
     {
-      if (millis() - _lastStateChangeTime > DEBOUNCE_TIME_MS)
-      {
-        _isCharging = false;
-        _lastStateChangeTime = millis();
-      }
-    }
-    else
-    {
-      _lastStateChangeTime = millis();
+      charging = false;
     }
   }
 
-  status.level = interpolatePercentage(_emaVoltage, _isCharging);
-  status.externalPower = _isCharging;
-
+  previousPercentageTenths = percentageTenths;
+  hasPreviousReading = true;
+  status.level = (percentageTenths + 5) / 10;
+  status.externalPower = charging;
   return status;
 }

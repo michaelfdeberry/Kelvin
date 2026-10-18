@@ -48,9 +48,9 @@ namespace
     snprintf(buffer, bufferSize, "%ld:%02ld %s", (long)displayHour, (long)minutes, hours < 12 ? "AM" : "PM");
   }
 
-  void formatTemperatureF(int32_t fahrenheit, char *buffer, size_t bufferSize)
+  void formatTemperature(int32_t value, char *buffer, size_t bufferSize)
   {
-    snprintf(buffer, bufferSize, "%ld\u00B0F", (long)fahrenheit);
+    snprintf(buffer, bufferSize, "%ld%s", (long)value, TemperatureFormat::unitSymbol());
   }
 
   lv_obj_t *createCard(lv_obj_t *parent)
@@ -374,7 +374,7 @@ void SettingsPage::addScheduleRow(size_t column, size_t scheduleIndex)
   snprintf(text, sizeof(text), "%s - %s", start, end);
   createLabel(row, text, UiTheme::fontLabel(), UiTheme::textMain());
 
-  formatTemperatureF(TemperatureFormat::celsiusToWholeFahrenheit(schedule.targetTemperatureC), text, sizeof(text));
+  formatTemperature(TemperatureFormat::convertToPreferredUnit(schedule.targetTemperatureC), text, sizeof(text));
   createLabel(row, text, UiTheme::fontLabel(), accent);
 
   rowBindings[scheduleIndex] = {this, scheduleIndex};
@@ -424,17 +424,27 @@ void SettingsPage::buildLockoutCard(lv_obj_t *parent, size_t index)
   lv_obj_t *holder = createSliderHolder(card);
   lockoutSliders[index] = lv_slider_create(holder);
   lv_obj_set_width(lockoutSliders[index], LV_PCT(100));
-  lv_slider_set_range(lockoutSliders[index], LOCKOUT_MIN_F, LOCKOUT_MAX_F);
   UiWidgets::styleSlider(lockoutSliders[index], UiTheme::bgDark(), accent);
   lv_obj_add_event_cb(lockoutSliders[index], handleLockoutSlider, LV_EVENT_ALL, &lockoutBindings[index]);
 
   lv_obj_t *ends = createRow(card, LV_PCT(100), LV_SIZE_CONTENT, LV_FLEX_ALIGN_SPACE_BETWEEN);
   lv_obj_set_style_pad_hor(ends, 22, 0);
+  lockoutMinLabels[index] = createLabel(ends, "", UiTheme::fontBody(), UiTheme::textMuted());
+  lockoutMaxLabels[index] = createLabel(ends, "", UiTheme::fontBody(), UiTheme::textMuted());
+  refreshLockoutRange(index);
+}
+
+void SettingsPage::refreshLockoutRange(size_t index)
+{
+  int32_t minValue = TemperatureFormat::preferredFromFahrenheit(LOCKOUT_MIN_F);
+  int32_t maxValue = TemperatureFormat::preferredFromFahrenheit(LOCKOUT_MAX_F);
+  lv_slider_set_range(lockoutSliders[index], minValue, maxValue);
+
   char text[16];
-  formatTemperatureF(LOCKOUT_MIN_F, text, sizeof(text));
-  createLabel(ends, text, UiTheme::fontBody(), UiTheme::textMuted());
-  formatTemperatureF(LOCKOUT_MAX_F, text, sizeof(text));
-  createLabel(ends, text, UiTheme::fontBody(), UiTheme::textMuted());
+  formatTemperature(minValue, text, sizeof(text));
+  lv_label_set_text(lockoutMinLabels[index], text);
+  formatTemperature(maxValue, text, sizeof(text));
+  lv_label_set_text(lockoutMaxLabels[index], text);
 }
 
 void SettingsPage::refreshLockoutDimming(size_t index)
@@ -456,7 +466,7 @@ void SettingsPage::refreshLockoutDimming(size_t index)
   char text[16];
   if (enabled)
   {
-    formatTemperatureF(lockoutF[index], text, sizeof(text));
+    formatTemperature(lockoutF[index], text, sizeof(text));
   }
   else
   {
@@ -476,10 +486,12 @@ void SettingsPage::refreshLockouts()
 
   lockoutEnabled[0] = latest.hasHeatingLockout;
   lockoutEnabled[1] = latest.hasCoolingLockout;
-  lockoutF[0] = latest.hasHeatingLockout ? clampTo(TemperatureFormat::celsiusToWholeFahrenheit(latest.heatingLockoutC), LOCKOUT_MIN_F, LOCKOUT_MAX_F)
-                                         : DEFAULT_HEATING_LOCKOUT_F;
-  lockoutF[1] = latest.hasCoolingLockout ? clampTo(TemperatureFormat::celsiusToWholeFahrenheit(latest.coolingLockoutC), LOCKOUT_MIN_F, LOCKOUT_MAX_F)
-                                         : DEFAULT_COOLING_LOCKOUT_F;
+  int32_t lockoutMin = TemperatureFormat::preferredFromFahrenheit(LOCKOUT_MIN_F);
+  int32_t lockoutMax = TemperatureFormat::preferredFromFahrenheit(LOCKOUT_MAX_F);
+  lockoutF[0] = latest.hasHeatingLockout ? clampTo(TemperatureFormat::convertToPreferredUnit(latest.heatingLockoutC), lockoutMin, lockoutMax)
+                                         : TemperatureFormat::preferredFromFahrenheit(DEFAULT_HEATING_LOCKOUT_F);
+  lockoutF[1] = latest.hasCoolingLockout ? clampTo(TemperatureFormat::convertToPreferredUnit(latest.coolingLockoutC), lockoutMin, lockoutMax)
+                                         : TemperatureFormat::preferredFromFahrenheit(DEFAULT_COOLING_LOCKOUT_F);
 
   refreshLockoutDimming(0);
   refreshLockoutDimming(1);
@@ -487,8 +499,8 @@ void SettingsPage::refreshLockouts()
 
 void SettingsPage::sendLockouts()
 {
-  float heatingC = TemperatureFormat::wholeFahrenheitToCelsius(lockoutF[0]);
-  float coolingC = TemperatureFormat::wholeFahrenheitToCelsius(lockoutF[1]);
+  float heatingC = TemperatureFormat::fromPreferredUnit(lockoutF[0]);
+  float coolingC = TemperatureFormat::fromPreferredUnit(lockoutF[1]);
   ui->onSetForecastLockouts(lockoutEnabled[0] ? &heatingC : nullptr, lockoutEnabled[1] ? &coolingC : nullptr);
 }
 
@@ -552,7 +564,6 @@ void SettingsPage::buildSheet(lv_obj_t *parent)
   lv_obj_t *holder = createSliderHolder(dialog);
   targetSlider = lv_slider_create(holder);
   lv_obj_set_width(targetSlider, LV_PCT(100));
-  lv_slider_set_range(targetSlider, TARGET_MIN_F, TARGET_MAX_F);
   UiWidgets::styleSlider(targetSlider, UiTheme::bgDark(), UiTheme::accentPrimary());
   lv_obj_add_event_cb(targetSlider, handleTargetChanged, LV_EVENT_VALUE_CHANGED, this);
 
@@ -583,20 +594,23 @@ void SettingsPage::openSheet(RunType type, const ScheduleState *existing)
 
   int32_t startMinutes = 6 * 60;
   int32_t endMinutes = 22 * 60;
-  int32_t targetF;
+  int32_t targetValue;
   if (existing != nullptr)
   {
     memcpy(editId, existing->id, sizeof(editId));
     startMinutes = existing->startMinutes;
     endMinutes = existing->endMinutes;
-    targetF = TemperatureFormat::celsiusToWholeFahrenheit(existing->targetTemperatureC);
+    targetValue = TemperatureFormat::convertToPreferredUnit(existing->targetTemperatureC);
   }
   else
   {
     const SetPointState *setPoint = latest.findSetPoint(type);
-    targetF = setPoint != nullptr ? TemperatureFormat::celsiusToWholeFahrenheit(setPoint->targetTemperatureC) : (type == RunType::Heating ? 68 : 75);
+    targetValue = setPoint != nullptr ? TemperatureFormat::convertToPreferredUnit(setPoint->targetTemperatureC)
+                                      : TemperatureFormat::preferredFromFahrenheit(type == RunType::Heating ? 68 : 75);
   }
-  targetF = clampTo(targetF, TARGET_MIN_F, TARGET_MAX_F);
+  int32_t targetMin = TemperatureFormat::preferredFromFahrenheit(TARGET_MIN_F);
+  int32_t targetMax = TemperatureFormat::preferredFromFahrenheit(TARGET_MAX_F);
+  targetValue = clampTo(targetValue, targetMin, targetMax);
 
   char title[48];
   snprintf(title, sizeof(title), "%s %s schedule", existing != nullptr ? "Edit" : "New", type == RunType::Heating ? "heating" : "cooling");
@@ -604,10 +618,11 @@ void SettingsPage::openSheet(RunType type, const ScheduleState *existing)
 
   setTimeRollers(startRollers, startMinutes);
   setTimeRollers(endRollers, endMinutes);
-  lv_slider_set_value(targetSlider, targetF, LV_ANIM_OFF);
+  lv_slider_set_range(targetSlider, targetMin, targetMax);
+  lv_slider_set_value(targetSlider, targetValue, LV_ANIM_OFF);
 
   char text[16];
-  formatTemperatureF(targetF, text, sizeof(text));
+  formatTemperature(targetValue, text, sizeof(text));
   lv_label_set_text(targetLabel, text);
   lv_label_set_text(sheetError, "");
 
@@ -644,7 +659,7 @@ void SettingsPage::saveSheet()
     return;
   }
 
-  float targetC = TemperatureFormat::wholeFahrenheitToCelsius(lv_slider_get_value(targetSlider));
+  float targetC = TemperatureFormat::fromPreferredUnit(lv_slider_get_value(targetSlider));
   ui->onUpsertSchedule(editHasId ? editId : nullptr, editType, (uint16_t)startMinutes, (uint16_t)endMinutes, targetC);
   closeSheet();
 }
@@ -656,6 +671,14 @@ void SettingsPage::deleteFromSheet()
     ui->onRemoveSchedule(editId);
   }
   closeSheet();
+}
+
+void SettingsPage::applyPreferences()
+{
+  refreshLockoutRange(0);
+  refreshLockoutRange(1);
+  rebuildSchedules();
+  refreshLockouts();
 }
 
 void SettingsPage::applyState(const ThermostatState &state)
@@ -715,7 +738,7 @@ void SettingsPage::handleTargetChanged(lv_event_t *e)
 {
   auto *self = (SettingsPage *)lv_event_get_user_data(e);
   char text[16];
-  formatTemperatureF(lv_slider_get_value(self->targetSlider), text, sizeof(text));
+  formatTemperature(lv_slider_get_value(self->targetSlider), text, sizeof(text));
   lv_label_set_text(self->targetLabel, text);
 }
 
@@ -742,7 +765,7 @@ void SettingsPage::handleLockoutSlider(lv_event_t *e)
   {
     self->lockoutF[binding->index] = lv_slider_get_value(self->lockoutSliders[binding->index]);
     char text[16];
-    formatTemperatureF(self->lockoutF[binding->index], text, sizeof(text));
+    formatTemperature(self->lockoutF[binding->index], text, sizeof(text));
     lv_label_set_text(self->lockoutValueLabels[binding->index], text);
   }
   else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST)

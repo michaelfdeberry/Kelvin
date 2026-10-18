@@ -8,8 +8,8 @@ public static class HmiPreferencesEncoder
   public static byte[] Encode(Models.Preferences preferences)
   {
     using var stream = new MemoryStream();
-    stream.Write(BitConverter.GetBytes((int)preferences.TemperatureUnit));
-    stream.Write(BitConverter.GetBytes((int)preferences.TimeFormat));
+    stream.WriteByte((byte)preferences.TemperatureUnit);
+    stream.WriteByte((byte)preferences.TimeFormat);
     return stream.ToArray();
   }
 }

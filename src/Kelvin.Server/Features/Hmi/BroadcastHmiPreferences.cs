@@ -6,17 +6,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kelvin.Server.Features.Hmi;
 
-public record BroadcastHmiPreferencesChangedRequest() : IRequest;
+public record BroadcastHmiPreferencesRequest() : IRequest;
 
-public static class BroadcastHmiPreferencesChangedErrors
+public static class BroadcastHmiPreferencesErrors
 {
-  public static readonly Error DefaultError = new("BroadcastHmiPreferencesChanged.Failed", "An error occurred processing the request.");
+  public static readonly Error DefaultError = new("BroadcastHmiPreferences.Failed", "An error occurred processing the request.");
 }
 
-public class BroadcastHmiPreferencesChangedHandler(KelvinContext context, IHmiOutboundChannel outboundChannel)
-  : IHandler<BroadcastHmiPreferencesChangedRequest>
+public class BroadcastHmiPreferencesHandler(KelvinContext context, IHmiOutboundChannel outboundChannel) : IHandler<BroadcastHmiPreferencesRequest>
 {
-  public async Task<Result> HandleAsync(BroadcastHmiPreferencesChangedRequest request, CancellationToken ct = default)
+  public async Task<Result> HandleAsync(BroadcastHmiPreferencesRequest request, CancellationToken ct = default)
   {
     var macAddresses = await context
       .Hmis.Where(hmi => hmi.Enabled && hmi.DeletedAt == null && hmi.MacAddress != null)
@@ -43,10 +42,10 @@ public class BroadcastHmiPreferencesChangedHandler(KelvinContext context, IHmiOu
   }
 }
 
-public class BroadcastHmiPreferencesChangedRegistration : IRegistration
+public class BroadcastHmiPreferencesRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {
-    services.AddScoped<IHandler<BroadcastHmiPreferencesChangedRequest>, BroadcastHmiPreferencesChangedHandler>();
+    services.AddScoped<IHandler<BroadcastHmiPreferencesRequest>, BroadcastHmiPreferencesHandler>();
   }
 }

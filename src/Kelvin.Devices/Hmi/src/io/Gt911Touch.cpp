@@ -49,6 +49,19 @@ bool Gt911Touch::read(int16_t &x, int16_t &y)
   return pressed;
 }
 
+bool Gt911Touch::readInterruptLevel(bool &activeHigh)
+{
+  uint8_t configuration = 0;
+  if (!readRegister(0x804D, &configuration, 1))
+  {
+    return false;
+  }
+
+  uint8_t trigger = configuration & 0x03;
+  activeHigh = trigger == 0 || trigger == 3;
+  return true;
+}
+
 bool Gt911Touch::readRegister(uint16_t reg, uint8_t *buffer, size_t length)
 {
   bus->beginTransmission(address);

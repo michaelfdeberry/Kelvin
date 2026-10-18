@@ -12,6 +12,7 @@ public:
 
   // Returns true while a finger is down; x/y are only written when it is.
   bool read(int16_t &x, int16_t &y);
+  bool readInterruptLevel(bool &activeHigh);
 
 private:
   static const uint16_t STATUS_REGISTER = 0x814E;

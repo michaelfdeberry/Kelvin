@@ -1,5 +1,6 @@
 arduino-cli lib install "Sensirion Core"
 arduino-cli lib install "Sensirion I2C SHT4x"
+arduino-cli lib install "Adafruit LC709203F"
 arduino-cli lib install "lvgl@9.2.2"
 
 REM LVGL needs lv_conf.h next to the lvgl library folder (LVGL's own Arduino convention), enabled by

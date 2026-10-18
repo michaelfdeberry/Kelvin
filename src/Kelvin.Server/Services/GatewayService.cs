@@ -29,14 +29,6 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
   static readonly byte[] DEVICE_DOWNLINK_HEADER = [0xAD, 0x58];
   static readonly IReadOnlyList<byte[]> KNOWN_INCOMING_HEADERS = [DEVICE_UPLINK_HEADER];
 
-  /*
-  Error cases to solve for:
-    Connection to the gateway unable to reconnect after a period of time
-    Connected to the gateway, but hasn't received any data in a period of time
-      - Send a notification to the client
-      - Revert control to the dumb thermostat
-  */
-
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
     var retryCount = 0;

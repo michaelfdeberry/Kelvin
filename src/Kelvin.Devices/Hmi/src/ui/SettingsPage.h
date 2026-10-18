@@ -19,6 +19,9 @@ public:
   // Repopulates every list/control from the latest known thermostat state.
   void applyState(const ThermostatState &state);
 
+  // Re-applies unit-dependent ranges, labels and lists after the preferred temperature unit changes.
+  void applyPreferences();
+
   // Resets to the Schedules tab with the edit sheet closed - call before showing the page.
   void reset();
 
@@ -59,6 +62,8 @@ private:
   lv_obj_t *lockoutSwitches[2] = {nullptr, nullptr};
   lv_obj_t *lockoutSliders[2] = {nullptr, nullptr};
   lv_obj_t *lockoutValueLabels[2] = {nullptr, nullptr};
+  lv_obj_t *lockoutMinLabels[2] = {nullptr, nullptr};
+  lv_obj_t *lockoutMaxLabels[2] = {nullptr, nullptr};
   bool lockoutEnabled[2] = {false, false};
   int32_t lockoutF[2] = {70, 55};
   bool lockoutDragging = false;
@@ -81,6 +86,7 @@ private:
   void rebuildSchedules();
   void addScheduleRow(size_t column, size_t scheduleIndex);
   void refreshLockouts();
+  void refreshLockoutRange(size_t index);
   void refreshLockoutDimming(size_t index);
   void sendLockouts();
 

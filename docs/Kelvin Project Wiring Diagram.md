@@ -5,7 +5,7 @@ This file covers system topology and the gateway enclosure.
 Per-device wiring lives in:
 
 - [Kelvin Node Wiring Diagram.md](Kelvin%20Node%20Wiring%20Diagram.md) — ESP32-S3 PowerFeather V2R2, ST7789 SPI display, SHT40
-- [Kelvin HMI Wiring Diagram.md](Kelvin%20HMI%20Wiring%20Diagram.md) — Waveshare ESP32-S3-Touch-LCD-7B, SHT40
+- [Kelvin HMI Wiring Diagram.md](Kelvin%20HMI%20Wiring%20Diagram.md) — Waveshare ESP32-S3-Touch-LCD-7B, SHT40, LC709203F fuel gauge and external charger/5V boost
 - [Kelvin Kiosk Wiring Diagram.md](Kelvin%20Kiosk%20Wiring%20Diagram.md) — Raspberry Pi 3B+, SCD40
 
 These aren't proper wiring diagrams, but the circuity is simple enough that it should suffice.

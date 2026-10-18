@@ -5,6 +5,21 @@
 
 bool RgbPanel::begin()
 {
+  if (handle != nullptr)
+  {
+    return true;
+  }
+
+  if (vsyncSemaphore == nullptr)
+  {
+    vsyncSemaphore = xSemaphoreCreateBinary();
+    if (vsyncSemaphore == nullptr)
+    {
+      LOG_PRINTLN("Failed to allocate RGB VSYNC semaphore.");
+      return false;
+    }
+  }
+
   esp_lcd_rgb_panel_config_t config;
   memset(&config, 0, sizeof(config));
 
@@ -47,11 +62,56 @@ bool RgbPanel::begin()
     return false;
   }
 
+  esp_lcd_rgb_panel_event_callbacks_t callbacks = {};
+  callbacks.on_vsync = onVsync;
+  error = esp_lcd_rgb_panel_register_event_callbacks(handle, &callbacks, vsyncSemaphore);
+  if (error != ESP_OK)
+  {
+    LOG_PRINTF("Failed to register RGB VSYNC callback: %s\n", esp_err_to_name(error));
+    end();
+    return false;
+  }
+
   error = esp_lcd_panel_init(handle);
   if (error != ESP_OK)
   {
     LOG_PRINTF("esp_lcd_panel_init failed: %s\n", esp_err_to_name(error));
+    end();
     return false;
+  }
+
+  return true;
+}
+
+bool IRAM_ATTR RgbPanel::onVsync(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *event, void *context)
+{
+  BaseType_t taskWoken = pdFALSE;
+  xSemaphoreGiveFromISR(static_cast<SemaphoreHandle_t>(context), &taskWoken);
+  return taskWoken == pdTRUE;
+}
+
+bool RgbPanel::synchronize()
+{
+  if (handle == nullptr || vsyncSemaphore == nullptr)
+  {
+    return false;
+  }
+
+  xSemaphoreTake(vsyncSemaphore, 0);
+  esp_err_t error = esp_lcd_rgb_panel_restart(handle);
+  if (error != ESP_OK)
+  {
+    LOG_PRINTF("Failed to resynchronize RGB panel: %s\n", esp_err_to_name(error));
+    return false;
+  }
+
+  for (int frame = 0; frame < 3; frame++)
+  {
+    if (xSemaphoreTake(vsyncSemaphore, pdMS_TO_TICKS(100)) != pdTRUE)
+    {
+      LOG_PRINTLN("Timed out waiting for RGB VSYNC.");
+      return false;
+    }
   }
 
   return true;
@@ -63,4 +123,22 @@ void RgbPanel::draw(int xStart, int yStart, int xEnd, int yEnd, const void *pixe
   {
     esp_lcd_panel_draw_bitmap(handle, xStart, yStart, xEnd, yEnd, pixels);
   }
+}
+
+bool RgbPanel::end()
+{
+  if (handle == nullptr)
+  {
+    return true;
+  }
+
+  esp_err_t error = esp_lcd_panel_del(handle);
+  if (error != ESP_OK)
+  {
+    LOG_PRINTF("Failed to stop RGB panel: %s\n", esp_err_to_name(error));
+    return false;
+  }
+
+  handle = nullptr;
+  return true;
 }

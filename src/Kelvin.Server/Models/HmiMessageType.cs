@@ -57,4 +57,7 @@ public enum HmiMessageType : byte
 
   /// <summary>Hmi -> Server. Body: byte hasHeating, [float heatingLockoutC], byte hasCooling, [float coolingLockoutC].</summary>
   SetForecastLockouts = 0x15,
+
+  /// <summary>Hmi -> Server. Requests the last call state and preferences, replied to this panel only.</summary>
+  RequestState = 0x16,
 }
