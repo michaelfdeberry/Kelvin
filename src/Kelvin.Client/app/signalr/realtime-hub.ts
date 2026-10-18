@@ -115,7 +115,10 @@ export class RealtimeHub extends SignalRHubBase {
         console.warn('No control state change found in the response.');
         return;
       }
+
+      // this endpoint now always returns the last call, so dispatch to update both the control state and the call state caches
       dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.controlStateChanged, response.lastChange);
+      dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.callStateChanged, response.lastChange);
     } catch (error) {
       console.error('Failed to load control state:', error);
     }
