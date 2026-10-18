@@ -1,8 +1,7 @@
 #pragma once
 
 // EspNow Configuration
-// #define GATEWAY_MAC_ADDRESS_BYTES {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // replace with your gateway MAC address
-#define GATEWAY_MAC_ADDRESS_BYTES {0x58, 0x2A, 0xBD, 0x70, 0xAD, 0xD8}
+#define GATEWAY_MAC_ADDRESS_BYTES {0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // replace with your gateway MAC address
 
 // EnvironmentMonitor's shouldSendUpdate() is shared with Node, so it reuses the same knobs even though this
 // panel uses light sleep: TIMER_WAKE_INTERVAL_S is really "how often we poll the sensor in
@@ -38,4 +37,4 @@
 #define DISPLAY_VERTICAL_RESOLUTION 600
 
 // uncomment to print debug messages to serial
-#define DEBUG 1
+// #define DEBUG 1
