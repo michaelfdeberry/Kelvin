@@ -77,6 +77,10 @@ Reassembly matches the panel firmware: one pending message per downlink type, at
 consecutive indices, and consistent chunk counts and message IDs. Build this simulator with the matching
 Kelvin.Server and HMI firmware; the previous 5-byte envelope is incompatible. Gateway and Node are unchanged.
 
+All HMI bodies now use the versioned CBOR maps documented in the shared
+[HMI protocol contract](../../docs/HMI%20Protocol.md). Update the simulator, server, and all panels together;
+positional binary payloads are no longer supported.
+
 Any unrecognized input prints `status`.
 
 ## Current scope

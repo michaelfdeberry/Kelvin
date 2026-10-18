@@ -1,3 +1,4 @@
+using Kelvin.Protocol;
 using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Features.Hmi;
@@ -10,21 +11,21 @@ public static class HmiControlStateEncoder
 {
   public static byte[] Encode(ControlStateChange change)
   {
-    using var stream = new MemoryStream();
-    stream.WriteByte((byte)change.State);
-    WriteOptionalFloat(stream, change.EnvironmentTemperatureC);
-    WriteOptionalFloat(stream, change.TargetTemperatureC);
-    WriteOptionalFloat(stream, change.HumidityPercentage);
-    WriteOptionalFloat(stream, change.CO2LevelPpm);
-    return stream.ToArray();
-  }
-
-  private static void WriteOptionalFloat(MemoryStream stream, float? value)
-  {
-    stream.WriteByte((byte)(value.HasValue ? 1 : 0));
-    if (value.HasValue)
-    {
-      stream.Write(BitConverter.GetBytes(value.Value));
-    }
+    return HmiCbor.Encode(
+      5,
+      writer =>
+      {
+        writer.WriteUInt32(1);
+        writer.WriteUInt32((uint)change.State);
+        writer.WriteUInt32(2);
+        HmiCbor.WriteNullableFloat(writer, change.EnvironmentTemperatureC);
+        writer.WriteUInt32(3);
+        HmiCbor.WriteNullableFloat(writer, change.TargetTemperatureC);
+        writer.WriteUInt32(4);
+        HmiCbor.WriteNullableFloat(writer, change.HumidityPercentage);
+        writer.WriteUInt32(5);
+        HmiCbor.WriteNullableFloat(writer, change.CO2LevelPpm);
+      }
+    );
   }
 }

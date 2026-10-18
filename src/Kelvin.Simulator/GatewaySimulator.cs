@@ -1063,6 +1063,15 @@ internal sealed class GatewaySimulator
                     ? null
                     : HmiProtocol.Describe(hmi.EnvironmentReading);
                 break;
+            case HmiMessageType.PreferencesChanged:
+                var preferences = HmiProtocol.DecodePreferences(message);
+                if (preferences is not null)
+                {
+                    hmi.Preferences = preferences;
+                    description =
+                        $"PreferencesChanged temperatureUnit={preferences.TemperatureUnit} timeFormat={preferences.TimeFormat}";
+                }
+                break;
             default:
                 description = $"{type} (unhandled) {Convert.ToHexString(message)}";
                 break;

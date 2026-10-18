@@ -14,6 +14,6 @@ struct EnvironmentAverageReading
 
 namespace EnvironmentReadingParser
 {
-  // `payload` is everything after the HmiMessageType byte. Returns false if the buffer is truncated.
+  // Parses the reassembled versioned CBOR map; failure leaves outReading unchanged.
   bool parse(const uint8_t *payload, size_t payloadLength, EnvironmentAverageReading &outReading);
 }

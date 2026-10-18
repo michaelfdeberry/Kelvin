@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Kelvin.Protocol;
 
 namespace Kelvin.Simulator;
 
@@ -85,9 +86,11 @@ internal sealed record HmiEnvironmentReading(
     float CO2LevelPpm
 );
 
+internal sealed record HmiPreferences(uint TemperatureUnit, uint TimeFormat);
+
 /// <summary>
 /// Hand-mirrored copy of the Hmi wire protocol (Kelvin.Server's Features/Hmi/HmiEnvelope.cs, the Hmi
-/// encoders, and ReceiveHmiCommandHandler's decode layouts). All values are little-endian.
+/// encoders, and ReceiveHmiCommandHandler). Envelope integers are little-endian; bodies are CBOR.
 /// </summary>
 internal static class HmiProtocol
 {
@@ -152,24 +155,54 @@ internal static class HmiProtocol
         float humidityPercentage,
         float batteryLevelPercentage
     ) =>
-        Write(writer =>
-        {
-            writer.Write(temperatureC);
-            writer.Write(humidityPercentage);
-            writer.Write((ushort)0); // the panel has no CO2 sensor
-            writer.Write(batteryLevelPercentage);
-        });
+        HmiCbor.Encode(
+            4,
+            writer =>
+            {
+                writer.WriteUInt32(1);
+                HmiCbor.WriteFloat(writer, temperatureC);
+                writer.WriteUInt32(2);
+                HmiCbor.WriteFloat(writer, humidityPercentage);
+                writer.WriteUInt32(3);
+                writer.WriteUInt32(0);
+                writer.WriteUInt32(4);
+                HmiCbor.WriteFloat(writer, batteryLevelPercentage);
+            }
+        );
 
-    public static byte[] EncodeSetMode(HmiRunMode mode) => [(byte)mode];
+    public static byte[] EncodeSetMode(HmiRunMode mode) =>
+        HmiCbor.Encode(
+            1,
+            writer =>
+            {
+                writer.WriteUInt32(1);
+                writer.WriteUInt32((uint)mode);
+            }
+        );
 
-    public static byte[] EncodeSetFanEnabled(bool enabled) => [(byte)(enabled ? 1 : 0)];
+    public static byte[] EncodeSetFanEnabled(bool enabled) =>
+        HmiCbor.Encode(
+            1,
+            writer =>
+            {
+                writer.WriteUInt32(1);
+                writer.WriteBoolean(enabled);
+            }
+        );
+
+    public static byte[] EncodeRequestState() => HmiCbor.Encode(0, _ => { });
 
     public static byte[] EncodeSetSetPoint(HmiRunType type, float targetTemperatureC) =>
-        Write(writer =>
-        {
-            writer.Write((byte)type);
-            writer.Write(targetTemperatureC);
-        });
+        HmiCbor.Encode(
+            2,
+            writer =>
+            {
+                writer.WriteUInt32(1);
+                writer.WriteUInt32((uint)type);
+                writer.WriteUInt32(2);
+                HmiCbor.WriteFloat(writer, targetTemperatureC);
+            }
+        );
 
     public static byte[] EncodeUpsertSchedule(
         Guid? id,
@@ -178,62 +211,77 @@ internal static class HmiProtocol
         TimeOnly end,
         float targetTemperatureC
     ) =>
-        Write(writer =>
-        {
-            writer.Write((byte)(id.HasValue ? 1 : 0));
-            if (id.HasValue)
+        HmiCbor.Encode(
+            5,
+            writer =>
             {
-                writer.Write(id.Value.ToByteArray());
+                writer.WriteUInt32(1);
+                if (id.HasValue)
+                {
+                    writer.WriteByteString(id.Value.ToByteArray());
+                }
+                else
+                    writer.WriteNull();
+                writer.WriteUInt32(2);
+                writer.WriteUInt32((uint)type);
+                writer.WriteUInt32(3);
+                writer.WriteUInt32((uint)(start.Hour * 60 + start.Minute));
+                writer.WriteUInt32(4);
+                writer.WriteUInt32((uint)(end.Hour * 60 + end.Minute));
+                writer.WriteUInt32(5);
+                HmiCbor.WriteFloat(writer, targetTemperatureC);
             }
+        );
 
-            writer.Write((byte)type);
-            writer.Write((ushort)(start.Hour * 60 + start.Minute));
-            writer.Write((ushort)(end.Hour * 60 + end.Minute));
-            writer.Write(targetTemperatureC);
-        });
-
-    public static byte[] EncodeRemoveSchedule(Guid id) => id.ToByteArray();
+    public static byte[] EncodeRemoveSchedule(Guid id) =>
+        HmiCbor.Encode(
+            1,
+            writer =>
+            {
+                writer.WriteUInt32(1);
+                writer.WriteByteString(id.ToByteArray());
+            }
+        );
 
     public static byte[] EncodeSetForecastLockouts(
         float? heatingLockoutC,
         float? coolingLockoutC
     ) =>
-        Write(writer =>
-        {
-            WriteOptionalFloat(writer, heatingLockoutC);
-            WriteOptionalFloat(writer, coolingLockoutC);
-        });
+        HmiCbor.Encode(
+            2,
+            writer =>
+            {
+                writer.WriteUInt32(1);
+                HmiCbor.WriteNullableFloat(writer, heatingLockoutC);
+                writer.WriteUInt32(2);
+                HmiCbor.WriteNullableFloat(writer, coolingLockoutC);
+            }
+        );
 
     public static HmiThermostatState? DecodeThermostatState(byte[] body) =>
         Read(
             body,
             reader =>
             {
-                var mode = (HmiRunMode)reader.ReadByte();
-                var fanEnabled = reader.ReadByte() != 0;
-                var hysteresisC = reader.ReadSingle();
-                var heatingLockoutC = ReadOptionalFloat(reader);
-                var coolingLockoutC = ReadOptionalFloat(reader);
-
-                var setPoints = new List<HmiSetPoint>();
-                var setPointCount = reader.ReadByte();
-                for (var index = 0; index < setPointCount; index++)
-                {
-                    setPoints.Add(
-                        new HmiSetPoint((HmiRunType)reader.ReadByte(), reader.ReadSingle())
-                    );
-                }
-
-                var schedules = new List<HmiSchedule>();
-                var scheduleCount = reader.ReadByte();
-                for (var index = 0; index < scheduleCount; index++)
-                {
-                    var id = new Guid(reader.ReadBytes(16));
-                    var type = (HmiRunType)reader.ReadByte();
-                    var start = FromMinutes(reader.ReadUInt16());
-                    var end = FromMinutes(reader.ReadUInt16());
-                    schedules.Add(new HmiSchedule(id, type, start, end, reader.ReadSingle()));
-                }
+                var mode = (HmiRunMode)reader.UInt(1, 4);
+                var fanEnabled = reader.Boolean(2);
+                var hysteresisC = reader.Float(3);
+                var heatingLockoutC = reader.NullableFloat(4);
+                var coolingLockoutC = reader.NullableFloat(5);
+                var setPoints = reader
+                    .Array(6, 2)
+                    .Select(entry => new HmiSetPoint((HmiRunType)entry.UInt(1, 1), entry.Float(2)))
+                    .ToList();
+                var schedules = reader
+                    .Array(7, 32)
+                    .Select(entry => new HmiSchedule(
+                        entry.Id(1)!.Value,
+                        (HmiRunType)entry.UInt(2, 1),
+                        FromMinutes(entry.UInt(3, 1439)),
+                        FromMinutes(entry.UInt(4, 1439)),
+                        entry.Float(5)
+                    ))
+                    .ToList();
 
                 return new HmiThermostatState(
                     mode,
@@ -251,23 +299,22 @@ internal static class HmiProtocol
         Read(
             body,
             reader => new HmiControlStateMessage(
-                (HmiControlState)reader.ReadByte(),
-                ReadOptionalFloat(reader),
-                ReadOptionalFloat(reader),
-                ReadOptionalFloat(reader),
-                ReadOptionalFloat(reader)
+                (HmiControlState)reader.UInt(1, 8),
+                reader.NullableFloat(2),
+                reader.NullableFloat(3),
+                reader.NullableFloat(4),
+                reader.NullableFloat(5)
             )
         );
 
     public static HmiEnvironmentReading? DecodeEnvironmentReading(byte[] body) =>
         Read(
             body,
-            reader => new HmiEnvironmentReading(
-                reader.ReadSingle(),
-                reader.ReadSingle(),
-                reader.ReadSingle()
-            )
+            reader => new HmiEnvironmentReading(reader.Float(1), reader.Float(2), reader.Float(3))
         );
+
+    public static HmiPreferences? DecodePreferences(byte[] body) =>
+        Read(body, reader => new HmiPreferences(reader.UInt(1, 1), reader.UInt(2, 1)));
 
     public static string Describe(HmiThermostatState state)
     {
@@ -309,43 +356,18 @@ internal static class HmiProtocol
     private static string Format(float? value) =>
         value?.ToString("F2", CultureInfo.InvariantCulture) ?? "none";
 
-    private static TimeOnly FromMinutes(ushort minutes) => new(minutes / 60 % 24, minutes % 60);
+    private static TimeOnly FromMinutes(uint minutes) => new((int)minutes / 60, (int)minutes % 60);
 
-    private static byte[] Write(Action<BinaryWriter> write)
-    {
-        using var stream = new MemoryStream();
-        using (var writer = new BinaryWriter(stream))
-        {
-            write(writer);
-        }
-
-        return stream.ToArray();
-    }
-
-    private static T? Read<T>(byte[] body, Func<BinaryReader, T> read)
+    private static T? Read<T>(byte[] body, Func<HmiCborMap, T> read)
         where T : class
     {
         try
         {
-            using var reader = new BinaryReader(new MemoryStream(body));
-            return read(reader);
+            return read(HmiCborMap.Parse(body));
         }
-        // A truncated Guid surfaces as ArgumentException rather than EndOfStreamException.
-        catch (Exception ex) when (ex is EndOfStreamException or ArgumentException)
+        catch (Exception ex) when (HmiCbor.IsDecodeError(ex))
         {
             return null;
         }
     }
-
-    private static void WriteOptionalFloat(BinaryWriter writer, float? value)
-    {
-        writer.Write((byte)(value.HasValue ? 1 : 0));
-        if (value.HasValue)
-        {
-            writer.Write(value.Value);
-        }
-    }
-
-    private static float? ReadOptionalFloat(BinaryReader reader) =>
-        reader.ReadByte() != 0 ? reader.ReadSingle() : null;
 }

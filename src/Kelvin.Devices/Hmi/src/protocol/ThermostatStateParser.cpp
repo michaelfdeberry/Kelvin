@@ -1,4 +1,4 @@
-#include <string.h>
+#include "HmiCbor.h"
 #include "ThermostatStateParser.h"
 
 const SetPointState *ThermostatState::findSetPoint(RunType type) const
@@ -13,150 +13,44 @@ const SetPointState *ThermostatState::findSetPoint(RunType type) const
   return nullptr;
 }
 
-namespace
-{
-  // Advances `offset` past the field and returns false (without modifying `offset` further) if the buffer
-  // doesn't have enough bytes remaining.
-  bool readByte(const uint8_t *data, size_t length, size_t &offset, uint8_t &outValue)
-  {
-    if (offset + sizeof(uint8_t) > length)
-    {
-      return false;
-    }
-    outValue = data[offset];
-    offset += sizeof(uint8_t);
-    return true;
-  }
-
-  bool readUInt16(const uint8_t *data, size_t length, size_t &offset, uint16_t &outValue)
-  {
-    if (offset + sizeof(uint16_t) > length)
-    {
-      return false;
-    }
-    memcpy(&outValue, data + offset, sizeof(uint16_t));
-    offset += sizeof(uint16_t);
-    return true;
-  }
-
-  bool readFloat(const uint8_t *data, size_t length, size_t &offset, float &outValue)
-  {
-    if (offset + sizeof(float) > length)
-    {
-      return false;
-    }
-    memcpy(&outValue, data + offset, sizeof(float));
-    offset += sizeof(float);
-    return true;
-  }
-
-  bool readOptionalFloat(const uint8_t *data, size_t length, size_t &offset, bool &hasValue, float &outValue)
-  {
-    uint8_t hasValueByte = 0;
-    if (!readByte(data, length, offset, hasValueByte))
-    {
-      return false;
-    }
-    hasValue = hasValueByte != 0;
-    if (!hasValue)
-    {
-      return true;
-    }
-    return readFloat(data, length, offset, outValue);
-  }
-
-  bool readBytes(const uint8_t *data, size_t length, size_t &offset, uint8_t *outBuffer, size_t count)
-  {
-    if (offset + count > length)
-    {
-      return false;
-    }
-    memcpy(outBuffer, data + offset, count);
-    offset += count;
-    return true;
-  }
-}
-
 namespace ThermostatStateParser
 {
   bool parse(const uint8_t *data, size_t length, ThermostatState &outState)
   {
-    size_t offset = 0;
-    uint8_t modeByte = 0;
-    uint8_t fanEnabledByte = 0;
-
-    if (!readByte(data, length, offset, modeByte))
+    HmiCbor::Map map;
+    ThermostatState state;
+    uint32_t mode;
+    if (!map.parse(data, length) || !map.unsignedValue(1, mode, 4) || !map.boolean(2, state.fanEnabled) ||
+        !map.number(3, state.hysteresisC) || !map.nullableNumber(4, state.hasHeatingLockout, state.heatingLockoutC) ||
+        !map.nullableNumber(5, state.hasCoolingLockout, state.coolingLockoutC))
       return false;
-    if (!readByte(data, length, offset, fanEnabledByte))
+    state.mode = (RunMode)mode;
+    CborValue entries;
+    if (!map.array(6, entries, state.setPointCount, MAX_SET_POINTS))
       return false;
-    if (!readFloat(data, length, offset, outState.hysteresisC))
-      return false;
-    if (!readOptionalFloat(data, length, offset, outState.hasHeatingLockout, outState.heatingLockoutC))
-      return false;
-    if (!readOptionalFloat(data, length, offset, outState.hasCoolingLockout, outState.coolingLockoutC))
-      return false;
-
-    outState.mode = (RunMode)modeByte;
-    outState.fanEnabled = fanEnabledByte != 0;
-
-    uint8_t setPointCount = 0;
-    if (!readByte(data, length, offset, setPointCount))
-      return false;
-
-    outState.setPointCount = 0;
-    for (uint8_t i = 0; i < setPointCount; i++)
+    for (size_t index = 0; index < state.setPointCount; index++)
     {
-      uint8_t typeByte = 0;
-      float targetTemperatureC = 0.0f;
-      if (!readByte(data, length, offset, typeByte))
+      HmiCbor::Map entry;
+      uint32_t type;
+      if (!entry.read(entries) || !entry.unsignedValue(1, type, 1) || !entry.number(2, state.setPoints[index].targetTemperatureC))
         return false;
-      if (!readFloat(data, length, offset, targetTemperatureC))
-        return false;
-
-      if (outState.setPointCount < MAX_SET_POINTS)
-      {
-        outState.setPoints[outState.setPointCount].type = (RunType)typeByte;
-        outState.setPoints[outState.setPointCount].targetTemperatureC = targetTemperatureC;
-        outState.setPointCount++;
-      }
+      state.setPoints[index].type = (RunType)type;
     }
-
-    uint8_t scheduleCount = 0;
-    if (!readByte(data, length, offset, scheduleCount))
+    if (!map.array(7, entries, state.scheduleCount, MAX_SCHEDULES))
       return false;
-
-    outState.scheduleCount = 0;
-    for (uint8_t i = 0; i < scheduleCount; i++)
+    for (size_t index = 0; index < state.scheduleCount; index++)
     {
-      uint8_t id[16];
-      uint8_t typeByte = 0;
-      uint16_t startMinutes = 0;
-      uint16_t endMinutes = 0;
-      float targetTemperatureC = 0.0f;
-
-      if (!readBytes(data, length, offset, id, sizeof(id)))
+      HmiCbor::Map entry;
+      auto &schedule = state.schedules[index];
+      uint32_t type, start, end;
+      if (!entry.read(entries) || !entry.id(1, schedule.id) || !entry.unsignedValue(2, type, 1) ||
+          !entry.unsignedValue(3, start, 1439) || !entry.unsignedValue(4, end, 1439) || !entry.number(5, schedule.targetTemperatureC))
         return false;
-      if (!readByte(data, length, offset, typeByte))
-        return false;
-      if (!readUInt16(data, length, offset, startMinutes))
-        return false;
-      if (!readUInt16(data, length, offset, endMinutes))
-        return false;
-      if (!readFloat(data, length, offset, targetTemperatureC))
-        return false;
-
-      if (outState.scheduleCount < MAX_SCHEDULES)
-      {
-        ScheduleState &schedule = outState.schedules[outState.scheduleCount];
-        memcpy(schedule.id, id, sizeof(id));
-        schedule.type = (RunType)typeByte;
-        schedule.startMinutes = startMinutes;
-        schedule.endMinutes = endMinutes;
-        schedule.targetTemperatureC = targetTemperatureC;
-        outState.scheduleCount++;
-      }
+      schedule.type = (RunType)type;
+      schedule.startMinutes = (uint16_t)start;
+      schedule.endMinutes = (uint16_t)end;
     }
-
+    outState = state;
     return true;
   }
 }

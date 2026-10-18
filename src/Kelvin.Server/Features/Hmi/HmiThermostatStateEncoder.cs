@@ -1,3 +1,5 @@
+using Kelvin.Protocol;
+
 namespace Kelvin.Server.Features.Hmi;
 
 /// <summary>
@@ -10,41 +12,54 @@ public static class HmiThermostatStateEncoder
   {
     var setPoints = thermostat.SetPoints.Where(setPoint => setPoint.DeletedAt is null).ToList();
     var schedules = thermostat.Schedules.Where(schedule => schedule.DeletedAt is null).ToList();
+    ArgumentOutOfRangeException.ThrowIfGreaterThan(setPoints.Count, 2);
+    ArgumentOutOfRangeException.ThrowIfGreaterThan(schedules.Count, 32);
 
-    using var stream = new MemoryStream();
-    stream.WriteByte((byte)thermostat.Mode);
-    stream.WriteByte((byte)(thermostat.FanEnabled ? 1 : 0));
-    stream.Write(BitConverter.GetBytes(thermostat.HysteresisC));
-    WriteOptionalFloat(stream, thermostat.HeatingLockoutC);
-    WriteOptionalFloat(stream, thermostat.CoolingLockoutC);
-
-    stream.WriteByte((byte)setPoints.Count);
-    foreach (var setPoint in setPoints)
-    {
-      stream.WriteByte((byte)setPoint.Type);
-      stream.Write(BitConverter.GetBytes(setPoint.TargetTemperatureC));
-    }
-
-    stream.WriteByte((byte)schedules.Count);
-    foreach (var schedule in schedules)
-    {
-      // The Id is carried opaquely - the panel just echoes it back verbatim on Upsert/RemoveSchedule.
-      stream.Write(schedule.Id.ToByteArray());
-      stream.WriteByte((byte)schedule.Type);
-      stream.Write(BitConverter.GetBytes((ushort)(schedule.StartTime.Hour * 60 + schedule.StartTime.Minute)));
-      stream.Write(BitConverter.GetBytes((ushort)(schedule.EndTime.Hour * 60 + schedule.EndTime.Minute)));
-      stream.Write(BitConverter.GetBytes(schedule.TargetTemperatureC));
-    }
-
-    return stream.ToArray();
-  }
-
-  private static void WriteOptionalFloat(MemoryStream stream, float? value)
-  {
-    stream.WriteByte((byte)(value.HasValue ? 1 : 0));
-    if (value.HasValue)
-    {
-      stream.Write(BitConverter.GetBytes(value.Value));
-    }
+    return HmiCbor.Encode(
+      7,
+      writer =>
+      {
+        writer.WriteUInt32(1);
+        writer.WriteUInt32((uint)thermostat.Mode);
+        writer.WriteUInt32(2);
+        writer.WriteBoolean(thermostat.FanEnabled);
+        writer.WriteUInt32(3);
+        HmiCbor.WriteFloat(writer, thermostat.HysteresisC);
+        writer.WriteUInt32(4);
+        HmiCbor.WriteNullableFloat(writer, thermostat.HeatingLockoutC);
+        writer.WriteUInt32(5);
+        HmiCbor.WriteNullableFloat(writer, thermostat.CoolingLockoutC);
+        writer.WriteUInt32(6);
+        writer.WriteStartArray(setPoints.Count);
+        foreach (var setPoint in setPoints)
+        {
+          writer.WriteStartMap(2);
+          writer.WriteUInt32(1);
+          writer.WriteUInt32((uint)setPoint.Type);
+          writer.WriteUInt32(2);
+          HmiCbor.WriteFloat(writer, setPoint.TargetTemperatureC);
+          writer.WriteEndMap();
+        }
+        writer.WriteEndArray();
+        writer.WriteUInt32(7);
+        writer.WriteStartArray(schedules.Count);
+        foreach (var schedule in schedules)
+        {
+          writer.WriteStartMap(5);
+          writer.WriteUInt32(1);
+          writer.WriteByteString(schedule.Id.ToByteArray());
+          writer.WriteUInt32(2);
+          writer.WriteUInt32((uint)schedule.Type);
+          writer.WriteUInt32(3);
+          writer.WriteUInt32((uint)(schedule.StartTime.Hour * 60 + schedule.StartTime.Minute));
+          writer.WriteUInt32(4);
+          writer.WriteUInt32((uint)(schedule.EndTime.Hour * 60 + schedule.EndTime.Minute));
+          writer.WriteUInt32(5);
+          HmiCbor.WriteFloat(writer, schedule.TargetTemperatureC);
+          writer.WriteEndMap();
+        }
+        writer.WriteEndArray();
+      }
+    );
   }
 }

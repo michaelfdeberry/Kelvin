@@ -1,19 +1,29 @@
+using System.Formats.Cbor;
 using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Features.Hmi;
 
 /// <summary>
-/// Binary-encodes the system-wide average <see cref="EnvironmentReading" /> for the panel's real-time
-/// current-reading display. Fixed-size and small enough to never need chunking.
+/// CBOR-encodes the system-wide average reading using the versioned integer-keyed HMI payload contract.
 /// </summary>
 public static class HmiEnvironmentReadingEncoder
 {
   public static byte[] Encode(EnvironmentReading reading)
   {
-    using var stream = new MemoryStream();
-    stream.Write(BitConverter.GetBytes(reading.TemperatureC));
-    stream.Write(BitConverter.GetBytes(reading.HumidityPercentage));
-    stream.Write(BitConverter.GetBytes(reading.CO2LevelPpm));
-    return stream.ToArray();
+    if (!float.IsFinite(reading.TemperatureC) || !float.IsFinite(reading.HumidityPercentage) || !float.IsFinite(reading.CO2LevelPpm))
+      throw new ArgumentOutOfRangeException(nameof(reading), "HMI readings must be finite.");
+
+    var writer = new CborWriter(CborConformanceMode.Strict);
+    writer.WriteStartMap(4);
+    writer.WriteUInt32(0);
+    writer.WriteUInt32(1);
+    writer.WriteUInt32(1);
+    writer.WriteSingle(reading.TemperatureC);
+    writer.WriteUInt32(2);
+    writer.WriteSingle(reading.HumidityPercentage);
+    writer.WriteUInt32(3);
+    writer.WriteSingle(reading.CO2LevelPpm);
+    writer.WriteEndMap();
+    return writer.Encode();
   }
 }

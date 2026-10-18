@@ -1,3 +1,5 @@
+using Kelvin.Protocol;
+
 namespace Kelvin.Server.Features.Hmi;
 
 /// <summary>
@@ -7,9 +9,15 @@ public static class HmiPreferencesEncoder
 {
   public static byte[] Encode(Models.Preferences preferences)
   {
-    using var stream = new MemoryStream();
-    stream.WriteByte((byte)preferences.TemperatureUnit);
-    stream.WriteByte((byte)preferences.TimeFormat);
-    return stream.ToArray();
+    return HmiCbor.Encode(
+      2,
+      writer =>
+      {
+        writer.WriteUInt32(1);
+        writer.WriteUInt32((uint)preferences.TemperatureUnit);
+        writer.WriteUInt32(2);
+        writer.WriteUInt32((uint)preferences.TimeFormat);
+      }
+    );
   }
 }

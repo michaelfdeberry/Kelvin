@@ -50,7 +50,6 @@ struct ThermostatState
 namespace ThermostatStateParser
 {
   // Parses the fully reassembled state blob (HmiFrameReassembler::getMessage()/getMessageLength()) into `outState`.
-  // Returns false if the buffer is truncated/malformed. Schedules beyond MAX_SCHEDULES are read (to keep the
-  // offset correct) but dropped rather than overflowing `outState.schedules`.
+  // Rejects malformed data and oversized arrays without changing outState.
   bool parse(const uint8_t *data, size_t length, ThermostatState &outState);
 }

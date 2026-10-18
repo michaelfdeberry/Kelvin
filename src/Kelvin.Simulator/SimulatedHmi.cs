@@ -27,6 +27,7 @@ internal sealed class SimulatedHmi
     public HmiControlStateMessage? ControlState { get; set; }
 
     public HmiEnvironmentReading? EnvironmentReading { get; set; }
+    public HmiPreferences? Preferences { get; set; }
 
     public string Label =>
         $"hmi #{HmiNumber:00} {string.Join(":", MacAddress.Select(byteValue => byteValue.ToString("X2")))}";

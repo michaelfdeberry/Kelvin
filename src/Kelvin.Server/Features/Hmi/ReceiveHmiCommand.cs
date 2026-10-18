@@ -1,3 +1,4 @@
+using Kelvin.Protocol;
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
 using Kelvin.Server.Features.Sensors;
@@ -14,6 +15,7 @@ public static class ReceiveHmiCommandErrors
   public static readonly Error EmptyPayload = new("ReceiveHmiCommand.EmptyPayload", "The Hmi command payload was empty.");
   public static readonly Error UnknownCommand = new("ReceiveHmiCommand.UnknownCommand", "The Hmi command type was not recognized.");
   public static readonly Error ThermostatNotFound = new("ReceiveHmiCommand.ThermostatNotFound", "The thermostat has not been configured yet.");
+  public static readonly Error InvalidPayload = new("ReceiveHmiCommand.InvalidPayload", "The Hmi CBOR command payload was invalid.");
 }
 
 /// <summary>
@@ -30,8 +32,6 @@ public class ReceiveHmiCommandHandler(
 {
   public async Task<Result> HandleAsync(ReceiveHmiCommandRequest request, CancellationToken ct = default)
   {
-    await RegisterHmiAsync(request.MacAddress, ct);
-
     if (
       !HmiEnvelope.TryDecode(request.Payload, out var messageType, out var chunkIndex, out var chunkCount, out _, out _)
       || chunkIndex != 0
@@ -39,59 +39,62 @@ public class ReceiveHmiCommandHandler(
     )
       return Result.Failure(ReceiveHmiCommandErrors.EmptyPayload);
 
-    if (messageType == HmiMessageType.SensorReading)
+    IRequest? command;
+    try
     {
-      // A ReadOnlySpan<byte> can't be kept as a local across an `await`, so it's re-decoded at each use
-      // site below instead of stored once in a shared variable.
-      var packet = BuildSensorPacket(request.MacAddress, DecodeBody(request.Payload));
-      return await saveSensorPacket.HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Hmi), ct);
+      var body = HmiCborMap.Parse(DecodeBody(request.Payload));
+      if (messageType == HmiMessageType.SensorReading)
+      {
+        command = new SaveSensorPacketRequest(BuildSensorPacket(request.MacAddress, body), DeviceType.Hmi);
+      }
+      else if (messageType == HmiMessageType.RequestState)
+      {
+        command = new SendHmiStateRequest(request.MacAddress);
+      }
+      else
+      {
+        var thermostat = await context.Thermostats.Include(t => t.SetPoints).Include(t => t.Schedules).FirstOrDefaultAsync(ct);
+        if (thermostat is null)
+          return Result.Failure(ReceiveHmiCommandErrors.ThermostatNotFound);
+        command = messageType switch
+        {
+          HmiMessageType.SetMode => new UpdateThermostatRequest((RunMode)body.UInt(1, 4), thermostat.FanEnabled),
+          HmiMessageType.SetFanEnabled => new UpdateThermostatRequest(thermostat.Mode, body.Boolean(1)),
+          HmiMessageType.SetForecastLockouts => BuildForecastLockoutsRequest(thermostat, body),
+          HmiMessageType.SetSetPoint => BuildSetPointRequest(thermostat, body),
+          HmiMessageType.UpsertSchedule => BuildUpsertScheduleRequest(thermostat, body),
+          HmiMessageType.RemoveSchedule => BuildRemoveScheduleRequest(thermostat, body),
+          _ => null,
+        };
+      }
     }
-
-    if (messageType == HmiMessageType.RequestState)
-      return await sendHmiState.HandleAsync(new SendHmiStateRequest(request.MacAddress), ct);
-
-    var thermostat = await context.Thermostats.Include(t => t.SetPoints).Include(t => t.Schedules).FirstOrDefaultAsync(ct);
-    if (thermostat is null)
-      return Result.Failure(ReceiveHmiCommandErrors.ThermostatNotFound);
-
-    return messageType switch
+    catch (Exception exception) when (HmiCbor.IsDecodeError(exception))
     {
-      HmiMessageType.SetMode => await updateThermostat.HandleAsync(
-        new UpdateThermostatRequest((RunMode)DecodeBody(request.Payload)[0], thermostat.FanEnabled),
-        ct
-      ),
-      HmiMessageType.SetFanEnabled => await updateThermostat.HandleAsync(
-        new UpdateThermostatRequest(thermostat.Mode, DecodeBody(request.Payload)[0] != 0),
-        ct
-      ),
-      HmiMessageType.SetForecastLockouts => await updateThermostatSettings.HandleAsync(
-        BuildForecastLockoutsRequest(thermostat, DecodeBody(request.Payload)),
-        ct
-      ),
-      HmiMessageType.SetSetPoint => await updateThermostatSettings.HandleAsync(BuildSetPointRequest(thermostat, DecodeBody(request.Payload)), ct),
-      HmiMessageType.UpsertSchedule => await updateThermostatSettings.HandleAsync(
-        BuildUpsertScheduleRequest(thermostat, DecodeBody(request.Payload)),
-        ct
-      ),
-      HmiMessageType.RemoveSchedule => await updateThermostatSettings.HandleAsync(
-        BuildRemoveScheduleRequest(thermostat, DecodeBody(request.Payload)),
-        ct
-      ),
+      return Result.Failure(ReceiveHmiCommandErrors.InvalidPayload);
+    }
+    if (command is null)
+      return Result.Failure(ReceiveHmiCommandErrors.UnknownCommand);
+    await RegisterHmiAsync(request.MacAddress, ct);
+    return command switch
+    {
+      SaveSensorPacketRequest reading => await saveSensorPacket.HandleAsync(reading, ct),
+      SendHmiStateRequest snapshot => await sendHmiState.HandleAsync(snapshot, ct),
+      UpdateThermostatRequest update => await updateThermostat.HandleAsync(update, ct),
+      UpdateThermostatSettingsRequest settings => await updateThermostatSettings.HandleAsync(settings, ct),
       _ => Result.Failure(ReceiveHmiCommandErrors.UnknownCommand),
     };
   }
 
-  private static ReadOnlySpan<byte> DecodeBody(byte[] payload) =>
-    HmiEnvelope.TryDecode(payload, out _, out _, out _, out _, out var body) ? body : default;
+  private static byte[] DecodeBody(byte[] payload) => HmiEnvelope.TryDecode(payload, out _, out _, out _, out _, out var body) ? body.ToArray() : [];
 
-  private static SensorPacket BuildSensorPacket(string macAddress, ReadOnlySpan<byte> body) =>
+  private static SensorPacket BuildSensorPacket(string macAddress, HmiCborMap body) =>
     new()
     {
       MacAddress = macAddress,
-      TemperatureC = BitConverter.ToSingle(body),
-      HumidityPercentage = BitConverter.ToSingle(body[4..]),
-      CO2LevelPpm = BitConverter.ToUInt16(body[8..]),
-      BatteryLevelPercentage = BitConverter.ToSingle(body[10..]),
+      TemperatureC = body.Float(1),
+      HumidityPercentage = body.Float(2),
+      CO2LevelPpm = (ushort)body.UInt(3, ushort.MaxValue),
+      BatteryLevelPercentage = body.Float(4),
     };
 
   private async Task RegisterHmiAsync(string macAddress, CancellationToken ct)
@@ -123,19 +126,18 @@ public class ReceiveHmiCommandHandler(
     }
   }
 
-  private static UpdateThermostatSettingsRequest BuildForecastLockoutsRequest(Models.Thermostat thermostat, ReadOnlySpan<byte> body)
+  private static UpdateThermostatSettingsRequest BuildForecastLockoutsRequest(Models.Thermostat thermostat, HmiCborMap body)
   {
-    var offset = 0;
-    var heatingLockoutC = ReadOptionalFloat(body, ref offset);
-    var coolingLockoutC = ReadOptionalFloat(body, ref offset);
+    var heatingLockoutC = body.NullableFloat(1);
+    var coolingLockoutC = body.NullableFloat(2);
 
     return new UpdateThermostatSettingsRequest(heatingLockoutC, coolingLockoutC, ToSetPointInputs(thermostat), ToScheduleInputs(thermostat));
   }
 
-  private static UpdateThermostatSettingsRequest BuildSetPointRequest(Models.Thermostat thermostat, ReadOnlySpan<byte> body)
+  private static UpdateThermostatSettingsRequest BuildSetPointRequest(Models.Thermostat thermostat, HmiCborMap body)
   {
-    var type = (RunType)body[0];
-    var targetTemperatureC = BitConverter.ToSingle(body[1..]);
+    var type = (RunType)body.UInt(1, 1);
+    var targetTemperatureC = body.Float(2);
     var existingId = thermostat.SetPoints.Where(setPoint => setPoint.DeletedAt is null).FirstOrDefault(setPoint => setPoint.Type == type)?.Id;
 
     var setPoints = ToSetPointInputs(thermostat)
@@ -145,26 +147,16 @@ public class ReceiveHmiCommandHandler(
     return new UpdateThermostatSettingsRequest(thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, setPoints, ToScheduleInputs(thermostat));
   }
 
-  private static UpdateThermostatSettingsRequest BuildUpsertScheduleRequest(Models.Thermostat thermostat, ReadOnlySpan<byte> body)
+  private static UpdateThermostatSettingsRequest BuildUpsertScheduleRequest(Models.Thermostat thermostat, HmiCborMap body)
   {
-    var offset = 0;
-    var hasId = body[offset++] != 0;
-    Guid? id = null;
-    if (hasId)
-    {
-      id = new Guid(body.Slice(offset, 16));
-      offset += 16;
-    }
+    var id = body.Id(1, true);
+    var type = (RunType)body.UInt(2, 1);
+    var startMinutes = body.UInt(3, 1439);
+    var endMinutes = body.UInt(4, 1439);
+    var targetTemperatureC = body.Float(5);
 
-    var type = (RunType)body[offset++];
-    var startMinutes = BitConverter.ToUInt16(body[offset..]);
-    offset += 2;
-    var endMinutes = BitConverter.ToUInt16(body[offset..]);
-    offset += 2;
-    var targetTemperatureC = BitConverter.ToSingle(body[offset..]);
-
-    var startTime = new TimeOnly(startMinutes / 60, startMinutes % 60);
-    var endTime = new TimeOnly(endMinutes / 60, endMinutes % 60);
+    var startTime = new TimeOnly((int)startMinutes / 60, (int)startMinutes % 60);
+    var endTime = new TimeOnly((int)endMinutes / 60, (int)endMinutes % 60);
 
     var schedules = ToScheduleInputs(thermostat)
       .Where(schedule => schedule.Id != id)
@@ -173,23 +165,12 @@ public class ReceiveHmiCommandHandler(
     return new UpdateThermostatSettingsRequest(thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, ToSetPointInputs(thermostat), schedules);
   }
 
-  private static UpdateThermostatSettingsRequest BuildRemoveScheduleRequest(Models.Thermostat thermostat, ReadOnlySpan<byte> body)
+  private static UpdateThermostatSettingsRequest BuildRemoveScheduleRequest(Models.Thermostat thermostat, HmiCborMap body)
   {
-    var id = new Guid(body[..16]);
+    var id = body.Id(1);
     var schedules = ToScheduleInputs(thermostat).Where(schedule => schedule.Id != id);
 
     return new UpdateThermostatSettingsRequest(thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, ToSetPointInputs(thermostat), schedules);
-  }
-
-  private static float? ReadOptionalFloat(ReadOnlySpan<byte> body, ref int offset)
-  {
-    var hasValue = body[offset++] != 0;
-    if (!hasValue)
-      return null;
-
-    var value = BitConverter.ToSingle(body[offset..]);
-    offset += 4;
-    return value;
   }
 
   private static IEnumerable<SetPointInput> ToSetPointInputs(Models.Thermostat thermostat) =>

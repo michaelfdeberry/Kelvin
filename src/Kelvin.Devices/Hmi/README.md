@@ -36,7 +36,8 @@ Install the required Arduino libraries and LVGL config from the Hmi directory:
 .\Hmi.bat
 ```
 
-This installs `Adafruit LC709203F` and its `Adafruit BusIO` dependency along with the sensor and UI libraries.
+This installs `Adafruit LC709203F` and its `Adafruit BusIO` dependency along with the sensor and UI libraries,
+and pins `TinyCBOR@0.5.3002` for CBOR payload decoding.
 
 Compile from the repository root.
 
@@ -66,16 +67,23 @@ rebuild Kelvin.Simulator, and reflash all HMI panels together. Gateway and Node 
 IDs identify assemblies, not acknowledgements or guaranteed delivery; interrupted messages still require
 a new full snapshot. IDs can repeat after sender restart or counter wraparound.
 
-The native regression tests compile the real reassembler and uplink encoder without Arduino hardware.
-From the repository root, with a C++ compiler available:
+All HMI payloads now use integer-keyed versioned CBOR maps, decoded only after reassembly. See the shared
+[HMI protocol contract](../../../docs/HMI%20Protocol.md) for field IDs, extension rules, and migration status.
+Update the server, simulator, and panels together; positional binary payloads are no longer supported.
+
+The native regression tests compile the real reassembler, uplink encoder, and CBOR decoder without Arduino
+hardware. After installing TinyCBOR, run from the repository root in an MSVC Developer PowerShell:
 
 ```powershell
-g++ -std=c++17 -Wall -Wextra -Werror -I src/Kelvin.Devices/Common/src src/Kelvin.Devices/Hmi/tests/HmiFrameReassemblerTests.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiFrameReassembler.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiCommandEncoder.cpp -o "$env:TEMP/kelvin-hmi-tests.exe"
-& "$env:TEMP/kelvin-hmi-tests.exe"
+$tinyCbor = "$env:USERPROFILE/Documents/Arduino/libraries/TinyCBOR/src"
+$testOutput = Join-Path $env:TEMP "kelvin-hmi-protocol-tests"
+New-Item -ItemType Directory -Force $testOutput | Out-Null
+cl /nologo /std:c++17 /EHsc /W4 /I src/Kelvin.Devices/Common/src /I "$tinyCbor" src/Kelvin.Devices/Hmi/tests/HmiFrameReassemblerTests.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiFrameReassembler.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiCommandEncoder.cpp src/Kelvin.Devices/Hmi/src/protocol/EnvironmentReadingParser.cpp src/Kelvin.Devices/Hmi/src/protocol/ThermostatStateParser.cpp src/Kelvin.Devices/Hmi/src/protocol/ControlStateParser.cpp src/Kelvin.Devices/Hmi/src/protocol/PreferencesParser.cpp "$tinyCbor/cborparser.c" "$tinyCbor/cborencoder.c" "$tinyCbor/cborencoder_close_container_checked.c" "/Fo:$testOutput/" "/Fe:$testOutput/HmiFrameReassemblerTests.exe"
+& "$testOutput/HmiFrameReassemblerTests.exe"
 ```
 
-MSVC is also supported: run `cl` from a Developer PowerShell with `/std:c++17 /EHsc /W4 /WX`, the same
-include directory (`/I`) and sources, and an output path specified with `/Fe`.
+Adjust `$tinyCbor` if the Arduino sketchbook is installed elsewhere. GCC/Clang can also compile these
+sources; compile TinyCBOR's `cborparser.c` as C and link it with the C++ test sources.
 
 ## Battery and power
 

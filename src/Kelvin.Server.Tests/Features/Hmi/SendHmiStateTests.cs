@@ -42,7 +42,9 @@ public class SendHmiStateTests
                     HmiMessageType.ThermostatStateChunk,
                 }
             );
-        frames[0][HmiEnvelope.HeaderSize].ShouldBe((byte)ControlState.Dwell);
+        Convert
+            .ToHexString(frames[0][HmiEnvelope.HeaderSize..])
+            .ShouldBe("A60001010202F603F604F605F6");
         context.Thermostats.Count().ShouldBe(1);
         context.Preferences.Count().ShouldBe(1);
     }
