@@ -1,12 +1,14 @@
 using System.IO.Ports;
 using Kelvin.Server.Application;
+using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Gateways;
+using Kelvin.Server.Features.Hmi;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Services;
 
-public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatcher) : BackgroundService
+public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatcher, IHmiOutboundChannel hmiOutboundChannel) : BackgroundService
 {
   const int BAUD_RATE = 9600;
   const int DEFAULT_READ_DELAY = 1000;
@@ -14,18 +16,19 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
   const int GATEWAY_BOOT_DELAY = 5000;
   const int MAX_RETRIES = 5;
   const int MAC_SIZE = 6;
-  const int PAYLOAD_SIZE = 16;
-  const int PACKET_SIZE = MAC_SIZE + PAYLOAD_SIZE;
-  static readonly byte[] PACKET_HEADER = [0xAA, 0x55];
+  const int NODE_PAYLOAD_SIZE = 16;
+
+  // Main-loop reads must not block indefinitely, or a quiet Node/panel would starve outbound Hmi writes.
+  const int MAIN_PORT_READ_TIMEOUT = 250;
+  const int MAX_OUTBOUND_FRAMES_PER_PASS = 4;
   static readonly byte[] GATEWAY_INFO_HEADER = [0xAB, 0x56];
 
-  /*
-  Error cases to solve for:
-    Connection to the gateway unable to reconnect after a period of time
-    Connected to the gateway, but hasn't received any data in a period of time
-      - Send a notification to the client
-      - Revert control to the dumb thermostat
-  */
+  // Every device (Node, Hmi, and whatever comes next) is relayed generically as
+  // [header][6 byte MAC][2 byte LE length][tag(4 bytes) + raw ESP-NOW payload] - the Gateway never inspects
+  // the tag, only this service does (see FrameTags), so new device types don't require a Gateway.ino change.
+  static readonly byte[] DEVICE_UPLINK_HEADER = [0xAC, 0x57];
+  static readonly byte[] DEVICE_DOWNLINK_HEADER = [0xAD, 0x58];
+  static readonly IReadOnlyList<byte[]> KNOWN_INCOMING_HEADERS = [DEVICE_UPLINK_HEADER];
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
@@ -46,24 +49,22 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
         if (!port.IsOpen)
         {
           port.Open();
+          port.ReadTimeout = MAIN_PORT_READ_TIMEOUT;
           await Task.Delay(GATEWAY_BOOT_DELAY, stoppingToken);
         }
 
-        if (!ReadHeader(port, PACKET_HEADER, stoppingToken))
+        DrainOutboundHmiMessages(port, stoppingToken);
+
+        var header = TryReadIncomingHeader(port, KNOWN_INCOMING_HEADERS, stoppingToken);
+        if (header is null)
         {
           retryCount = 0;
           continue;
         }
 
-        var packet = ReadPacket(port);
-        if (packet != null)
-        {
-          var result = await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet), stoppingToken);
-          result.EnsureSuccess();
-        }
+        await HandleDeviceUplinkMessage(port, stoppingToken);
 
         retryCount = 0;
-        await Task.Delay(DEFAULT_READ_DELAY, stoppingToken);
       }
       catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is ObjectDisposedException)
       {
@@ -201,23 +202,119 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
     return false;
   }
 
-  private static SensorPacket? ReadPacket(SerialPort port)
+  // Generalized (multi-header-capable) sniff reused for the main loop's single DEVICE_UPLINK_HEADER, kept
+  // separate from ReadHeader/GATEWAY_INFO_HEADER purely so a distinct serial-level frame type could be added
+  // later without touching the info handshake.
+  private static byte[]? TryReadIncomingHeader(SerialPort port, IReadOnlyList<byte[]> headers, CancellationToken cancellationToken)
   {
-    var buffer = ReadBytes(port, PACKET_SIZE);
-    if (buffer is null)
-      return null;
+    try
+    {
+      while (!cancellationToken.IsCancellationRequested)
+      {
+        int first = port.ReadByte();
+        if (first < 0)
+          return null;
 
-    var macBytes = buffer[..MAC_SIZE];
+        var candidates = headers.Where(header => header[0] == first).ToList();
+        if (candidates.Count == 0)
+          continue;
+
+        int second = port.ReadByte();
+        if (second < 0)
+          return null;
+
+        var match = candidates.FirstOrDefault(header => header[1] == second);
+        if (match is not null)
+          return match;
+      }
+    }
+    catch (TimeoutException)
+    {
+      return null;
+    }
+
+    return null;
+  }
+
+  private async Task HandleDeviceUplinkMessage(SerialPort port, CancellationToken stoppingToken)
+  {
+    var macBytes = ReadBytes(port, MAC_SIZE);
+    var lengthBytes = macBytes is null ? null : ReadBytes(port, 2);
+    if (macBytes is null || lengthBytes is null)
+      return;
+
+    var length = BitConverter.ToUInt16(lengthBytes, 0);
+    var frame = length == 0 ? [] : ReadBytes(port, length);
+    if (frame is null || frame.Length < FrameTags.Size)
+      return;
+
+    var macAddress = string.Join(':', macBytes.Select(b => b.ToString("X2"))).ToLowerInvariant();
+    var tag = frame[..FrameTags.Size];
+    var content = frame[FrameTags.Size..];
+
+    if (tag.SequenceEqual(FrameTags.Node))
+    {
+      await HandleNodeReadingAsync(macAddress, content, stoppingToken);
+    }
+    else if (tag.SequenceEqual(FrameTags.Hmi))
+    {
+      var result = await dispatcher.DispatchAsync(new ReceiveHmiCommandRequest(macAddress, content), stoppingToken);
+      result.EnsureSuccess();
+    }
+    else
+    {
+      logger.LogWarning("Received a frame from {MacAddress} with an unrecognized device tag; discarding.", macAddress);
+    }
+  }
+
+  private async Task HandleNodeReadingAsync(string macAddress, byte[] payload, CancellationToken stoppingToken)
+  {
+    if (payload.Length != NODE_PAYLOAD_SIZE)
+      return;
+
     var packet = new SensorPacket
     {
-      MacAddress = string.Join(':', macBytes.Select(b => b.ToString("X2"))).ToLowerInvariant(),
-      TemperatureC = BitConverter.ToSingle(buffer, MAC_SIZE + 0),
-      HumidityPercentage = BitConverter.ToSingle(buffer, MAC_SIZE + 4),
-      CO2LevelPpm = BitConverter.ToUInt16(buffer, MAC_SIZE + 8),
-      BatteryLevelPercentage = BitConverter.ToSingle(buffer, MAC_SIZE + 12),
+      MacAddress = macAddress,
+      TemperatureC = BitConverter.ToSingle(payload, 0),
+      HumidityPercentage = BitConverter.ToSingle(payload, 4),
+      CO2LevelPpm = BitConverter.ToUInt16(payload, 8),
+      BatteryLevelPercentage = BitConverter.ToSingle(payload, 12),
     };
 
-    return packet;
+    var result = await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet, DeviceType.Node), stoppingToken);
+    result.EnsureSuccess();
+  }
+
+  // GatewayService is the sole owner/writer of the serial port, so outbound frames are drained here rather
+  // than written directly by whichever handler produced them (e.g. BroadcastHmiStateHandler).
+  private void DrainOutboundHmiMessages(SerialPort port, CancellationToken stoppingToken)
+  {
+    for (var count = 0; count < MAX_OUTBOUND_FRAMES_PER_PASS && !stoppingToken.IsCancellationRequested; count++)
+    {
+      if (!hmiOutboundChannel.TryRead(out var message))
+        break;
+
+      try
+      {
+        WriteDeviceDownlinkFrame(port, message.MacAddress, message.Payload);
+      }
+      catch (Exception ex)
+      {
+        logger.LogWarning(ex, "Failed to relay an outbound Hmi message to {MacAddress}.", message.MacAddress);
+        break;
+      }
+    }
+  }
+
+  private static void WriteDeviceDownlinkFrame(SerialPort port, string macAddress, byte[] payload)
+  {
+    var macBytes = macAddress.Split(':').Select(part => Convert.ToByte(part, 16)).ToArray();
+    var lengthBytes = BitConverter.GetBytes((ushort)payload.Length);
+
+    port.Write(DEVICE_DOWNLINK_HEADER, 0, DEVICE_DOWNLINK_HEADER.Length);
+    port.Write(macBytes, 0, macBytes.Length);
+    port.Write(lengthBytes, 0, lengthBytes.Length);
+    port.Write(payload, 0, payload.Length);
   }
 
   private static byte[]? ReadBytes(SerialPort port, int count)
@@ -225,13 +322,20 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
     var buffer = new byte[count];
     int read = 0;
 
-    while (read < count)
+    try
     {
-      int n = port.Read(buffer, read, count - read);
-      if (n <= 0)
-        return null;
+      while (read < count)
+      {
+        int n = port.Read(buffer, read, count - read);
+        if (n <= 0)
+          return null;
 
-      read += n;
+        read += n;
+      }
+    }
+    catch (TimeoutException)
+    {
+      return null;
     }
 
     return buffer;

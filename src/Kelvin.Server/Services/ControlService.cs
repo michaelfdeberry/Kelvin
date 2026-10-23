@@ -2,9 +2,8 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
-using Kelvin.Server.Hubs;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
-using Microsoft.AspNetCore.SignalR;
 
 namespace Kelvin.Server.Services;
 
@@ -23,8 +22,7 @@ public class ControlService(
   IDispatcher dispatcher,
   IRelayController relays,
   TimeProvider time,
-  IHostApplicationLifetime lifetime,
-  IHubContext<ControlHub, IControlClient> hub
+  IHostApplicationLifetime lifetime
 ) : BackgroundService
 {
   private static readonly Guid subscriberId = Guid.NewGuid();
@@ -532,19 +530,12 @@ public class ControlService(
     {
       foreach (var change in _pendingChanges)
       {
-        try
-        {
-          await hub.Clients.All.ControlStateChanged(ControlStateChangeDto.FromEntity(change));
-        }
-        catch (Exception ex)
-        {
-          // The change is still persisted, so a client that missed the broadcast can read the current state.
-          logger.LogError(ex, "Failed to broadcast the {Kind} state change to {State}.", change.Kind, change.State);
-        }
-
         var result = await dispatcher.DispatchAsync(new SaveControlStateChangeRequest(change), cancellationToken);
+
         if (result.IsFailure)
           logger.LogError("Failed to record the {Kind} state change to {State}: {Error}", change.Kind, change.State, result.Error.Message);
+
+        await dispatcher.PublishAsync(new ControlStateChangedEvent(change), cancellationToken);
       }
     }
     catch (Exception ex)

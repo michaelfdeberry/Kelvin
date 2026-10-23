@@ -2,19 +2,17 @@ using System.Collections.Concurrent;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
+using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Features.Sensors;
-using Kelvin.Server.Hubs;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
-using Microsoft.AspNetCore.SignalR;
 
 namespace Kelvin.Server.Services;
 
 public class SensingService(
   ILogger<SensingService> logger,
   ISensorPacketChannel sensorPacketChannel,
-  IEnvironmentReadingsChannel environmentReadingChannel,
-  IHubContext<NotificationsHub, INotificationsClient> notificationHub,
-  IHubContext<EnvironmentReadingsHub, IEnvironmentReadingsClient> environmentReadingsHub,
+  IEnvironmentReplayChannel environmentReplayChannel,
   IDispatcher dispatcher,
   TimeProvider time
 ) : BackgroundService
@@ -40,8 +38,36 @@ public class SensingService(
   {
     var monitorSensorHealthTask = MonitorSensorHealthAsync(stoppingToken);
     var listenForSensorPacketsTask = ListenForSensorPacketsAsync(stoppingToken);
+    var listenForEnvironmentReplayTask = ListenForEnvironmentReplayAsync(stoppingToken);
 
-    await Task.WhenAll(monitorSensorHealthTask, listenForSensorPacketsTask);
+    await Task.WhenAll(monitorSensorHealthTask, listenForSensorPacketsTask, listenForEnvironmentReplayTask);
+  }
+
+  private async Task ListenForEnvironmentReplayAsync(CancellationToken stoppingToken)
+  {
+    while (!stoppingToken.IsCancellationRequested)
+    {
+      try
+      {
+        var replaySignal = await environmentReplayChannel.ReadAsync(subscriberId, stoppingToken);
+        if (replaySignal)
+        {
+          await _environmentLock.WaitAsync(stoppingToken);
+          // Process the last reading to determine, done so the thermostat service will reevaluate
+          // the reading to determine if there should be a state change.
+          await UpdateReadingsAsync(stoppingToken);
+          _environmentLock.Release();
+        }
+      }
+      catch (OperationCanceledException)
+      {
+        logger.LogInformation("SensingService is stopping due to cancellation.");
+      }
+      catch (Exception ex)
+      {
+        logger.LogError(ex, "An error occurred in SensingService while listening for environment replay signals.");
+      }
+    }
   }
 
   private async Task MonitorSensorHealthAsync(CancellationToken stoppingToken)
@@ -56,9 +82,9 @@ public class SensingService(
         sensorsResponse.EnsureSuccess();
 
         var sensors = sensorsResponse.Value!.Sensors;
+        var requiresUpdate = false;
 
         await _environmentLock.WaitAsync(stoppingToken);
-        var requiresUpdate = false;
         try
         {
           _environment ??= new();
@@ -71,7 +97,7 @@ public class SensingService(
 
         if (requiresUpdate)
         {
-          await UpdateReadingsAsync(sensors, stoppingToken);
+          await UpdateReadingsAsync(stoppingToken);
         }
       }
       catch (OperationCanceledException)
@@ -122,7 +148,7 @@ public class SensingService(
           _environmentLock.Release();
         }
 
-        await UpdateReadingsAsync(sensors, stoppingToken);
+        await UpdateReadingsAsync(stoppingToken);
       }
       catch (OperationCanceledException)
       {
@@ -133,20 +159,6 @@ public class SensingService(
         logger.LogError(ex, "An error occurred in SensingService while processing sensor packets.");
       }
     }
-  }
-
-  private async Task UpdateReadingsAsync(IEnumerable<SensorResponse> sensors, CancellationToken stoppingToken)
-  {
-    if (_environment?.Areas.IsEmpty ?? true)
-      return;
-
-    _environment.Timestamp = time.GetUtcNow();
-    _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
-    _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
-    _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
-
-    await environmentReadingChannel.WriteAsync(_environment, stoppingToken);
-    await environmentReadingsHub.Clients.All.ReadingsUpdated(_environment);
   }
 
   private async Task<bool> PruneEnvironmentReadingAsync(IEnumerable<SensorResponse> sensors, CancellationToken stoppingToken)
@@ -186,11 +198,13 @@ public class SensingService(
         await dispatcher.DispatchAsync(new DisableSensorRequest(sensorId), stoppingToken);
 
         var sensor = sensors.FirstOrDefault(s => s.Id == sensorId);
-        var notification = new Notification(
-          $"Sensor '{sensor?.Name ?? sensorId.ToString()}' has been disabled due to inactivity.",
-          NotificationType.Warning
+        await dispatcher.DispatchAsync(
+          new SendNotificationRequest(
+            $"Sensor '{sensor?.Name ?? sensorId.ToString()}' has been disabled due to inactivity.",
+            NotificationType.Warning
+          ),
+          stoppingToken
         );
-        await notificationHub.Clients.All.Notify(notification);
       }
 
       logger.LogInformation("Removed {Count} timed out sensors from environment reading.", sensorsToCleanup.Count);
@@ -203,5 +217,18 @@ public class SensingService(
     }
 
     return removedDisabled > 0 || sensorsToCleanup.Count > 0;
+  }
+
+  private async Task UpdateReadingsAsync(CancellationToken stoppingToken)
+  {
+    if (_environment?.Areas.IsEmpty ?? true)
+      return;
+
+    _environment.Timestamp = time.GetUtcNow();
+    _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
+    _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
+    _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
+
+    await dispatcher.PublishAsync(new EnvironmentReadingChangedEvent(_environment.Clone()), stoppingToken);
   }
 }

@@ -99,17 +99,19 @@ public class ThermostatService(
   private ControlMessage ProcessAutomatic(ControlMessage context, EnvironmentReading environment, Thermostat thermostat, float? forecastTemperatureC)
   {
     var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
-    var heatingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Heating);
-    var coolingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Cooling);
-    var heatingSchedule = thermostat.Schedules.FirstOrDefault(s => s.Type == RunType.Heating && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
-    var coolingSchedule = thermostat.Schedules.FirstOrDefault(s => s.Type == RunType.Cooling && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
+    var setPoints = thermostat.SetPoints.Where(sp => sp.DeletedAt is null).ToList();
+    var schedules = thermostat.Schedules.Where(s => s.DeletedAt is null).ToList();
+    var heatingSetPoint = setPoints.FirstOrDefault(sp => sp.Type == RunType.Heating);
+    var coolingSetPoint = setPoints.FirstOrDefault(sp => sp.Type == RunType.Cooling);
+    var heatingSchedule = schedules.FirstOrDefault(s => s.Type == RunType.Heating && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
+    var coolingSchedule = schedules.FirstOrDefault(s => s.Type == RunType.Cooling && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
     var heatingTargetTemp = heatingSchedule?.TargetTemperatureC ?? heatingSetPoint?.TargetTemperatureC;
     var coolingTargetTemp = coolingSchedule?.TargetTemperatureC ?? coolingSetPoint?.TargetTemperatureC;
 
     // this shouldn't be possible, it's not allowed to not have both configured for auto mode
     if (heatingTargetTemp is null || coolingTargetTemp is null)
     {
-      return context with { State = ControlState.Disable, Reason = "Invalid configuration for automatic control" };
+      return context with { State = ControlState.Dwell, Reason = "Invalid configuration for automatic control" };
     }
 
     var isHeatingMode = false;
@@ -233,8 +235,10 @@ public class ThermostatService(
     var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
     var environmentTemperatureC = environment.TemperatureC;
     var coolingLockoutC = thermostat.CoolingLockoutC;
-    var coolingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Cooling);
-    var coolingSchedule = thermostat.Schedules.FirstOrDefault(s => s.Type == RunType.Cooling && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
+    var setPoints = thermostat.SetPoints.Where(sp => sp.DeletedAt is null).ToList();
+    var schedules = thermostat.Schedules.Where(s => s.DeletedAt is null).ToList();
+    var coolingSetPoint = setPoints.FirstOrDefault(sp => sp.Type == RunType.Cooling);
+    var coolingSchedule = schedules.FirstOrDefault(s => s.Type == RunType.Cooling && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
     var useForecastForCooling = forecastTemperatureC is not null && coolingLockoutC is not null;
     var forecastAllowsForCooling = useForecastForCooling && forecastTemperatureC >= coolingLockoutC;
 
@@ -297,8 +301,10 @@ public class ThermostatService(
     var currentTimeOnly = TimeOnly.FromDateTime(time.GetLocalNow().DateTime);
     var environmentTemperatureC = environment.TemperatureC;
     var heatingLockoutC = thermostat.HeatingLockoutC;
-    var heatingSetPoint = thermostat.SetPoints.FirstOrDefault(sp => sp.Type == RunType.Heating);
-    var heatingSchedule = thermostat.Schedules.FirstOrDefault(s => s.Type == RunType.Heating && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
+    var setPoints = thermostat.SetPoints.Where(sp => sp.DeletedAt is null).ToList();
+    var schedules = thermostat.Schedules.Where(s => s.DeletedAt is null).ToList();
+    var heatingSetPoint = setPoints.FirstOrDefault(sp => sp.Type == RunType.Heating);
+    var heatingSchedule = schedules.FirstOrDefault(s => s.Type == RunType.Heating && IsActive(currentTimeOnly, s.StartTime, s.EndTime));
     var useForecastForHeating = forecastTemperatureC is not null && heatingLockoutC is not null;
     var forecastAllowsForHeating = useForecastForHeating && forecastTemperatureC <= heatingLockoutC;
 

@@ -2,7 +2,7 @@ import '../../../shared/number-input/number-input.js';
 
 import { consume } from '@lit/context';
 import { html, LitElement, TemplateResult } from 'lit';
-import { customElement, query } from 'lit/decorators.js';
+import { customElement, property, query } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
 
@@ -10,7 +10,7 @@ import thermostatEditorSetPointsStyles from './thermostat-editor-set-points.styl
 import { preferencesContext } from '../../../../contexts/preferences-context.js';
 import { setPointsContext, thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { Preferences } from '../../../../models/preferences.js';
-import { SetPoint, SetPointInput, Thermostat } from '../../../../models/thermostat.js';
+import { RunMode, SetPoint, SetPointInput, Thermostat } from '../../../../models/thermostat.js';
 import { convertToPreferredUnit, fromPreferredUnit, getPreferredUnit } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 import { TemperatureSlider } from '../../../shared/temperature-slider/temperature-slider.js';
@@ -28,6 +28,9 @@ export class ThermostatEditorSetPoints extends LitElement {
   @consume({ context: setPointsContext, subscribe: true })
   setPoints!: SetPoint[];
 
+  @property()
+  targetMode?: RunMode;
+
   @query('app-temperature-slider')
   private slider?: TemperatureSlider;
 
@@ -44,11 +47,13 @@ export class ThermostatEditorSetPoints extends LitElement {
   }
 
   private get isHeatingAvailable(): boolean {
-    return this.thermostat.mode === 'Heating' || this.thermostat.mode === 'Automatic';
+    const mode = this.targetMode ?? this.thermostat.mode;
+    return mode === 'Heating' || mode === 'Automatic';
   }
 
   private get isCoolingAvailable(): boolean {
-    return this.thermostat.mode === 'Cooling' || this.thermostat.mode === 'Automatic';
+    const mode = this.targetMode ?? this.thermostat.mode;
+    return mode === 'Cooling' || mode === 'Automatic';
   }
 
   private get isRangeMode(): boolean {

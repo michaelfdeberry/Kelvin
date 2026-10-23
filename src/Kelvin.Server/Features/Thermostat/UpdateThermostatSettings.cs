@@ -1,8 +1,7 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
-using Kelvin.Server.Hubs;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -27,12 +26,8 @@ public static class UpdateThermostatSettingsErrors
   );
 }
 
-public class UpdateThermostatSettingsHandler(
-  KelvinContext context,
-  IMemoryCache cache,
-  IHandler<ValidateThermostatSafetyRequest> safetyValidator,
-  IHubContext<ControlHub, IControlClient> controlHub
-) : IHandler<UpdateThermostatSettingsRequest>
+public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher)
+  : IHandler<UpdateThermostatSettingsRequest>
 {
   public async Task<Result> HandleAsync(UpdateThermostatSettingsRequest request, CancellationToken ct = default)
   {
@@ -44,8 +39,9 @@ public class UpdateThermostatSettingsHandler(
 
     // Set the incoming lockout values before validating so ValidateThermostatSafetyHandler - which re-reads the
     // thermostat off the same tracked context instance - sees the requested values rather than the persisted ones.
-    thermostat.HeatingLockoutC = request.HeatingLockoutC;
-    thermostat.CoolingLockoutC = request.CoolingLockoutC;
+    // Keep existing values if not provided.
+    thermostat.HeatingLockoutC = request.HeatingLockoutC ?? thermostat.HeatingLockoutC;
+    thermostat.CoolingLockoutC = request.CoolingLockoutC ?? thermostat.CoolingLockoutC;
 
     var projectedSetPoints = request.SetPoints.Select(setPoint => new SetPointProjection(setPoint.Id, setPoint.Type, setPoint.TargetTemperatureC));
     var projectedSchedules = request.Schedules.Select(schedule => new ScheduleProjection(
@@ -56,7 +52,7 @@ public class UpdateThermostatSettingsHandler(
       schedule.TargetTemperatureC
     ));
 
-    var safetyResult = await safetyValidator.HandleAsync(
+    var safetyResult = await dispatcher.DispatchAsync(
       new ValidateThermostatSafetyRequest(new ThermostatProjection(thermostat.HysteresisC, projectedSetPoints, projectedSchedules)),
       ct
     );
@@ -66,85 +62,81 @@ public class UpdateThermostatSettingsHandler(
       return safetyResult;
     }
 
-    ApplySetPoints(context, thermostat, request.SetPoints);
-    ApplySchedules(context, thermostat, request.Schedules);
+    var heatingSetPoint = request.SetPoints.FirstOrDefault(x => x.Type == RunType.Heating);
+    var coolingSetPoint = request.SetPoints.FirstOrDefault(x => x.Type == RunType.Cooling);
+
+    ApplySetPoint(thermostat, heatingSetPoint);
+    ApplySetPoint(thermostat, coolingSetPoint);
+
+    ApplyModeSchedules(thermostat, RunType.Heating, request.Schedules);
+    ApplyModeSchedules(thermostat, RunType.Cooling, request.Schedules);
 
     await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
 
-    await controlHub.Clients.All.ThermostatStateChanged();
+    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(), ct);
     return Result.Success();
   }
 
-  private static void ApplySetPoints(KelvinContext context, Models.Thermostat thermostat, IEnumerable<SetPointInput> setPoints)
+  private void ApplySetPoint(Models.Thermostat thermostat, SetPointInput? setPoint)
   {
-    // thermostat.SetPoints/Schedules can still contain soft-deleted rows (DeletedAt set) since no
-    // global query filter excludes them - only diff against the still-active ones.
-    var activeSetPoints = thermostat.SetPoints.Where(existing => existing.DeletedAt is null).ToList();
-    var incomingIds = setPoints.Where(setPoint => setPoint.Id.HasValue).Select(setPoint => setPoint.Id!.Value).ToHashSet();
+    if (setPoint is null)
+      return;
 
-    foreach (var removed in activeSetPoints.Where(existing => !incomingIds.Contains(existing.Id)))
+    var existingSetPoints = thermostat.SetPoints.Where(x => x.Type == setPoint.Type && x.DeletedAt is null).ToList();
+    var updatedSetPoint = existingSetPoints.FirstOrDefault(x => x.Id == setPoint.Id);
+
+    if (updatedSetPoint is null)
     {
-      thermostat.SetPoints.Remove(removed);
-      context.SetPoints.Remove(removed);
+      updatedSetPoint = new SetPoint
+      {
+        Type = setPoint.Type,
+        ThermostatId = thermostat.Id,
+        TargetTemperatureC = setPoint.TargetTemperatureC,
+      };
+      thermostat.SetPoints.Add(updatedSetPoint);
+    }
+    else
+    {
+      updatedSetPoint.TargetTemperatureC = setPoint.TargetTemperatureC;
+      existingSetPoints.Remove(updatedSetPoint);
     }
 
-    foreach (var input in setPoints)
+    foreach (var existing in existingSetPoints)
     {
-      var existing = input.Id.HasValue ? activeSetPoints.FirstOrDefault(setPoint => setPoint.Id == input.Id) : null;
-      if (existing is not null)
-      {
-        existing.Type = input.Type;
-        existing.TargetTemperatureC = input.TargetTemperatureC;
-      }
-      else
-      {
-        thermostat.SetPoints.Add(
-          new SetPoint
-          {
-            ThermostatId = thermostat.Id,
-            Type = input.Type,
-            TargetTemperatureC = input.TargetTemperatureC,
-          }
-        );
-      }
+      thermostat.SetPoints.Remove(existing);
+      context.SetPoints.Remove(existing);
     }
   }
 
-  private static void ApplySchedules(KelvinContext context, Models.Thermostat thermostat, IEnumerable<ScheduleInput> schedules)
+  private void ApplyModeSchedules(Models.Thermostat thermostat, RunType type, IEnumerable<ScheduleInput> schedules)
   {
-    var activeSchedules = thermostat.Schedules.Where(existing => existing.DeletedAt is null).ToList();
-    var incomingIds = schedules.Where(schedule => schedule.Id.HasValue).Select(schedule => schedule.Id!.Value).ToHashSet();
+    var schedulesForMode = schedules.Where(x => x.Type == type);
 
-    foreach (var removed in activeSchedules.Where(existing => !incomingIds.Contains(existing.Id)))
+    // Skip if not in automatic mode and no schedules exist for this mode.
+    // This retains the schedule for the alternative mode.
+    if (thermostat.Mode != RunMode.Automatic && !schedulesForMode.Any())
+      return;
+
+    var existing = thermostat.Schedules.Where(x => x.DeletedAt is null && x.Type == type).ToList();
+    foreach (var s in existing)
     {
-      thermostat.Schedules.Remove(removed);
-      context.Schedules.Remove(removed);
+      thermostat.Schedules.Remove(s);
+      context.Schedules.Remove(s);
     }
 
-    foreach (var input in schedules)
+    foreach (var s in schedulesForMode)
     {
-      var existing = input.Id.HasValue ? activeSchedules.FirstOrDefault(schedule => schedule.Id == input.Id) : null;
-      if (existing is not null)
-      {
-        existing.Type = input.Type;
-        existing.StartTime = input.StartTime;
-        existing.EndTime = input.EndTime;
-        existing.TargetTemperatureC = input.TargetTemperatureC;
-      }
-      else
-      {
-        thermostat.Schedules.Add(
-          new Schedule
-          {
-            ThermostatId = thermostat.Id,
-            Type = input.Type,
-            StartTime = input.StartTime,
-            EndTime = input.EndTime,
-            TargetTemperatureC = input.TargetTemperatureC,
-          }
-        );
-      }
+      thermostat.Schedules.Add(
+        new Schedule
+        {
+          ThermostatId = thermostat.Id,
+          Type = type,
+          StartTime = s.StartTime,
+          EndTime = s.EndTime,
+          TargetTemperatureC = s.TargetTemperatureC,
+        }
+      );
     }
   }
 }

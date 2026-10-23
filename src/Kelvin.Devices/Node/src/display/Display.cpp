@@ -2,7 +2,7 @@
 #include <LovyanGFX.hpp>
 #include "Config.h"
 #include "Display.h"
-#include "../Common/SensorPayload.h"
+#include <SensorPayload.h>
 #include "../battery/BatteryMonitor.h"
 
 // -------------------------------------------------------------------------

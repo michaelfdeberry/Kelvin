@@ -58,7 +58,7 @@ public class ThermostatServiceTests
     }
 
     [Fact]
-    public async Task NoActiveSchedulesOrSetPoints_WritesEnableThenRequestsEmergencyShutdown()
+    public async Task NoActiveSchedulesOrSetPoints_WritesEnableThenEntersDwell()
     {
         var harness = new ThermostatServiceHarness();
         harness.SetThermostat(ThermostatFixtures.CreateThermostat(RunMode.Automatic));
@@ -66,10 +66,7 @@ public class ThermostatServiceTests
         await harness.StartAsync();
         await harness.PushEnvironmentAsync(ThermostatFixtures.CreateEnvironment(20));
 
-        harness.WrittenStates.ShouldBe([ControlState.Enable]);
-        harness
-            .EmergencyShutdowns.ShouldHaveSingleItem()
-            .Reason.ShouldBe("Invalid configuration for automatic control");
+        harness.WrittenStates.ShouldBe([ControlState.Enable, ControlState.Dwell]);
 
         await harness.StopAsync();
     }

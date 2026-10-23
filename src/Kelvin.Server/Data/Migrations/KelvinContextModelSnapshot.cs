@@ -15,7 +15,7 @@ namespace Kelvin.Server.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
             modelBuilder.Entity("Kelvin.Server.Models.ControlStateChange", b =>
                 {
@@ -120,6 +120,79 @@ namespace Kelvin.Server.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Gateways");
+                });
+
+            modelBuilder.Entity("Kelvin.Server.Models.Hmi", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MacAddress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("SensorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SensorId");
+
+                    b.ToTable("Hmis");
+                });
+
+            modelBuilder.Entity("Kelvin.Server.Models.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("Banner")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Dismissible")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Duration")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Heading")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("Kelvin.Server.Models.Preferences", b =>
@@ -345,6 +418,15 @@ namespace Kelvin.Server.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Thermostats");
+                });
+
+            modelBuilder.Entity("Kelvin.Server.Models.Hmi", b =>
+                {
+                    b.HasOne("Kelvin.Server.Models.Sensor", "Sensor")
+                        .WithMany()
+                        .HasForeignKey("SensorId");
+
+                    b.Navigation("Sensor");
                 });
 
             modelBuilder.Entity("Kelvin.Server.Models.Schedule", b =>

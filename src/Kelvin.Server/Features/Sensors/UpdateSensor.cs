@@ -1,7 +1,7 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
-using Kelvin.Server.Hubs;
-using Microsoft.AspNetCore.SignalR;
+using Kelvin.Server.Messaging;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Sensors;
@@ -13,8 +13,7 @@ public static class UpdateSensorErrors
   public static readonly Error DefaultError = new("UpdateSensor.NotFound", "The requested sensor was not found.");
 }
 
-public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IHubContext<ControlHub, IControlClient> controlHub)
-  : IHandler<UpdateSensorRequest>
+public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher) : IHandler<UpdateSensorRequest>
 {
   public async Task<Result> HandleAsync(UpdateSensorRequest request, CancellationToken ct = default)
   {
@@ -32,8 +31,16 @@ public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IHub
     sensor.TemperatureCOffset = request.Update.TemperatureCOffset;
     sensor.HumidityPercentageOffset = request.Update.HumidityPercentageOffset;
     sensor.CO2LevelPpmOffset = request.Update.CO2LevelPpmOffset;
+
+    // The Hmi's name isn't independently editable - it's managed through its linked Sensor.
+    var hmi = await context.Hmis.FirstOrDefaultAsync(h => h.SensorId == sensor.Id, ct);
+    if (hmi is not null)
+    {
+      hmi.Name = sensor.Name;
+    }
+
     await context.SaveChangesAsync(ct);
-    await controlHub.Clients.All.SensorsStateChanged();
+    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
     cache.Remove(SensorsCache.Key);
 
     return Result.Success();

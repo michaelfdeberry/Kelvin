@@ -19,19 +19,6 @@ internal sealed class SensorFleet
 
     public IReadOnlyList<SimulatedSensor> Sensors => sensors;
 
-    // Each sensor's room offset is fixed for its lifetime, so the fleet's average reading the
-    // server sees is permanently skewed from the shared ambient value by this amount.
-    public float AverageActiveRoomOffsetC
-    {
-        get
-        {
-            var activeSensors = ActiveSensors.ToList();
-            return activeSensors.Count == 0
-                ? 0f
-                : activeSensors.Average(sensor => sensor.RoomOffsetC);
-        }
-    }
-
     public void StepAll(float ambientTemperatureC)
     {
         foreach (var sensor in sensors)

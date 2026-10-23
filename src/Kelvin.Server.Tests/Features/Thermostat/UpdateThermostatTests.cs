@@ -1,10 +1,9 @@
 using FakeItEasy;
+using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Thermostat;
-using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Memory;
 using Shouldly;
 using Xunit;
@@ -27,15 +26,7 @@ public class UpdateThermostatTests
         return (channel, sent);
     }
 
-    private static IHubContext<ControlHub, IControlClient> CreateFakeControlHub()
-    {
-        var clients = A.Fake<IHubClients<IControlClient>>();
-        A.CallTo(() => clients.All).Returns(A.Fake<IControlClient>());
-
-        var hub = A.Fake<IHubContext<ControlHub, IControlClient>>();
-        A.CallTo(() => hub.Clients).Returns(clients);
-        return hub;
-    }
+    private static IDispatcher CreateFakeDispatcher() => A.Fake<IDispatcher>();
 
     [Fact]
     public async Task NoThermostatExists_ReturnsFailure_AndSendsNoMessages()
@@ -44,13 +35,13 @@ public class UpdateThermostatTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         var (channel, sent) = CreateFakeControlChannel();
-        var controlHub = CreateFakeControlHub();
+        var dispatcher = CreateFakeDispatcher();
 
         var result = await new UpdateThermostatHandler(
             context,
             cache,
             channel,
-            controlHub
+            dispatcher
         ).HandleAsync(new UpdateThermostatRequest(RunMode.Heating, false));
 
         result.IsFailure.ShouldBeTrue();
@@ -76,13 +67,13 @@ public class UpdateThermostatTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         var (channel, sent) = CreateFakeControlChannel();
-        var controlHub = CreateFakeControlHub();
+        var dispatcher = CreateFakeDispatcher();
 
         var result = await new UpdateThermostatHandler(
             context,
             cache,
             channel,
-            controlHub
+            dispatcher
         ).HandleAsync(new UpdateThermostatRequest(RunMode.Disabled, false));
 
         result.IsSuccess.ShouldBeTrue();
@@ -96,13 +87,13 @@ public class UpdateThermostatTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         var (channel, sent) = CreateFakeControlChannel();
-        var controlHub = CreateFakeControlHub();
+        var dispatcher = CreateFakeDispatcher();
 
         var result = await new UpdateThermostatHandler(
             context,
             cache,
             channel,
-            controlHub
+            dispatcher
         ).HandleAsync(new UpdateThermostatRequest(RunMode.Off, false));
 
         result.IsSuccess.ShouldBeTrue();
@@ -121,17 +112,55 @@ public class UpdateThermostatTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         var (channel, sent) = CreateFakeControlChannel();
-        var controlHub = CreateFakeControlHub();
+        var dispatcher = CreateFakeDispatcher();
+        A.CallTo(() =>
+                dispatcher.DispatchAsync(
+                    A<ValidateThermostatSafetyRequest>._,
+                    A<CancellationToken>._
+                )
+            )
+            .Returns(Result.Success());
 
         var result = await new UpdateThermostatHandler(
             context,
             cache,
             channel,
-            controlHub
+            dispatcher
         ).HandleAsync(new UpdateThermostatRequest(mode, false));
 
         result.IsSuccess.ShouldBeTrue();
         sent.ShouldHaveSingleItem().State.ShouldBe(ControlState.Enable);
+    }
+
+    [Fact]
+    public async Task AutomaticMode_ValidatesSafety()
+    {
+        using var harness = await HarnessWithThermostatAsync();
+        await using var context = harness.CreateContext();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var (channel, sent) = CreateFakeControlChannel();
+        var dispatcher = CreateFakeDispatcher();
+
+        A.CallTo(() =>
+                dispatcher.DispatchAsync(
+                    A<ValidateThermostatSafetyRequest>._,
+                    A<CancellationToken>._
+                )
+            )
+            .Returns(Result.Failure(new Error("Test", "Test")));
+
+        var result = await new UpdateThermostatHandler(
+            context,
+            cache,
+            channel,
+            dispatcher
+        ).HandleAsync(new UpdateThermostatRequest(RunMode.Automatic, false));
+
+        result.IsSuccess.ShouldBeFalse();
+        result.Error.ShouldNotBeNull();
+        result.Error.Code.ShouldBe("Test");
+        result.Error.Message.ShouldBe("Test");
+        sent.ShouldBeEmpty();
     }
 
     [Fact]
@@ -142,13 +171,13 @@ public class UpdateThermostatTests
         {
             var cache = new MemoryCache(new MemoryCacheOptions());
             var (channel, _) = CreateFakeControlChannel();
-            var controlHub = CreateFakeControlHub();
+            var dispatcher = CreateFakeDispatcher();
 
             var result = await new UpdateThermostatHandler(
                 context,
                 cache,
                 channel,
-                controlHub
+                dispatcher
             ).HandleAsync(new UpdateThermostatRequest(RunMode.Heating, true));
             result.IsSuccess.ShouldBeTrue();
         }
@@ -173,13 +202,13 @@ public class UpdateThermostatTests
             TimeSpan.FromHours(24)
         );
         var (channel, _) = CreateFakeControlChannel();
-        var controlHub = CreateFakeControlHub();
+        var dispatcher = CreateFakeDispatcher();
 
         var result = await new UpdateThermostatHandler(
             context,
             cache,
             channel,
-            controlHub
+            dispatcher
         ).HandleAsync(new UpdateThermostatRequest(RunMode.Heating, false));
 
         result.IsSuccess.ShouldBeTrue();

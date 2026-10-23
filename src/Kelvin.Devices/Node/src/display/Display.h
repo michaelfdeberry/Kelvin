@@ -5,7 +5,7 @@
 #include <LovyanGFX.hpp>
 #include <Preferences.h>
 #include "Config.h"
-#include "../Common/SensorPayload.h"
+#include <SensorPayload.h>
 #include "../battery/BatteryMonitor.h"
 
 // --- Environmental Sensor Macros ---

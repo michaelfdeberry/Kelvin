@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <PowerFeather.h>
 #include "Config.h"
-#include "Logger.h"
+#include <Logger.h>
 #include "./BatteryMonitor.h"
 
 using namespace PowerFeather;

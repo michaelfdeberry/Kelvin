@@ -22,5 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Kelvin.Server\Kelvin.Server.csproj" />
+    <Compile
+      Include="..\Kelvin.Simulator\HmiProtocol.cs"
+      Link="Integration\SimulatorHmiProtocol.cs"
+    />
   </ItemGroup>
 </Project>

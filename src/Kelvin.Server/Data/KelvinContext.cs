@@ -12,6 +12,8 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
 
   public DbSet<SensorPacket> SensorPackets => Set<SensorPacket>();
 
+  public DbSet<Hmi> Hmis => Set<Hmi>();
+
   public DbSet<Preferences> Preferences => Set<Preferences>();
 
   public DbSet<Thermostat> Thermostats => Set<Thermostat>();
@@ -21,6 +23,8 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
   public DbSet<Schedule> Schedules => Set<Schedule>();
 
   public DbSet<ControlStateChange> ControlStateChanges => Set<ControlStateChange>();
+
+  public DbSet<Notification> Notifications => Set<Notification>();
 
   public static string ResolveSqliteConnectionString(IConfiguration configuration)
   {

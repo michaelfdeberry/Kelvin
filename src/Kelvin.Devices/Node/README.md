@@ -27,10 +27,16 @@ The script installs the Sensirion, LovyanGFX, and PowerFeather libraries. The ac
 Compile from the repository root:
 
 ```powershell
-arduino-cli compile --fqbn "esp32:esp32:esp32s3_powerfeather:Revision=V2" "src/Kelvin.Devices/Node"
+arduino-cli compile --fqbn "esp32:esp32:esp32s3_powerfeather:Revision=V2" --libraries "src/Kelvin.Devices" "src/Kelvin.Devices/Node"
 ```
 
-To flash the board, connect it over USB-C and select the matching ESP32-S3 PowerFeather V2 board and serial port in Arduino IDE or Arduino CLI. If the board does not accept an upload, hold `BTN`, press `RST` momentarily, then release `BTN` to enter download mode.
+Upload from the repository root:
+
+```powershell
+arduino-cli compile --fqbn "esp32:esp32:esp32s3_powerfeather:Revision=V2" --libraries "src/Kelvin.Devices" --upload -p COMX "src/Kelvin.Devices/Node"
+```
+
+Replace `COMX` with the board's actual serial port.
 
 ## Charging Mode
 
@@ -119,8 +125,12 @@ Important recovery behavior:
 
 - `Node.ino` - startup, wake sources, button handling, sleep, and main cycle.
 - `Config.h` - board pins and node settings.
-- `src/environment/` - SHT40 readings and heartbeat/change filtering.
 - `src/battery/` - PowerFeather battery setup, charge reporting, and shutdown entry.
 - `src/display/` - LovyanGFX display driver and context-button interaction.
-- `src/communication/` - ESP-NOW gateway communication.
-- `../Common/SensorPayload.h` - shared node/gateway payload contract.
+- `../Common/src/Environment/` - SHT40 readings and heartbeat/change filtering (shared with the Hmi panel).
+- `../Common/src/Communication/` - ESP-NOW gateway communication (shared with the Hmi panel).
+- `../Common/src/SensorPayload.h` - shared node/gateway payload contract.
+
+`Common` is an Arduino library (see its own `library.properties`), not a plain include folder - both this
+sketch and the Hmi panel depend on it, which is why compiling either now needs the extra `--libraries` flag
+shown above.

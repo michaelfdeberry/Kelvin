@@ -17,9 +17,9 @@ public class CreateScheduleTests
         using var harness = new KelvinContextHarness();
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
-        var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
+        var dispatcher = A.Fake<IDispatcher>();
 
-        var result = await new CreateScheduleHandler(context, cache, validator).HandleAsync(
+        var result = await new CreateScheduleHandler(context, cache, dispatcher).HandleAsync(
             new CreateScheduleRequest(RunType.Heating, new TimeOnly(22, 0), new TimeOnly(6, 0), 18f)
         );
 
@@ -47,13 +47,16 @@ public class CreateScheduleTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         cache.Set(ThermostatCache.Key, new object());
-        var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
+        var dispatcher = A.Fake<IDispatcher>();
         A.CallTo(() =>
-                validator.HandleAsync(A<ValidateThermostatSafetyRequest>._, A<CancellationToken>._)
+                dispatcher.DispatchAsync(
+                    A<ValidateThermostatSafetyRequest>._,
+                    A<CancellationToken>._
+                )
             )
             .Returns(Result.Success());
 
-        var result = await new CreateScheduleHandler(context, cache, validator).HandleAsync(
+        var result = await new CreateScheduleHandler(context, cache, dispatcher).HandleAsync(
             new CreateScheduleRequest(RunType.Heating, new TimeOnly(22, 0), new TimeOnly(6, 0), 18f)
         );
 
@@ -75,13 +78,16 @@ public class CreateScheduleTests
 
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
-        var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
+        var dispatcher = A.Fake<IDispatcher>();
         A.CallTo(() =>
-                validator.HandleAsync(A<ValidateThermostatSafetyRequest>._, A<CancellationToken>._)
+                dispatcher.DispatchAsync(
+                    A<ValidateThermostatSafetyRequest>._,
+                    A<CancellationToken>._
+                )
             )
             .Returns(Result.Failure(ValidateThermostatSafetyErrors.OverlappingSchedulesSameType));
 
-        var result = await new CreateScheduleHandler(context, cache, validator).HandleAsync(
+        var result = await new CreateScheduleHandler(context, cache, dispatcher).HandleAsync(
             new CreateScheduleRequest(RunType.Heating, new TimeOnly(22, 0), new TimeOnly(6, 0), 18f)
         );
 

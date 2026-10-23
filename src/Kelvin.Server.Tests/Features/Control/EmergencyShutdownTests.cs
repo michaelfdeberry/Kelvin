@@ -1,10 +1,11 @@
 using FakeItEasy;
+using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
-using Kelvin.Server.Hubs;
+using Kelvin.Server.Features.Notifications;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -25,27 +26,14 @@ public class EmergencyShutdownTests
         await context.SaveChangesAsync();
 
         var controlChannel = A.Fake<IControlChannel>();
-        var controlClient = A.Fake<IControlClient>();
-        var controlClients = A.Fake<IHubClients<IControlClient>>();
-        A.CallTo(() => controlClients.All).Returns(controlClient);
-        A.CallTo(() => controlClient.ThermostatStateChanged()).Returns(Task.CompletedTask);
-        var controlHub = A.Fake<IHubContext<ControlHub, IControlClient>>();
-        A.CallTo(() => controlHub.Clients).Returns(controlClients);
-
-        var notificationClient = A.Fake<INotificationsClient>();
-        var notificationClients = A.Fake<IHubClients<INotificationsClient>>();
-        A.CallTo(() => notificationClients.All).Returns(notificationClient);
-        A.CallTo(() => notificationClient.Notify(A<Notification>._)).Returns(Task.CompletedTask);
-        var notificationHub = A.Fake<IHubContext<NotificationsHub, INotificationsClient>>();
-        A.CallTo(() => notificationHub.Clients).Returns(notificationClients);
+        var dispatcher = A.Fake<IDispatcher>();
 
         var handler = new EmergencyShutdownHandler(
             context,
             NullLogger<EmergencyShutdownHandler>.Instance,
             new MemoryCache(new MemoryCacheOptions()),
             controlChannel,
-            controlHub,
-            notificationHub
+            dispatcher
         );
 
         var result = await handler.HandleAsync(new EmergencyShutdownRequest("sensor failure"));
@@ -61,12 +49,16 @@ public class EmergencyShutdownTests
             )
             .MustHaveHappenedOnceExactly();
         A.CallTo(() =>
-                notificationClient.Notify(
-                    A<Notification>.That.Matches(notification =>
-                        notification.Heading == "Emergency Shutdown"
-                        && notification.Message == "sensor failure"
-                    )
+                dispatcher.DispatchAsync(
+                    A<SendNotificationRequest>.That.Matches(e =>
+                        e.Heading == "Emergency Shutdown" && e.Message == "sensor failure"
+                    ),
+                    A<CancellationToken>._
                 )
+            )
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() =>
+                dispatcher.PublishAsync(A<ThermostatConfigChangedEvent>._, A<CancellationToken>._)
             )
             .MustHaveHappenedOnceExactly();
 

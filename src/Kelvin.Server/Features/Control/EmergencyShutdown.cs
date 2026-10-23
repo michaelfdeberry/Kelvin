@@ -1,10 +1,10 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Data;
+using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Features.Thermostat;
-using Kelvin.Server.Hubs;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -17,8 +17,7 @@ public class EmergencyShutdownHandler(
   ILogger<EmergencyShutdownHandler> logger,
   IMemoryCache cache,
   IControlChannel controlChannel,
-  IHubContext<ControlHub, IControlClient> controlHub,
-  IHubContext<NotificationsHub, INotificationsClient> notificationHub
+  IDispatcher dispatcher
 ) : IHandler<EmergencyShutdownRequest>
 {
   public async Task<Result> HandleAsync(EmergencyShutdownRequest request, CancellationToken ct = default)
@@ -34,9 +33,9 @@ public class EmergencyShutdownHandler(
     await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
 
-    var notification = new Notification(request.Reason, NotificationType.Error, Heading: "Emergency Shutdown", Banner: true);
-    await notificationHub.Clients.All.Notify(notification);
-    await controlHub.Clients.All.ThermostatStateChanged();
+    var notification = new SendNotificationRequest(request.Reason, NotificationType.Error, Heading: "Emergency Shutdown", Banner: true);
+    await dispatcher.DispatchAsync(notification, ct);
+    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(), ct);
 
     return Result.Success();
   }

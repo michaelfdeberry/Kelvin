@@ -2,14 +2,14 @@ namespace Kelvin.Server.Models;
 
 public enum TemperatureUnit
 {
-  Celsius,
-  Fahrenheit,
+  Celsius = 0,
+  Fahrenheit = 1,
 }
 
 public enum TimeFormat
 {
-  Hour24,
-  Hour12,
+  Hour24 = 0,
+  Hour12 = 1,
 }
 
 public class Preferences : Entity

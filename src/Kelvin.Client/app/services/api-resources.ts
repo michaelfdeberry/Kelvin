@@ -42,6 +42,9 @@ const apiResources = {
   weather: {
     getWeatherForecast: '/api/weather/forecast',
   },
+  notifications: {
+    dismissNotification: '/api/notifications/{id}',
+  },
 } as const;
 
 type LeafValues<T> = T extends string ? T : T extends Record<string, unknown> ? { [K in keyof T]: LeafValues<T[K]> }[keyof T] : never;

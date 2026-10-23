@@ -38,7 +38,7 @@ public class SaveSensorPacketTests
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
         var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet)
+            new SaveSensorPacketRequest(packet, DeviceType.Node)
         );
 
         result.IsSuccess.ShouldBeTrue();
@@ -69,7 +69,7 @@ public class SaveSensorPacketTests
         var cache = A.Fake<IMemoryCache>();
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
         var result = await new SaveSensorPacketHandler(writeContext, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet)
+            new SaveSensorPacketRequest(packet, DeviceType.Node)
         );
 
         result.IsSuccess.ShouldBeTrue();
@@ -89,7 +89,7 @@ public class SaveSensorPacketTests
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
         await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet)
+            new SaveSensorPacketRequest(packet, DeviceType.Node)
         );
 
         A.CallTo(() => channel.WriteAsync(packet, A<CancellationToken>._))
@@ -106,7 +106,7 @@ public class SaveSensorPacketTests
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff", null);
         var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet)
+            new SaveSensorPacketRequest(packet, DeviceType.Node)
         );
 
         result.IsSuccess.ShouldBeTrue();
@@ -117,5 +117,84 @@ public class SaveSensorPacketTests
 
         A.CallTo(() => channel.WriteAsync(packet, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
+    }
+
+    [Theory]
+    [InlineData(DeviceType.Node, true, true, false)]
+    [InlineData(DeviceType.Hmi, true, true, false)]
+    [InlineData(DeviceType.Kiosk, true, false, true)]
+    public async Task NewSensor_AppliesCapabilitiesForDeviceType(
+        DeviceType deviceType,
+        bool expectedHasHumiditySensor,
+        bool expectedHasBattery,
+        bool expectedHasCO2Sensor
+    )
+    {
+        using var harness = new KelvinContextHarness();
+        await using var context = harness.CreateContext();
+        var channel = A.Fake<ISensorPacketChannel>();
+        var cache = A.Fake<IMemoryCache>();
+
+        var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
+        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
+            new SaveSensorPacketRequest(packet, deviceType)
+        );
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await using var readContext = harness.CreateContext();
+        var sensor = readContext.Sensors.Single();
+        sensor.HasHumiditySensor.ShouldBe(expectedHasHumiditySensor);
+        sensor.HasBattery.ShouldBe(expectedHasBattery);
+        sensor.HasCO2Sensor.ShouldBe(expectedHasCO2Sensor);
+    }
+
+    [Fact]
+    public async Task NewHmiSensor_LinksHmiRecordBySensorId()
+    {
+        using var harness = new KelvinContextHarness();
+        await using var context = harness.CreateContext();
+        var channel = A.Fake<ISensorPacketChannel>();
+        var cache = A.Fake<IMemoryCache>();
+
+        var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
+        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
+            new SaveSensorPacketRequest(packet, DeviceType.Hmi)
+        );
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await using var readContext = harness.CreateContext();
+        var sensor = readContext.Sensors.Single();
+        var hmi = readContext.Hmis.Single();
+        hmi.MacAddress.ShouldBe("aa:bb:cc:dd:ee:ff");
+        hmi.SensorId.ShouldBe(sensor.Id);
+    }
+
+    [Fact]
+    public async Task ExistingUnlinkedHmi_GetsLinkedWhenItsSensorIsCreated()
+    {
+        using var harness = new KelvinContextHarness();
+        await using (var seedContext = harness.CreateContext())
+        {
+            // Registered earlier via its command channel, before its first reading ever arrived.
+            seedContext.Hmis.Add(new Hmi { MacAddress = "aa:bb:cc:dd:ee:ff", Enabled = true });
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var context = harness.CreateContext();
+        var channel = A.Fake<ISensorPacketChannel>();
+        var cache = A.Fake<IMemoryCache>();
+
+        var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
+        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
+            new SaveSensorPacketRequest(packet, DeviceType.Hmi)
+        );
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await using var readContext = harness.CreateContext();
+        var sensor = readContext.Sensors.Single();
+        readContext.Hmis.Single().SensorId.ShouldBe(sensor.Id);
     }
 }
