@@ -39,8 +39,9 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
 
     // Set the incoming lockout values before validating so ValidateThermostatSafetyHandler - which re-reads the
     // thermostat off the same tracked context instance - sees the requested values rather than the persisted ones.
-    thermostat.HeatingLockoutC = request.HeatingLockoutC;
-    thermostat.CoolingLockoutC = request.CoolingLockoutC;
+    // Keep existing values if not provided.
+    thermostat.HeatingLockoutC = request.HeatingLockoutC ?? thermostat.HeatingLockoutC;
+    thermostat.CoolingLockoutC = request.CoolingLockoutC ?? thermostat.CoolingLockoutC;
 
     var projectedSetPoints = request.SetPoints.Select(setPoint => new SetPointProjection(setPoint.Id, setPoint.Type, setPoint.TargetTemperatureC));
     var projectedSchedules = request.Schedules.Select(schedule => new ScheduleProjection(
@@ -61,8 +62,14 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
       return safetyResult;
     }
 
-    ApplySetPoints(context, thermostat, request.SetPoints);
-    ApplySchedules(context, thermostat, request.Schedules);
+    var heatingSetPoint = request.SetPoints.FirstOrDefault(x => x.Type == RunType.Heating);
+    var coolingSetPoint = request.SetPoints.FirstOrDefault(x => x.Type == RunType.Cooling);
+
+    ApplySetPoint(thermostat, heatingSetPoint);
+    ApplySetPoint(thermostat, coolingSetPoint);
+
+    ApplyModeSchedules(thermostat, RunType.Heating, request.Schedules);
+    ApplyModeSchedules(thermostat, RunType.Cooling, request.Schedules);
 
     await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
@@ -71,7 +78,7 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
     return Result.Success();
   }
 
-  private static void ApplySetPoint(KelvinContext context, Models.Thermostat thermostat, SetPointInput? setPoint)
+  private void ApplySetPoint(Models.Thermostat thermostat, SetPointInput? setPoint)
   {
     if (setPoint is null)
       return;
@@ -102,50 +109,34 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
     }
   }
 
-  private static void ApplySetPoints(KelvinContext context, Models.Thermostat thermostat, IEnumerable<SetPointInput> setPoints)
+  private void ApplyModeSchedules(Models.Thermostat thermostat, RunType type, IEnumerable<ScheduleInput> schedules)
   {
-    // there can never be more than one heating or cooling set point in the incoming request.
-    var heatingSetPoint = setPoints.FirstOrDefault(x => x.Type == RunType.Heating);
-    var coolingSetPoint = setPoints.FirstOrDefault(x => x.Type == RunType.Cooling);
+    var schedulesForMode = schedules.Where(x => x.Type == type);
 
-    ApplySetPoint(context, thermostat, heatingSetPoint);
-    ApplySetPoint(context, thermostat, coolingSetPoint);
-  }
+    // Skip if not in automatic mode and no schedules exist for this mode.
+    // This retains the schedule for the alternative mode.
+    if (thermostat.Mode != RunMode.Automatic && !schedulesForMode.Any())
+      return;
 
-  private static void ApplySchedules(KelvinContext context, Models.Thermostat thermostat, IEnumerable<ScheduleInput> schedules)
-  {
-    var activeSchedules = thermostat.Schedules.Where(existing => existing.DeletedAt is null).ToList();
-    var incomingIds = schedules.Where(schedule => schedule.Id.HasValue).Select(schedule => schedule.Id!.Value).ToHashSet();
-
-    foreach (var removed in activeSchedules.Where(existing => !incomingIds.Contains(existing.Id)))
+    var existing = thermostat.Schedules.Where(x => x.DeletedAt is null && x.Type == type).ToList();
+    foreach (var s in existing)
     {
-      thermostat.Schedules.Remove(removed);
-      context.Schedules.Remove(removed);
+      thermostat.Schedules.Remove(s);
+      context.Schedules.Remove(s);
     }
 
-    foreach (var input in schedules)
+    foreach (var s in schedulesForMode)
     {
-      var existing = input.Id.HasValue ? activeSchedules.FirstOrDefault(schedule => schedule.Id == input.Id) : null;
-      if (existing is not null)
-      {
-        existing.Type = input.Type;
-        existing.StartTime = input.StartTime;
-        existing.EndTime = input.EndTime;
-        existing.TargetTemperatureC = input.TargetTemperatureC;
-      }
-      else
-      {
-        thermostat.Schedules.Add(
-          new Schedule
-          {
-            ThermostatId = thermostat.Id,
-            Type = input.Type,
-            StartTime = input.StartTime,
-            EndTime = input.EndTime,
-            TargetTemperatureC = input.TargetTemperatureC,
-          }
-        );
-      }
+      thermostat.Schedules.Add(
+        new Schedule
+        {
+          ThermostatId = thermostat.Id,
+          Type = type,
+          StartTime = s.StartTime,
+          EndTime = s.EndTime,
+          TargetTemperatureC = s.TargetTemperatureC,
+        }
+      );
     }
   }
 }

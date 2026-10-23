@@ -123,7 +123,6 @@ sudo systemctl enable kelvin-server.service
 sudo systemctl enable nginx
 sudo systemctl restart nginx
 
-echo "Installation complete. Start the service with:"
-echo "  sudo systemctl start kelvin-server.service"
+echo "Installation complete. Check service status with:"
 echo "  sudo systemctl status kelvin-server.service"
 echo "Kelvin will be available through nginx on port 80."
