@@ -28,4 +28,27 @@ public class EnvironmentReading
   /// A dictionary of the latest sensor packets for each area in the environment, keyed by area ID
   /// </summary>
   public ConcurrentDictionary<Guid, SensorPacket> Areas { get; set; } = new ConcurrentDictionary<Guid, SensorPacket>();
+
+  public EnvironmentReading Clone() =>
+    new()
+    {
+      Timestamp = Timestamp,
+      TemperatureC = TemperatureC,
+      HumidityPercentage = HumidityPercentage,
+      CO2LevelPpm = CO2LevelPpm,
+      Areas = new(
+        Areas.Select(x => new KeyValuePair<Guid, SensorPacket>(
+          x.Key,
+          new SensorPacket
+          {
+            SensorId = x.Value.SensorId,
+            TemperatureC = x.Value.TemperatureC,
+            HumidityPercentage = x.Value.HumidityPercentage,
+            CO2LevelPpm = x.Value.CO2LevelPpm,
+            BatteryLevelPercentage = x.Value.BatteryLevelPercentage,
+            CreatedAt = x.Value.CreatedAt,
+          }
+        ))
+      ),
+    };
 }

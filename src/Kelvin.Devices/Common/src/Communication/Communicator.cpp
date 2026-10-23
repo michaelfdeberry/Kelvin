@@ -17,7 +17,7 @@ static volatile bool txSucceeded = false;
 static uint8_t expectedFrameTag[FRAME_TAG_SIZE] = {0};
 
 // A queue, not a single slot: the server sends several frames back to back (state, then preferences).
-static const size_t RECEIVE_QUEUE_DEPTH = 8;
+static const size_t RECEIVE_QUEUE_DEPTH = 11;
 static uint8_t receiveQueue[RECEIVE_QUEUE_DEPTH][Communicator::MAX_FRAME_CONTENT];
 static size_t receiveQueueLengths[RECEIVE_QUEUE_DEPTH];
 static volatile size_t receiveHead = 0; // next slot tryReceive() reads

@@ -52,9 +52,11 @@ public class SensingService(
         var replaySignal = await environmentReplayChannel.ReadAsync(subscriberId, stoppingToken);
         if (replaySignal)
         {
+          await _environmentLock.WaitAsync(stoppingToken);
           // Process the last reading to determine, done so the thermostat service will reevaluate
           // the reading to determine if there should be a state change.
           await UpdateReadingsAsync(stoppingToken);
+          _environmentLock.Release();
         }
       }
       catch (OperationCanceledException)
@@ -227,6 +229,6 @@ public class SensingService(
     _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
     _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
 
-    await dispatcher.PublishAsync(new EnvironmentReadingChangedEvent(_environment), stoppingToken);
+    await dispatcher.PublishAsync(new EnvironmentReadingChangedEvent(_environment.Clone()), stoppingToken);
   }
 }

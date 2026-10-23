@@ -19,13 +19,11 @@ public class UpdateThermostatSettingsTests
         using var harness = new KelvinContextHarness();
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
-        var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
         var dispatcher = CreateFakeDispatcher();
 
         var result = await new UpdateThermostatSettingsHandler(
             context,
             cache,
-            validator,
             dispatcher
         ).HandleAsync(new UpdateThermostatSettingsRequest(null, null, [], []));
 
@@ -81,17 +79,18 @@ public class UpdateThermostatSettingsTests
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
         cache.Set(ThermostatCache.Key, new object());
-        var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
         var dispatcher = CreateFakeDispatcher();
         A.CallTo(() =>
-                validator.HandleAsync(A<ValidateThermostatSafetyRequest>._, A<CancellationToken>._)
+                dispatcher.DispatchAsync(
+                    A<ValidateThermostatSafetyRequest>._,
+                    A<CancellationToken>._
+                )
             )
             .Returns(Result.Success());
 
         var result = await new UpdateThermostatSettingsHandler(
             context,
             cache,
-            validator,
             dispatcher
         ).HandleAsync(
             new UpdateThermostatSettingsRequest(
@@ -149,17 +148,18 @@ public class UpdateThermostatSettingsTests
 
         await using var context = harness.CreateContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
-        var validator = A.Fake<IHandler<ValidateThermostatSafetyRequest>>();
         var dispatcher = CreateFakeDispatcher();
         A.CallTo(() =>
-                validator.HandleAsync(A<ValidateThermostatSafetyRequest>._, A<CancellationToken>._)
+                dispatcher.DispatchAsync(
+                    A<ValidateThermostatSafetyRequest>._,
+                    A<CancellationToken>._
+                )
             )
             .Returns(Result.Failure(ValidateThermostatSafetyErrors.UnsafeTargetOverlap));
 
         var result = await new UpdateThermostatSettingsHandler(
             context,
             cache,
-            validator,
             dispatcher
         ).HandleAsync(
             new UpdateThermostatSettingsRequest(

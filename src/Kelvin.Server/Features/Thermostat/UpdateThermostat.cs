@@ -35,7 +35,7 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
     {
       // validate thermostat safety when switching to automatic mode. If the thermostat service runs
       // in automatic with invalid configuration it will trigger the failsafe and the user would need to intervene.
-      // With this the model can be popped open similar to how it behaves if configuration is missing before entering automatic mode.
+      // With this the modal can be popped open similar to how it behaves if configuration is missing before entering automatic mode.
       // This will maintain the current mode until the configuration is updated.
       var validationRequest = new ValidateThermostatSafetyRequest(
         new ThermostatProjection(

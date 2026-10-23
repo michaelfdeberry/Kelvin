@@ -26,12 +26,8 @@ public static class UpdateThermostatSettingsErrors
   );
 }
 
-public class UpdateThermostatSettingsHandler(
-  KelvinContext context,
-  IMemoryCache cache,
-  IHandler<ValidateThermostatSafetyRequest> safetyValidator,
-  IDispatcher dispatcher
-) : IHandler<UpdateThermostatSettingsRequest>
+public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher)
+  : IHandler<UpdateThermostatSettingsRequest>
 {
   public async Task<Result> HandleAsync(UpdateThermostatSettingsRequest request, CancellationToken ct = default)
   {
@@ -55,7 +51,7 @@ public class UpdateThermostatSettingsHandler(
       schedule.TargetTemperatureC
     ));
 
-    var safetyResult = await safetyValidator.HandleAsync(
+    var safetyResult = await dispatcher.DispatchAsync(
       new ValidateThermostatSafetyRequest(new ThermostatProjection(thermostat.HysteresisC, projectedSetPoints, projectedSchedules)),
       ct
     );

@@ -34,7 +34,7 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DismissNotification, @event.NotificationId));
 
   public Task HandleAsync(PreferencesChangedEvent @event, CancellationToken cancellationToken = default) =>
-    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.PreferencesChanged, null));
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.PreferencesChanged, @event.Preferences));
 }
 
 public class SignalRBroadcastServiceRegistration : IRegistration
