@@ -1,7 +1,5 @@
 using Kelvin.Server.Application;
-using Kelvin.Server.Data;
 using Kelvin.Server.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace Kelvin.Server.Features.Thermostat;
 
@@ -9,7 +7,13 @@ public record SetPointProjection(Guid? Id, RunType Type, float TargetTemperature
 
 public record ScheduleProjection(Guid? Id, RunType Type, TimeOnly StartTime, TimeOnly EndTime, float TargetTemperatureC);
 
-public record ThermostatProjection(float HysteresisC, IEnumerable<SetPointProjection> SetPoints, IEnumerable<ScheduleProjection> Schedules);
+public record ThermostatProjection(
+  float HysteresisC,
+  IEnumerable<SetPointProjection> SetPoints,
+  IEnumerable<ScheduleProjection> Schedules,
+  float? HeatingLockoutC,
+  float? CoolingLockoutC
+);
 
 public record ValidateThermostatSafetyRequest(ThermostatProjection Projection) : IRequest;
 
@@ -36,7 +40,7 @@ public static class ValidateThermostatSafetyErrors
   );
 }
 
-public class ValidateThermostatSafetyHandler(KelvinContext context) : IHandler<ValidateThermostatSafetyRequest>
+public class ValidateThermostatSafetyHandler() : IHandler<ValidateThermostatSafetyRequest>
 {
   private const float DefaultHysteresisC = 0.6f;
   private const float MinSafeHysteresisC = 0.3f;
@@ -44,8 +48,6 @@ public class ValidateThermostatSafetyHandler(KelvinContext context) : IHandler<V
 
   public async Task<Result> HandleAsync(ValidateThermostatSafetyRequest request, CancellationToken cancellationToken = default)
   {
-    var thermostat = await context.Thermostats.FirstAsync(cancellationToken);
-
     var setPoints = request.Projection.SetPoints.ToList();
     var schedules = request.Projection.Schedules.ToList();
 
@@ -76,14 +78,14 @@ public class ValidateThermostatSafetyHandler(KelvinContext context) : IHandler<V
 
     foreach (var heatingSchedule in heatingSchedules)
     {
-      var effectiveHeatingActivation = thermostat.HeatingLockoutC;
+      var effectiveHeatingActivation = request.Projection.HeatingLockoutC;
 
       if (HasUnsafeTargetOverlap(heatingSchedule.TargetTemperatureC, coolingSetPoint?.TargetTemperatureC, effectiveHysteresis))
       {
         return Result.Failure(ValidateThermostatSafetyErrors.UnsafeTargetOverlap);
       }
 
-      if (HasUnsafeActivationOverlap(effectiveHeatingActivation, thermostat.CoolingLockoutC))
+      if (HasUnsafeActivationOverlap(effectiveHeatingActivation, request.Projection.CoolingLockoutC))
       {
         return Result.Failure(ValidateThermostatSafetyErrors.UnsafeActivationOverlap);
       }
@@ -95,7 +97,7 @@ public class ValidateThermostatSafetyHandler(KelvinContext context) : IHandler<V
           continue;
         }
 
-        var effectiveCoolingActivation = thermostat.CoolingLockoutC;
+        var effectiveCoolingActivation = request.Projection.CoolingLockoutC;
 
         if (HasUnsafeTargetOverlap(heatingSchedule.TargetTemperatureC, coolingSchedule.TargetTemperatureC, effectiveHysteresis))
         {
@@ -111,12 +113,22 @@ public class ValidateThermostatSafetyHandler(KelvinContext context) : IHandler<V
 
     foreach (var coolingSchedule in coolingSchedules)
     {
-      if (HasUnsafeTargetOverlap(heatingSetPoint?.TargetTemperatureC, coolingSchedule.TargetTemperatureC, effectiveHysteresis))
+      // this needs to check if there is an overlapping heating schedule
+      var overlappingHeating = heatingSchedules.FirstOrDefault(h =>
+        Overlaps(h.StartTime, h.EndTime, coolingSchedule.StartTime, coolingSchedule.EndTime)
+      );
+      if (
+        HasUnsafeTargetOverlap(
+          overlappingHeating?.TargetTemperatureC ?? heatingSetPoint?.TargetTemperatureC,
+          coolingSchedule.TargetTemperatureC,
+          effectiveHysteresis
+        )
+      )
       {
         return Result.Failure(ValidateThermostatSafetyErrors.UnsafeTargetOverlap);
       }
 
-      if (HasUnsafeActivationOverlap(thermostat.HeatingLockoutC, thermostat.CoolingLockoutC))
+      if (HasUnsafeActivationOverlap(request.Projection.HeatingLockoutC, request.Projection.CoolingLockoutC))
       {
         return Result.Failure(ValidateThermostatSafetyErrors.UnsafeActivationOverlap);
       }

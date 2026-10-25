@@ -31,8 +31,6 @@ const apiResources = {
     updateSensor: '/api/sensors/{id:guid}',
   },
   thermostat: {
-    createSchedule: '/api/thermostat/schedules',
-    createSetPoint: '/api/thermostat/set-points',
     getSchedules: '/api/thermostat/schedules',
     getSetPoints: '/api/thermostat/set-points',
     getThermostat: '/api/thermostat',

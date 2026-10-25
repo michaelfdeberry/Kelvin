@@ -15,7 +15,8 @@ public record UpdateThermostatSettingsRequest(
   float? HeatingLockoutC,
   float? CoolingLockoutC,
   IEnumerable<SetPointInput> SetPoints,
-  IEnumerable<ScheduleInput> Schedules
+  IEnumerable<ScheduleInput> Schedules,
+  RunMode? TargetMode = null
 ) : IRequest;
 
 public static class UpdateThermostatSettingsErrors
@@ -37,11 +38,18 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
       return Result.Failure(UpdateThermostatSettingsErrors.ThermostatNotFound);
     }
 
-    // Set the incoming lockout values before validating so ValidateThermostatSafetyHandler - which re-reads the
-    // thermostat off the same tracked context instance - sees the requested values rather than the persisted ones.
+    var mode = request.TargetMode ?? thermostat.Mode;
+
     // Keep existing values if not provided.
-    thermostat.HeatingLockoutC = request.HeatingLockoutC ?? thermostat.HeatingLockoutC;
-    thermostat.CoolingLockoutC = request.CoolingLockoutC ?? thermostat.CoolingLockoutC;
+    // Does this prevent clearing the lockout?
+    if (mode == RunMode.Heating || mode == RunMode.Automatic)
+    {
+      thermostat.HeatingLockoutC = request.HeatingLockoutC;
+    }
+    if (mode == RunMode.Cooling || mode == RunMode.Automatic)
+    {
+      thermostat.CoolingLockoutC = request.CoolingLockoutC;
+    }
 
     var projectedSetPoints = request.SetPoints.Select(setPoint => new SetPointProjection(setPoint.Id, setPoint.Type, setPoint.TargetTemperatureC));
     var projectedSchedules = request.Schedules.Select(schedule => new ScheduleProjection(
@@ -53,7 +61,15 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
     ));
 
     var safetyResult = await dispatcher.DispatchAsync(
-      new ValidateThermostatSafetyRequest(new ThermostatProjection(thermostat.HysteresisC, projectedSetPoints, projectedSchedules)),
+      new ValidateThermostatSafetyRequest(
+        new ThermostatProjection(
+          thermostat.HysteresisC,
+          projectedSetPoints,
+          projectedSchedules,
+          thermostat.HeatingLockoutC,
+          thermostat.CoolingLockoutC
+        )
+      ),
       ct
     );
 
@@ -68,8 +84,8 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
     ApplySetPoint(thermostat, heatingSetPoint);
     ApplySetPoint(thermostat, coolingSetPoint);
 
-    ApplyModeSchedules(thermostat, RunType.Heating, request.Schedules);
-    ApplyModeSchedules(thermostat, RunType.Cooling, request.Schedules);
+    ApplyModeSchedules(mode, thermostat, RunType.Heating, request.Schedules);
+    ApplyModeSchedules(mode, thermostat, RunType.Cooling, request.Schedules);
 
     await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
@@ -109,13 +125,13 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
     }
   }
 
-  private void ApplyModeSchedules(Models.Thermostat thermostat, RunType type, IEnumerable<ScheduleInput> schedules)
+  private void ApplyModeSchedules(RunMode mode, Models.Thermostat thermostat, RunType type, IEnumerable<ScheduleInput> schedules)
   {
     var schedulesForMode = schedules.Where(x => x.Type == type);
 
     // Skip if not in automatic mode and no schedules exist for this mode.
     // This retains the schedule for the alternative mode.
-    if (thermostat.Mode != RunMode.Automatic && !schedulesForMode.Any())
+    if (mode != RunMode.Automatic && !schedulesForMode.Any())
       return;
 
     var existing = thermostat.Schedules.Where(x => x.DeletedAt is null && x.Type == type).ToList();

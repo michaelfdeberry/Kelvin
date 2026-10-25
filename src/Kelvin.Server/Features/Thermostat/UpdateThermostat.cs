@@ -43,7 +43,9 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
           thermostat.SetPoints.Where(s => s.DeletedAt is null).Select(s => new SetPointProjection(s.Id, s.Type, s.TargetTemperatureC)),
           thermostat
             .Schedules.Where(s => s.DeletedAt is null)
-            .Select(s => new ScheduleProjection(s.Id, s.Type, s.StartTime, s.EndTime, s.TargetTemperatureC))
+            .Select(s => new ScheduleProjection(s.Id, s.Type, s.StartTime, s.EndTime, s.TargetTemperatureC)),
+          thermostat.HeatingLockoutC,
+          thermostat.CoolingLockoutC
         )
       );
       var validationResult = await dispatcher.DispatchAsync(validationRequest, ct);

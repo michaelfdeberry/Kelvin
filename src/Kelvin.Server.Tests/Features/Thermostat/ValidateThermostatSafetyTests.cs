@@ -12,13 +12,7 @@ public class ValidateThermostatSafetyTests
     public async Task DuplicateSetPointType_ReturnsFailure()
     {
         using var harness = new KelvinContextHarness();
-        await using var context = harness.CreateContext();
-        context.Thermostats.Add(
-            new Models.Thermostat { Mode = RunMode.Automatic, FanEnabled = false }
-        );
-        await context.SaveChangesAsync();
-
-        var handler = new ValidateThermostatSafetyHandler(context);
+        var handler = new ValidateThermostatSafetyHandler();
         var request = new ValidateThermostatSafetyRequest(
             new ThermostatProjection(
                 HysteresisC: 0.6f,
@@ -27,7 +21,9 @@ public class ValidateThermostatSafetyTests
                     new SetPointProjection(null, RunType.Heating, 20f),
                     new SetPointProjection(null, RunType.Heating, 19f),
                 ],
-                Schedules: []
+                Schedules: [],
+                null,
+                null
             )
         );
 
@@ -41,13 +37,7 @@ public class ValidateThermostatSafetyTests
     public async Task OverlappingSchedulesOfSameType_ReturnsFailure()
     {
         using var harness = new KelvinContextHarness();
-        await using var context = harness.CreateContext();
-        context.Thermostats.Add(
-            new Models.Thermostat { Mode = RunMode.Automatic, FanEnabled = false }
-        );
-        await context.SaveChangesAsync();
-
-        var handler = new ValidateThermostatSafetyHandler(context);
+        var handler = new ValidateThermostatSafetyHandler();
         var request = new ValidateThermostatSafetyRequest(
             new ThermostatProjection(
                 HysteresisC: 0.6f,
@@ -68,7 +58,9 @@ public class ValidateThermostatSafetyTests
                         new TimeOnly(11, 0),
                         18f
                     ),
-                ]
+                ],
+                null,
+                null
             )
         );
 
@@ -82,19 +74,7 @@ public class ValidateThermostatSafetyTests
     public async Task UnsafeActivationOverlap_ReturnsFailure()
     {
         using var harness = new KelvinContextHarness();
-        await using var context = harness.CreateContext();
-        context.Thermostats.Add(
-            new Models.Thermostat
-            {
-                Mode = RunMode.Automatic,
-                FanEnabled = false,
-                HeatingLockoutC = 5f,
-                CoolingLockoutC = 5f,
-            }
-        );
-        await context.SaveChangesAsync();
-
-        var handler = new ValidateThermostatSafetyHandler(context);
+        var handler = new ValidateThermostatSafetyHandler();
         var request = new ValidateThermostatSafetyRequest(
             new ThermostatProjection(
                 HysteresisC: 0.6f,
@@ -119,7 +99,9 @@ public class ValidateThermostatSafetyTests
                         new TimeOnly(11, 0),
                         24f
                     ),
-                ]
+                ],
+                HeatingLockoutC: 5f,
+                CoolingLockoutC: 5f
             )
         );
 
@@ -133,19 +115,7 @@ public class ValidateThermostatSafetyTests
     public async Task SafeProjection_ReturnsSuccess()
     {
         using var harness = new KelvinContextHarness();
-        await using var context = harness.CreateContext();
-        context.Thermostats.Add(
-            new Models.Thermostat
-            {
-                Mode = RunMode.Automatic,
-                FanEnabled = false,
-                HeatingLockoutC = 5f,
-                CoolingLockoutC = 25f,
-            }
-        );
-        await context.SaveChangesAsync();
-
-        var handler = new ValidateThermostatSafetyHandler(context);
+        var handler = new ValidateThermostatSafetyHandler();
         var request = new ValidateThermostatSafetyRequest(
             new ThermostatProjection(
                 HysteresisC: 0.6f,
@@ -163,7 +133,9 @@ public class ValidateThermostatSafetyTests
                         new TimeOnly(6, 0),
                         18f
                     ),
-                ]
+                ],
+                HeatingLockoutC: 5f,
+                CoolingLockoutC: 25f
             )
         );
 

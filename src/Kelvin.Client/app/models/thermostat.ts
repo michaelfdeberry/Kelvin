@@ -52,4 +52,5 @@ export type UpdateThermostatSettingsRequest = {
   coolingLockoutC?: number;
   setPoints: SetPointInput[];
   schedules: ScheduleInput[];
+  targetMode?: RunMode;
 };
