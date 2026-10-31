@@ -13,13 +13,18 @@ import { Sensor, EnvironmentReading, SensorReading } from '../../../../models/se
 import sharedStyles from '../../../../shared.styles.js';
 import { SensorSettings } from '../sensor-settings/sensor-settings.js';
 
-const FIVE_MINUTES_IN_MS = 5 * 60 * 1000;
+const ONE_MINUTE_IN_MS = 60 * 1000;
+// The sensor will be considered offline after it hasn't checked in for 5 minutes.
+// Adding a 1 minuted buffer for clock drift to prevent flashes of offline status.
+const SENSOR_TIMEOUT_MS = 6 * ONE_MINUTE_IN_MS;
+
+// track page load time to check offline status, kind of a hack, but this prevents
+// the sensors from appearing offline immediately after page load.
+const START_TIME = Date.now();
 
 @customElement('app-sensor-card')
 export class SensorCard extends LitElement {
   static override styles = [sharedStyles, sensorCardStyles];
-
-  private startTime = Date.now();
 
   @consume({ context: sensorsContext, subscribe: true })
   sensors!: Sensor[];
@@ -91,10 +96,10 @@ export class SensorCard extends LitElement {
 
   private isOffline(): boolean {
     // add a 1 minute buffer to account for clock drift, otherwise sensors will flash offline every now and then
-    const timeout = 60 * 1000 + FIVE_MINUTES_IN_MS;
+    const timeout = SENSOR_TIMEOUT_MS;
     if (!this.reading?.createdAt) {
       // if there hasn't been an update in the last ~5 minutes since page load, consider the sensor offline
-      return this.startTime + timeout < Date.now();
+      return START_TIME + timeout < Date.now();
     }
 
     const lastUpdate = new Date(this.reading.createdAt);

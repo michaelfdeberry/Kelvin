@@ -11,7 +11,7 @@ const thermostatControlStyles = css`
   .thermostat {
     display: flex;
     width: 100%;
-    height: 300px;
+    min-height: 300px;
     border-radius: var(--border-radius);
     background: var(--bg-panel);
     border: 1px solid var(--border-subtle);
@@ -187,6 +187,7 @@ const thermostatControlStyles = css`
 
   .button.thermostat__button--fan {
     white-space: nowrap;
+    width: 126px;
 
     &.thermostat__button--active {
       border: 1px solid var(--border-subtle);
@@ -195,7 +196,9 @@ const thermostatControlStyles = css`
   }
 
   .button.thermostat__button--edit {
-    width: auto;
+    width: 3rem;
+    display: flex;
+    align-items: center;
   }
 
   .thermostat__button:disabled {
@@ -245,7 +248,11 @@ const thermostatControlStyles = css`
     }
 
     .thermostat__air-quality-item .text-muted {
-      font-size: 1rem;
+      font-size: 1.25rem;
+    }
+
+    .thermostat__air-quality-value {
+      font-size: 2rem;
     }
 
     .thermostat__button-group {
@@ -265,14 +272,11 @@ const thermostatControlStyles = css`
     .button.thermostat__button--edit,
     .button.thermostat__button--fan {
       height: 4rem;
-      background: var(--bg-panel);
-      border-radius: var(--border-radius);
-      border: 1px solid var(--border-subtle);
     }
 
-    /* button.thermostat__button--fan {
-      width: 8rem;
-    } */
+    button.thermostat__button--fan {
+      width: 136px;
+    }
 
     .button.thermostat__button--edit {
       width: 4rem;

@@ -27,7 +27,7 @@ const appSidebarStyles = css`
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background: var(--border-subtle);
+    border: 1px solid var(--border-subtle);
     color: var(--text-main);
     text-decoration: none;
     font-weight: 700;
@@ -46,6 +46,13 @@ const appSidebarStyles = css`
 
   .app-sidebar__icon {
     line-height: 1;
+    display: flex;
+    align-items: center;
+
+    svg {
+      width: 1.1rem;
+      height: 1.1rem;
+    }
   }
 
   .app-sidebar__label {

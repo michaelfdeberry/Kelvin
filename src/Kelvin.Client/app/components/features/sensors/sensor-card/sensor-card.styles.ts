@@ -39,7 +39,6 @@ const sensorCardStyles = css`
 
   .sensor-card__value {
     font-size: 1.5rem;
-    font-weight: 700;
   }
 
   .sensor-card__subtitle {

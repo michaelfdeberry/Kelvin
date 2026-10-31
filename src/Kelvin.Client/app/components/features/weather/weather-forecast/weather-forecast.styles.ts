@@ -51,10 +51,6 @@ const weatherForecastStyles = css`
     margin-bottom: 4px;
   }
 
-  .weather-forecast__temps {
-    font-weight: 700;
-  }
-
   .weather-forecast__temps-low {
     color: var(--text-muted);
     font-weight: 400;
@@ -94,7 +90,7 @@ const weatherForecastStyles = css`
     }
 
     .weather-forecast__temps {
-      font-size: 1.2rem;
+      font-size: 1.25rem;
     }
   }
 

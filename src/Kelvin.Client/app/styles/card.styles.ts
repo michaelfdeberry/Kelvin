@@ -5,7 +5,7 @@ const cardStyles = css`
     border: 1px solid var(--border-subtle);
     border-radius: var(--border-radius);
     padding: 1rem;
-    background: var(--surface-overlay);
+    background: var(--bg-panel);
     margin-bottom: 1rem;
   }
 

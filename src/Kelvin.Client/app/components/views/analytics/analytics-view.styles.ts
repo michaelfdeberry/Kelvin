@@ -11,10 +11,6 @@ const analyticsViewStyles = css`
     max-width: 1200px;
     margin: 0 auto;
     padding: 1rem;
-    border-radius: var(--border-radius);
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    box-shadow: 0 14px 34px var(--shadow-color);
   }
 
   .analytics-view__header,
@@ -59,7 +55,6 @@ const analyticsViewStyles = css`
     margin: 0;
     padding: 1rem;
     color: var(--text-muted);
-    border: 1px solid var(--border-subtle);
     background: var(--bg-panel);
   }
 

@@ -3,7 +3,7 @@ import '../../../shared/temperature/temperature.js';
 
 import { consume } from '@lit/context';
 import { html, LitElement, nothing, TemplateResult } from 'lit';
-import { customElement, query, state } from 'lit/decorators.js';
+import { customElement, query } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import { when } from 'lit/directives/when.js';
@@ -23,7 +23,6 @@ import { apiPut } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast, timestampToDate } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 import { ThermostatEditor } from '../thermostat-editor/thermostat-editor.js';
-
 @customElement('app-thermostat-control')
 export class ThermostatControl extends LitElement {
   static override styles = [sharedStyles, thermostatControlStyles];
@@ -46,10 +45,8 @@ export class ThermostatControl extends LitElement {
   @query('app-thermostat-editor')
   private thermostatEditor!: ThermostatEditor;
 
-  @state()
   private controlTargetTempC?: number;
 
-  @state()
   private currentControlState?: 'Heating' | 'Cooling';
 
   protected override updated(): void {
@@ -68,7 +65,7 @@ export class ThermostatControl extends LitElement {
     }
   }
 
-  private renderSetpoint(): TemplateResult | typeof nothing {
+  private getTargetTemp() {
     /**
      * This kind of replicates the backend logic for finding the target setpoint.
      * I don't really like it being client side, but the set point is figured out in real time on the backend
@@ -111,12 +108,17 @@ export class ThermostatControl extends LitElement {
       }
     }
 
-    if (!setPoint) return nothing;
+    return setPoint;
+  }
+
+  private renderSetpoint(): TemplateResult | typeof nothing {
+    const targetTemp = this.getTargetTemp();
+    if (!targetTemp) return nothing;
 
     return html`
       Target
       <app-temperature
-        .temperature=${setPoint}
+        .temperature=${targetTemp}
         show-unit
       ></app-temperature>
     `;
@@ -216,11 +218,11 @@ export class ThermostatControl extends LitElement {
           <div class="thermostat__air-quality ">
             <div class="thermostat__air-quality-item">
               <div class="text-muted">Humidity</div>
-              <div class="thermostat__air-quality-value">${this.environment.humidityPercentage.toFixed(1)}<span class="unit">%</span></div>
+              <div class="thermostat__air-quality-value">${this.environment.humidityPercentage?.toFixed(1)}<span class="unit">%</span></div>
             </div>
             <div class="thermostat__air-quality-item">
               <div class="text-muted">CO<sub>2</sub></div>
-              <div class="thermostat__air-quality-value">${this.environment.cO2LevelPpm.toFixed(1)}<span class="unit">ppm</span></div>
+              <div class="thermostat__air-quality-value">${this.environment.cO2LevelPpm?.toFixed(1)}<span class="unit">ppm</span></div>
             </div>
           </div>
         </div>

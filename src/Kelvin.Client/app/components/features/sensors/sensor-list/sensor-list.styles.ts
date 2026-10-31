@@ -19,19 +19,16 @@ const sensorListStyles = css`
     }
   }
 
-  .sensor-list__cards > *:last-child:nth-child(odd) {
-    grid-column: span 2;
+  :host-context([kiosk]) {
+    .sensor-list__cards {
+      grid-template-columns: repeat(1, 1fr);
+    }
   }
 
   @media (max-width: 768px) {
     .sensor-list__cards {
       display: flex;
       flex-direction: column;
-
-      > app-sensor-card {
-        flex: unset;
-        max-width: 100%;
-      }
     }
   }
 `;
