@@ -199,6 +199,7 @@ const thermostatControlStyles = css`
     width: 3rem;
     display: flex;
     align-items: center;
+    justify-content: center;
   }
 
   .thermostat__button:disabled {

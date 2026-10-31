@@ -117,13 +117,6 @@ const buttonStyles = css`
     line-height: 1;
     padding: 0;
     width: 2.5rem;
-
-    svg,
-    .button__icon,
-    .button__icon svg {
-      width: 1.1rem;
-      height: 1.1rem;
-    }
   }
 
   .button--icon:hover:not(:disabled) {
@@ -135,6 +128,13 @@ const buttonStyles = css`
   .button--icon.button--danger:hover:not(:disabled) {
     background: var(--accent-danger-overlay);
     color: var(--accent-danger);
+  }
+
+  .button--icon > svg,
+  .button__icon,
+  svg.button__icon {
+    width: 1.1rem;
+    height: 1.1rem;
   }
 `;
 
