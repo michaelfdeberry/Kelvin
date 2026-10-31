@@ -4,24 +4,39 @@ const sensorListStyles = css`
   :host {
     display: block;
     width: 100%;
-    max-width: 800px;
   }
 
   .sensor-list__cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
     width: 100%;
+    gap: 1rem;
+    display: grid;
+    flex-wrap: unset;
+    grid-template-columns: repeat(2, 1fr);
 
-    &.sensor-list__cards--kiosk {
-      max-width: 400px;
-      margin: 0 auto;
+    > app-sensor-card {
+      flex: unset;
+      max-width: 100%;
     }
   }
 
-  @media (max-height: 480px) {
-    :host {
-      display: none;
+  .sensor-list__cards > *:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+
+  @media (max-width: 768px) {
+    .sensor-list__cards {
+      display: grid;
+      flex-wrap: unset;
+      grid-template-columns: 1fr;
+
+      > app-sensor-card {
+        flex: unset;
+        max-width: 100%;
+      }
+    }
+
+    .sensor-list__cards > *:last-child:nth-child(odd) {
+      grid-column: span 2;
     }
   }
 `;

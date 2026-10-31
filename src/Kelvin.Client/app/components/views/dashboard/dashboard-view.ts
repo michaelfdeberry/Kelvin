@@ -3,6 +3,7 @@ import '../../../components/shared/modal/modal.js';
 import '../../../components/features/sensors/sensor-list/sensor-list.js';
 import '../../../components/features/analytics/stats-panel/stats-panel.js';
 import '../../../components/features/thermostat/thermostat-control/thermostat-control.js';
+import '../../features/thermostat/thermostat-control/thermostat-control.js';
 import '../../../components/features/weather/weather-forecast/weather-forecast.js';
 
 import { html, LitElement } from 'lit';
@@ -24,15 +25,11 @@ export class DashboardView extends LitElement {
     return html`
       <div class="dashboard-view__shell">
         <section class="dashboard-view__main">
-          <app-weather-forecast></app-weather-forecast>
-          <app-thermostat-control></app-thermostat-control>
-          <app-sensor-list></app-sensor-list>
-          <a
-            href="/settings"
-            class="dashboard-view__settings-button button button--secondary"
-          >
-            Settings
-          </a>
+          <div class="dashboard-view__content">
+            <app-weather-forecast></app-weather-forecast>
+            <app-thermostat-control></app-thermostat-control>
+            <app-sensor-list></app-sensor-list>
+          </div>
         </section>
 
         <aside class="dashboard-view__stats">

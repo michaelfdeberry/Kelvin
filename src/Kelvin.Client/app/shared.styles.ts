@@ -31,10 +31,18 @@ const sharedStyles = css`
     font-size: 0.85rem;
   }
 
-  /* Kiosk touchscreen has no reactive pointer - hide it everywhere, overriding any cursor set above. */
+  /* Kiosk touchscreen has no reactive pointer - hide it everywhere */
   :host-context([kiosk]),
   :host-context([kiosk]) * {
     cursor: none !important;
+  }
+
+  .error {
+    color: var(--accent-danger);
+  }
+
+  .number {
+    font-family: 'JetBrains Mono', monospace;
   }
 `;
 

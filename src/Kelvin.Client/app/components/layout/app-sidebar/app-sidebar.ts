@@ -8,7 +8,7 @@ import sharedStyles from '../../../shared.styles.js';
 
 const navItems: NavItem[] = [
   { href: '/', label: 'Home', icon: 'K' },
-  { href: '/analytics', label: 'Analytics', icon: '📈' },
+  { href: '/analytics', label: 'Analytics', icon: '📊' },
   { href: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 

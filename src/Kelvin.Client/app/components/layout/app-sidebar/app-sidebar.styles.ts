@@ -59,6 +59,31 @@ const appSidebarStyles = css`
     white-space: nowrap;
     border: 0;
   }
+
+  @media (max-width: 768px) {
+    .app-sidebar__nav {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      border-right: none;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .app-sidebar__link {
+      &:nth-child(1) {
+        order: 2;
+      }
+
+      &:nth-child(2) {
+        order: 1;
+      }
+
+      &:nth-child(3) {
+        order: 3;
+      }
+    }
+  }
 `;
 
 export default appSidebarStyles;

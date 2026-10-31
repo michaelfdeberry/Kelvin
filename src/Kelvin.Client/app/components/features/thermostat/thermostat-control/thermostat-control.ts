@@ -20,7 +20,7 @@ import { RunMode, Schedule, SetPoint, Thermostat } from '../../../../models/ther
 import { ToastDetail } from '../../../../models/toast-detail.js';
 import resources from '../../../../services/api-resources.js';
 import { apiPut } from '../../../../services/api.js';
-import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
+import { dispatchCustomEvent, dispatchToast, timestampToDate } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 import { ThermostatEditor } from '../thermostat-editor/thermostat-editor.js';
 
@@ -69,18 +69,54 @@ export class ThermostatControl extends LitElement {
   }
 
   private renderSetpoint(): TemplateResult | typeof nothing {
-    if (this.thermostat.mode === 'Disabled') return nothing;
-    if (this.thermostat.mode === 'Off') return nothing;
-    if (!this.controlTargetTempC) return nothing;
+    /**
+     * This kind of replicates the backend logic for finding the target setpoint.
+     * I don't really like it being client side, but the set point is figured out in real time on the backend
+     * when processing the temperature.
+     */
+    let setPoint = this.controlTargetTempC;
+    let mode = this.thermostat.mode;
 
-    // Known issue, when changing the setpoint when a run mode is active, the set point in the UI
-    // will continue to display the old set point until the control state updates.
-    // I'm considering this acceptable behavior for now, because my current assumption is that if it's
-    // being changed it's to trigger a state change.
+    if (!setPoint) {
+      if (mode === 'Automatic') {
+        // currentControlState can be dwell, or off, so check previousState too
+        if (this.currentControlState === 'Heating' || this.callState.previousState === 'Heating') {
+          mode = 'Heating';
+        } else if (this.currentControlState === 'Cooling' || this.callState.previousState === 'Cooling') {
+          mode = 'Cooling';
+        }
+      }
+
+      const now = new Date();
+      const isActive = (start: string, end: string) => {
+        const startDate = timestampToDate(start);
+        const endDate = timestampToDate(end);
+
+        if (startDate <= endDate) {
+          return now >= startDate && now <= endDate;
+        }
+        return now >= startDate || now <= endDate;
+      };
+
+      const findTarget = (mode: RunMode) => {
+        const schedule = this.schedules.find(s => s.type === mode && isActive(s.startTime, s.endTime));
+        const setPoint = this.setPoints.find(s => s.type === mode);
+        return schedule?.targetTemperatureC ?? setPoint?.targetTemperatureC;
+      };
+
+      if (mode === 'Heating') {
+        setPoint = findTarget('Heating');
+      } else if (mode === 'Cooling') {
+        setPoint = findTarget('Cooling');
+      }
+    }
+
+    if (!setPoint) return nothing;
+
     return html`
-      Set to
+      Target
       <app-temperature
-        .temperature=${this.controlTargetTempC}
+        .temperature=${setPoint}
         show-unit
       ></app-temperature>
     `;
@@ -144,6 +180,7 @@ export class ThermostatControl extends LitElement {
 
   override render() {
     return html`
+      <app-thermostat-editor></app-thermostat-editor>
       <div
         class="${classMap({
           thermostat: true,
@@ -151,14 +188,18 @@ export class ThermostatControl extends LitElement {
           'thermostat--cooling': this.currentControlState === 'Cooling',
         })}"
       >
-        <app-thermostat-editor></app-thermostat-editor>
+        <div class="thermostat__header">
+          <div class="thermostat__target-temp">${this.renderSetpoint()}</div>
+          <div class="thermostat__status">
+            ${when(this.currentControlState === 'Heating', () => html`<div class="thermostat__status-badge">🔥 HEATING</div>`)}
+            ${when(this.currentControlState === 'Cooling', () => html`<div class="thermostat__status-badge">❄️ COOLING</div>`)}
+          </div>
+        </div>
         <div
-          class="thermostat__dial"
+          class="thermostat__state number"
           aria-label="Thermostat control"
         >
-          <div class="thermostat__dial-inner">
-            <div class="thermostat__spacer"></div>
-            <div class="thermostat__target-temp">${this.renderSetpoint()}</div>
+          <div class="thermostat__temps">
             <div class="thermostat__current-temp">
               ${when(
                 this.environment.temperatureC ?? this.callState.environmentTemperatureC,
@@ -171,23 +212,15 @@ export class ThermostatControl extends LitElement {
                 () => '--',
               )}
             </div>
-            <div class="thermostat__status">
-              ${when(this.currentControlState === 'Heating', () => html`<div class="thermostat__status-badge">🔥 HEATING</div>`)}
-              ${when(this.currentControlState === 'Cooling', () => html`<div class="thermostat__status-badge">❄️ COOLING</div>`)}
+          </div>
+          <div class="thermostat__air-quality ">
+            <div class="thermostat__air-quality-item">
+              <div class="text-muted">Humidity</div>
+              <div class="thermostat__air-quality-value">${this.environment.humidityPercentage.toFixed(1)}<span class="unit">%</span></div>
             </div>
-            <div class="thermostat__edit-button-container">
-              ${when(
-                this.thermostat.mode !== 'Disabled' && this.thermostat.mode !== 'Off',
-                () => html`
-                  <button
-                    class="thermostat__edit-button button button--icon"
-                    aria-label="Edit Settings"
-                    @click=${() => this.thermostatEditor.open()}
-                  >
-                    ${unsafeSVG(editIcon)}
-                  </button>
-                `,
-              )}
+            <div class="thermostat__air-quality-item">
+              <div class="text-muted">CO<sub>2</sub></div>
+              <div class="thermostat__air-quality-value">${this.environment.cO2LevelPpm.toFixed(1)}<span class="unit">ppm</span></div>
             </div>
           </div>
         </div>
@@ -197,72 +230,81 @@ export class ThermostatControl extends LitElement {
           role="group"
           aria-label="Thermostat mode"
         >
+          <div class="thermostat__button-group">
+            <button
+              class=${classMap({
+                button: true,
+                thermostat__button: true,
+                'thermostat__button--auto': this.thermostat.mode === 'Automatic',
+                'thermostat__button--active': this.thermostat.mode === 'Automatic',
+              })}
+              type="button"
+              ?disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Automatic'}
+              @click=${() => this.setMode('Automatic')}
+            >
+              Auto
+            </button>
+            <button
+              class=${classMap({
+                button: true,
+                thermostat__button: true,
+                'thermostat__button--heating': this.thermostat.mode === 'Heating',
+                'thermostat__button--active': this.thermostat.mode === 'Heating',
+              })}
+              type="button"
+              ?disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Heating'}
+              @click=${() => this.setMode('Heating')}
+            >
+              Heat
+            </button>
+            <button
+              class=${classMap({
+                button: true,
+                thermostat__button: true,
+                'thermostat__button--cooling': this.thermostat.mode === 'Cooling',
+                'thermostat__button--active': this.thermostat.mode === 'Cooling',
+              })}
+              type="button"
+              ?disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Cooling'}
+              @click=${() => this.setMode('Cooling')}
+            >
+              Cool
+            </button>
+            <button
+              class=${classMap({
+                button: true,
+                thermostat__button: true,
+                'thermostat__button--active': this.thermostat.mode === 'Off',
+              })}
+              type="button"
+              ?disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Off'}
+              @click=${() => this.setMode('Off')}
+            >
+              Off
+            </button>
+          </div>
           <button
             class=${classMap({
               button: true,
-              'button--pill': true,
               thermostat__button: true,
-              'thermostat__button--auto': this.thermostat.mode === 'Automatic',
+              'thermostat__button--fan': true,
+              'thermostat__button--active': this.thermostat.fanEnabled,
             })}
             type="button"
-            ?disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Automatic'}
-            @click=${() => this.setMode('Automatic')}
+            ?disabled=${this.thermostat.mode === 'Disabled'}
+            @click=${this.toggleFan}
           >
-            Auto
+            ${this.thermostat.fanEnabled ? 'Fan: On' : 'Fan: Auto'}
           </button>
           <button
-            class=${classMap({
-              button: true,
-              'button--pill': true,
-              thermostat__button: true,
-              'thermostat__button--heating': this.thermostat.mode === 'Heating',
-            })}
-            type="button"
-            ?disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Heating'}
-            @click=${() => this.setMode('Heating')}
+            class="button thermostat__button thermostat__button--edit"
+            aria-label="Edit Settings"
+            .disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Off'}
+            @click=${() => this.thermostatEditor.open()}
           >
-            Heat
-          </button>
-          <button
-            class=${classMap({
-              button: true,
-              'button--pill': true,
-              thermostat__button: true,
-              'thermostat__button--cooling': this.thermostat.mode === 'Cooling',
-            })}
-            type="button"
-            ?disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Cooling'}
-            @click=${() => this.setMode('Cooling')}
-          >
-            Cool
-          </button>
-          <button
-            class=${classMap({
-              button: true,
-              'button--pill': true,
-              thermostat__button: true,
-              'thermostat__button--active': this.thermostat.mode === 'Off',
-            })}
-            type="button"
-            ?disabled=${this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Off'}
-            @click=${() => this.setMode('Off')}
-          >
-            Off
+            ${unsafeSVG(editIcon)}
           </button>
         </div>
-        <button
-          class=${classMap({
-            button: true,
-            'button--pill': true,
-            thermostat__button: true,
-            'thermostat__button--fan': this.thermostat.fanEnabled,
-          })}
-          type="button"
-          ?disabled=${this.thermostat.mode === 'Disabled'}
-          @click=${this.toggleFan}
-        >
-          ${this.thermostat.fanEnabled ? 'Fan: On' : 'Fan: Auto'}
-        </button>
       </div>
     `;
   }

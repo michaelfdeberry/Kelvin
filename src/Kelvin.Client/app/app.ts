@@ -1,3 +1,5 @@
+import '@fontsource/jetbrains-mono';
+
 import './components/shared/alert/alert.js';
 import './components/shared/toaster/toaster.js';
 import './signalr/signalr-context.js';
@@ -160,11 +162,8 @@ export class KelvinApp extends LitElement {
   }
 
   private renderBanner(): TemplateResult | typeof nothing {
-    // banners for the context will only be shown in extreme cases, so that's going to take precedence over the thermostat disabled banner.
+    // Banners for the context will only be shown in extreme cases, so that's going to take precedence over the thermostat disabled banner.
     // Currently, the only use case is when all the sensors are offline.
-    // The issue with this is nothing currently clears the banner, so it's going to be stuck on the kiosk screen.
-    // TODO: figure that out later.
-    // I'll have to send a reload command, or trigger a reload based on control state change, or something along those lines.
     if (this.banner) {
       return html`
         <div class="app-shell__banner">

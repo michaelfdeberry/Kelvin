@@ -755,7 +755,7 @@ void Ui::refreshModeButtons()
 void Ui::refreshFanButton()
 {
   bool on = thermostatState.fanEnabled;
-  lv_label_set_text(fanButtonLabel, on ? "Fan On" : "Fan Auto");
+  lv_label_set_text(fanButtonLabel, on ? "Fan: On" : "Fan: Auto");
   lv_obj_set_style_bg_color(fanButton, on ? UiTheme::accentPrimary() : UiTheme::bgPanel(), 0);
   lv_obj_set_style_border_color(fanButton, on ? UiTheme::accentPrimary() : UiTheme::borderSubtle(), 0);
   lv_obj_set_style_text_color(fanButtonLabel, on ? UiTheme::textMain() : UiTheme::textMuted(), 0);

@@ -19,7 +19,7 @@ const sensorCardStyles = css`
     position: relative;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
     border: 1px solid var(--border-subtle);
     box-shadow: 0 14px 34px var(--shadow-color);
@@ -29,18 +29,16 @@ const sensorCardStyles = css`
 
   .sensor-card__title {
     color: var(--text-muted);
-    font-size: 0.8rem;
     margin-bottom: 5px;
   }
 
-  .sensor-card__value {
-    font-size: 1.1rem;
+  .sensor-card__temp {
+    font-size: 1.5rem;
     font-weight: 700;
   }
 
   .sensor-card__subtitle {
     display: flex;
-    font-size: 0.7rem;
     color: var(--text-muted);
     margin-top: 5px;
     gap: 0.5rem;
@@ -86,6 +84,32 @@ const sensorCardStyles = css`
     top: -10px;
     left: 50%;
     transform: translateX(-50%);
+  }
+
+  :host-context([kiosk]) {
+    .sensor-card {
+      padding: 2rem;
+      gap: 1rem;
+    }
+
+    .sensor-card__title {
+      font-size: 1.5rem;
+      margin-bottom: 0;
+    }
+
+    .sensor-card__value {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .sensor-card__temp {
+      font-size: 2rem;
+    }
+
+    .sensor-card__subtitle {
+      font-size: 1.5rem;
+    }
   }
 
   /* Pulsing Shadow Animation */

@@ -96,21 +96,20 @@ export class WeatherForecast extends LitElement {
   }
 
   override render() {
-    return this.getWeatherTask.render({
-      pending: () => html`<p>Loading weather forecast...</p>`,
-      complete: (forecast: WeatherForecastResponse) => html`
-        <div
-          class="weather-forecast__container"
-          aria-label="5 day forecast"
-        >
-          ${this.renderCurrent(forecast)} ${forecast.daily.map((day, index) => this.renderForecastDay(day, index))}
-        </div>
-      `,
-      error: error => {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        return html`<p>${message}</p>`;
-      },
-    });
+    return html`
+      <div
+        class="weather-forecast__container"
+        aria-label="5 day forecast"
+      >
+        ${this.getWeatherTask.render({
+          pending: () => html`<p>Loading weather forecast...</p>`,
+          complete: (forecast: WeatherForecastResponse) => html`
+            ${this.renderCurrent(forecast)} ${forecast.daily.map((day, index) => this.renderForecastDay(day, index))}
+          `,
+          error: () => html`<p class="error">Failed to retrieve forecast</p>`,
+        })}
+      </div>
+    `;
   }
 }
 

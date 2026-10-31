@@ -53,29 +53,31 @@ export class SensorCard extends LitElement {
         )}
       </div>
       <div class="sensor-card__value">
-        ${when(
-          !!this.reading?.temperatureC,
-          () => html`
-            <app-temperature
-              .temperature=${this.reading?.temperatureC}
-              show-unit
-            ></app-temperature>
-          `,
-          () => html`<span class="sensor-card__no-value">--</span>`,
-        )}
-      </div>
-      <div class="sensor-card__subtitle">
-        ${when(
-          !isUnconfigured && !!this.reading,
-          () => html`
-            ${when(this.sensor?.hasHumiditySensor, () => html`<div>${this.reading?.humidityPercentage.toFixed(1) ?? 0}% RH</div>`)}
-            ${when(this.sensor?.hasCO2Sensor, () => html`<div>${this.reading?.cO2LevelPpm ?? 0}ppm CO<sub>2</sub></div>`)}
-          `,
-          () => html`
-            <div>--</div>
-            <div>--</div>
-          `,
-        )}
+        <div class="sensor-card__temp">
+          ${when(
+            !!this.reading?.temperatureC,
+            () => html`
+              <app-temperature
+                .temperature=${this.reading?.temperatureC}
+                show-unit
+              ></app-temperature>
+            `,
+            () => html`<span class="sensor-card__no-value">--</span>`,
+          )}
+        </div>
+        <div class="sensor-card__subtitle number">
+          ${when(
+            !isUnconfigured && !!this.reading,
+            () => html`
+              ${when(this.sensor?.hasHumiditySensor, () => html`<div>${this.reading?.humidityPercentage.toFixed(1) ?? 0}% RH</div>`)}
+              ${when(this.sensor?.hasCO2Sensor, () => html`<div>${this.reading?.cO2LevelPpm ?? 0}ppm CO<sub>2</sub></div>`)}
+            `,
+            () => html`
+              <div>--</div>
+              <div>--</div>
+            `,
+          )}
+        </div>
       </div>
     `;
   }
