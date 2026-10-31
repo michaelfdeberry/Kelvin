@@ -12,7 +12,7 @@ const sensorCardStyles = css`
   .sensor-card {
     width: 100%;
     background: var(--bg-panel);
-    padding: 0.75rem;
+    padding: 1rem;
     border-radius: var(--border-radius);
     text-align: center;
     color: inherit;
@@ -26,13 +26,18 @@ const sensorCardStyles = css`
     --sensor-card-pulse-start: var(--accent-heat-pulse);
     --sensor-card-pulse-end: var(--accent-heat-pulse-fade);
   }
+  .sensor-card__title,
+  .sensor-card__subtitle {
+    height: 2rem;
+    line-height: 2rem;
+    font-size: 1rem;
+  }
 
   .sensor-card__title {
     color: var(--text-muted);
-    margin-bottom: 5px;
   }
 
-  .sensor-card__temp {
+  .sensor-card__value {
     font-size: 1.5rem;
     font-weight: 700;
   }
@@ -40,7 +45,6 @@ const sensorCardStyles = css`
   .sensor-card__subtitle {
     display: flex;
     color: var(--text-muted);
-    margin-top: 5px;
     gap: 0.5rem;
   }
 
@@ -93,7 +97,7 @@ const sensorCardStyles = css`
     }
 
     .sensor-card__title {
-      font-size: 1.5rem;
+      font-size: 1.25rem;
       margin-bottom: 0;
     }
 
@@ -101,14 +105,12 @@ const sensorCardStyles = css`
       display: flex;
       flex-direction: column;
       gap: 1rem;
-    }
-
-    .sensor-card__temp {
       font-size: 2rem;
+      line-height: 2rem;
     }
 
     .sensor-card__subtitle {
-      font-size: 1.5rem;
+      font-size: 1.25rem;
     }
   }
 

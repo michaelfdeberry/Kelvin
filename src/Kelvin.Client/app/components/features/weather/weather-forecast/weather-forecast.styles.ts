@@ -60,29 +60,33 @@ const weatherForecastStyles = css`
   :host-context([kiosk]) {
     height: 100%;
     align-items: stretch;
-  }
 
-  :host-context([kiosk]) .weather-forecast__container {
-    flex-direction: column;
-    max-width: none;
-    width: 100%;
-    height: 100%;
-    justify-content: space-between;
-    gap: 2rem;
-    padding: 2rem;
-  }
+    .weather-forecast__day {
+      height: auto;
+    }
 
-  :host-context([kiosk]) .weather-forecast__day-label {
-    margin-bottom: 0;
-    font-size: 1rem;
-  }
+    .weather-forecast__container {
+      flex-direction: column;
+      max-width: none;
+      width: 100%;
+      height: 100%;
+      justify-content: space-between;
+      gap: 2rem;
+      padding: 2rem;
+    }
 
-  :host-context([kiosk]) .weather-forecast__icon {
-    font-size: 3rem;
-  }
+    .weather-forecast__day-label {
+      margin-bottom: 0;
+      font-size: 1rem;
+    }
 
-  :host-context([kiosk]) .weather-forecast__temps {
-    font-size: 1.2rem;
+    .weather-forecast__icon {
+      font-size: 3rem;
+    }
+
+    .weather-forecast__temps {
+      font-size: 1.2rem;
+    }
   }
 
   @media (max-width: 768px) {

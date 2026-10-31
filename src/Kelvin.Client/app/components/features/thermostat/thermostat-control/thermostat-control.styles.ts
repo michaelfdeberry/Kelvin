@@ -133,7 +133,6 @@ const thermostatControlStyles = css`
   .thermostat__button-group {
     display: flex;
     flex: 1;
-    flex-wrap: wrap;
     flex-direction: row;
     height: 3rem;
     background: var(--bg-panel);
@@ -143,6 +142,7 @@ const thermostatControlStyles = css`
     align-items: center;
     justify-content: space-between;
     gap: 0.125rem;
+    padding: 0.125rem;
 
     .thermostat__button {
       border-color: transparent;
@@ -186,7 +186,7 @@ const thermostatControlStyles = css`
   }
 
   .button.thermostat__button--fan {
-    width: 120px;
+    white-space: nowrap;
 
     &.thermostat__button--active {
       border: 1px solid var(--border-subtle);
@@ -249,23 +249,10 @@ const thermostatControlStyles = css`
     }
 
     .thermostat__button-group {
-      display: flex;
-      flex: 1;
-      flex-wrap: wrap;
-      flex-direction: row;
-      height: 3.5rem;
-      background: var(--bg-panel);
-      border-radius: calc(var(--border-radius) + 2px);
-      border: 1px solid var(--border-subtle);
-      overflow: hidden;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.125rem;
+      height: 4rem;
 
       .thermostat__button {
-        border-color: transparent;
-        flex: 1;
-        height: 3rem;
+        height: 3.5rem;
       }
     }
 
@@ -277,14 +264,18 @@ const thermostatControlStyles = css`
 
     .button.thermostat__button--edit,
     .button.thermostat__button--fan {
-      height: 3.5rem;
+      height: 4rem;
       background: var(--bg-panel);
       border-radius: var(--border-radius);
       border: 1px solid var(--border-subtle);
     }
 
+    /* button.thermostat__button--fan {
+      width: 8rem;
+    } */
+
     .button.thermostat__button--edit {
-      width: 3.5rem;
+      width: 4rem;
     }
   }
 `;

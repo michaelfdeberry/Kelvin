@@ -226,8 +226,8 @@ public class SensingService(
 
     _environment.Timestamp = time.GetUtcNow();
     _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
-    _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
-    _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
+    _environment.HumidityPercentage = _environment.Areas.Values.Where(p => p.Sensor!.HasHumiditySensor).Average(p => p.HumidityPercentage);
+    _environment.CO2LevelPpm = (float)_environment.Areas.Values.Where(p => p.Sensor!.HasCO2Sensor).Average(p => p.CO2LevelPpm);
 
     await dispatcher.PublishAsync(new EnvironmentReadingChangedEvent(_environment.Clone()), stoppingToken);
   }
