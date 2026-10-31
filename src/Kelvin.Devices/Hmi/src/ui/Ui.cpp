@@ -381,9 +381,9 @@ void Ui::buildReadings(lv_obj_t *parent)
   lv_obj_set_style_pad_gap(stats, 36, 0);
   lv_obj_set_flex_flow(stats, LV_FLEX_FLOW_ROW);
 
-  createStat(stats, "Avg humidity", &humidityLabel);
-  createStat(stats, "Avg CO2", &co2Label);
-  createStat(stats, "Onboard", &onboardLabel);
+  createStat(stats, "Humidity", &humidityLabel);
+  createStat(stats, "CO2", &co2Label);
+  createStat(stats, "Sensor", &onboardLabel);
 }
 
 void Ui::buildSetPointSlider(lv_obj_t *parent)
