@@ -3,6 +3,7 @@ import '../../../shared/temperature/temperature.js';
 import { Task } from '@lit/task';
 import { html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
+import { when } from 'lit/directives/when.js';
 
 import weatherForecastStyles from './weather-forecast.styles.js';
 import { WEATHER_ICONS } from './weather-icons.js';
@@ -40,66 +41,55 @@ export class WeatherForecast extends LitElement {
     args: () => [this],
   });
 
-  private renderForecastDay(day: WeatherForecastDay, index: number) {
-    const [year, month, dayOfMonth] = day.date.split('-').map(Number);
-    const date = new Date(year!, month! - 1, dayOfMonth);
-    const dateName = date.toLocaleDateString(undefined, { weekday: 'short' });
-
+  private renderItem(summary: string, label: string, high: number, low?: number) {
     return html`
       <div
         class="weather-forecast__day"
-        title="${day.summary}"
+        title="${summary}"
       >
-        <span class="weather-forecast__day-label">${index === 0 ? 'Today' : dateName}</span>
+        <span class="weather-forecast__day-label">${label}</span>
         <span
           class="weather-forecast__icon"
           aria-hidden="true"
         >
-          ${WEATHER_ICONS[day.summary] ?? WEATHER_ICONS['Unknown']}
+          ${WEATHER_ICONS[summary] ?? WEATHER_ICONS['Unknown']}
         </span>
         <span class="weather-forecast__temps">
           <app-temperature
-            .temperature=${day.temperatureMaxC}
+            .temperature=${high}
             show-unit
           ></app-temperature>
-          <span class="weather-forecast__temps-low">
-            <app-temperature .temperature=${day.temperatureMinC}></app-temperature>
-          </span>
+          ${when(
+            low,
+            () => html`
+              <span class="weather-forecast__temps-low">
+                <app-temperature .temperature=${low}></app-temperature>
+              </span>
+            `,
+          )}
         </span>
       </div>
     `;
   }
 
-  private renderCurrent(forecast: WeatherForecastResponse) {
-    const current = forecast.current;
+  private renderForecastDay(day: WeatherForecastDay, index: number) {
+    const [year, month, dayOfMonth] = day.date.split('-').map(Number);
+    const date = new Date(year!, month! - 1, dayOfMonth);
+    const dateName = date.toLocaleDateString(undefined, { weekday: 'short' });
+    const dateLabel = index === 0 ? 'Today' : index === 1 ? 'Tomorrow' : dateName;
+    return this.renderItem(day.summary, dateLabel, day.temperatureMaxC, day.temperatureMinC);
+  }
 
-    return html`
-      <div
-        class="weather-forecast__day"
-        title="${current.summary}"
-      >
-        <span class="weather-forecast__day-label">Now</span>
-        <span
-          class="weather-forecast__icon"
-          aria-hidden="true"
-        >
-          ${WEATHER_ICONS[current.summary] ?? WEATHER_ICONS['Unknown']}
-        </span>
-        <span class="weather-forecast__temps">
-          <app-temperature
-            .temperature=${current.temperatureC}
-            show-unit
-          ></app-temperature>
-        </span>
-      </div>
-    `;
+  private renderCurrent(forecast: WeatherForecastResponse) {
+    const { summary, temperatureC } = forecast.current;
+    return this.renderItem(summary, 'Now', temperatureC);
   }
 
   override render() {
     return html`
       <div
         class="weather-forecast__container"
-        aria-label="5 day forecast"
+        aria-label="3 day forecast"
       >
         ${this.getWeatherTask.render({
           pending: () => html`<p>Loading weather forecast...</p>`,

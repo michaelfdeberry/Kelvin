@@ -11,7 +11,6 @@ const weatherForecastStyles = css`
   .weather-forecast__container {
     display: flex;
     width: 100%;
-    height: 106px;
     padding: 0.8rem;
     background: var(--bg-panel);
     justify-content: space-between;
@@ -33,6 +32,11 @@ const weatherForecastStyles = css`
     font-size: 0.9rem;
     min-width: 80px;
     height: 100%;
+  }
+
+  .weather-forecast__temps,
+  .weather-forecast__day-label {
+    line-height: 2rem;
   }
 
   .weather-forecast__day-label {
@@ -60,6 +64,11 @@ const weatherForecastStyles = css`
   :host-context([kiosk]) {
     height: 100%;
     align-items: stretch;
+
+    .weather-forecast__temps,
+    .weather-forecast__day-label {
+      line-height: 1;
+    }
 
     .weather-forecast__day {
       height: auto;

@@ -44,6 +44,11 @@ const sharedStyles = css`
   .number {
     font-family: 'JetBrains Mono', monospace;
   }
+
+  .not-found {
+    text-align: center;
+    padding: 4rem;
+  }
 `;
 
 export default sharedStyles;

@@ -25,18 +25,13 @@ const sensorListStyles = css`
 
   @media (max-width: 768px) {
     .sensor-list__cards {
-      display: grid;
-      flex-wrap: unset;
-      grid-template-columns: 1fr;
+      display: flex;
+      flex-direction: column;
 
       > app-sensor-card {
         flex: unset;
         max-width: 100%;
       }
-    }
-
-    .sensor-list__cards > *:last-child:nth-child(odd) {
-      grid-column: span 2;
     }
   }
 `;

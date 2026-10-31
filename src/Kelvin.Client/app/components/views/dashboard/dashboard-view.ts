@@ -16,11 +16,6 @@ import sharedStyles from '../../../shared.styles.js';
 export class DashboardView extends LitElement {
   static override styles = [sharedStyles, dashboardViewStyles];
 
-  override connectedCallback() {
-    super.connectedCallback();
-    document.title = 'Kelvin - Dashboard';
-  }
-
   override render() {
     return html`
       <div class="dashboard-view__shell">
