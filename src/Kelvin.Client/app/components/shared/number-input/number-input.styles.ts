@@ -47,7 +47,6 @@ export default css`
       outline: none;
       background: var(--bg-dark);
       color: var(--text-main);
-      font-family: 'JetBrains Mono', monospace;
 
       &:disabled {
         border-color: var(--accent-idle);
