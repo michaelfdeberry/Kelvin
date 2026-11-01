@@ -130,7 +130,9 @@ const buttonStyles = css`
     color: var(--accent-danger);
   }
 
-  .button__icon {
+  .button--icon > svg,
+  .button__icon,
+  svg.button__icon {
     width: 1.1rem;
     height: 1.1rem;
   }

@@ -12,10 +12,6 @@ export default css`
     margin: 0 auto;
     padding: 1rem;
     padding-bottom: 0;
-    border-radius: var(--border-radius);
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    box-shadow: 0 14px 34px var(--shadow-color);
   }
 
   .settings-view__title {

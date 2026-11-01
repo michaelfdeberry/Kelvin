@@ -11,7 +11,6 @@ const weatherForecastStyles = css`
   .weather-forecast__container {
     display: flex;
     width: 100%;
-    max-width: 600px;
     padding: 0.8rem;
     background: var(--bg-panel);
     justify-content: space-between;
@@ -19,6 +18,11 @@ const weatherForecastStyles = css`
     background: var(--bg-panel);
     border: 1px solid var(--border-subtle);
     box-shadow: 0 14px 34px var(--shadow-color);
+
+    p {
+      text-align: center;
+      margin: 0;
+    }
   }
 
   .weather-forecast__day {
@@ -27,6 +31,12 @@ const weatherForecastStyles = css`
     align-items: center;
     font-size: 0.9rem;
     min-width: 80px;
+    height: 100%;
+  }
+
+  .weather-forecast__temps,
+  .weather-forecast__day-label {
+    line-height: 2rem;
   }
 
   .weather-forecast__day-label {
@@ -41,10 +51,6 @@ const weatherForecastStyles = css`
     margin-bottom: 4px;
   }
 
-  .weather-forecast__temps {
-    font-weight: 700;
-  }
-
   .weather-forecast__temps-low {
     color: var(--text-muted);
     font-weight: 400;
@@ -54,39 +60,38 @@ const weatherForecastStyles = css`
   :host-context([kiosk]) {
     height: 100%;
     align-items: stretch;
-  }
 
-  :host-context([kiosk]) .weather-forecast__container {
-    flex-direction: column;
-    max-width: none;
-    width: 100%;
-    height: 100%;
-    justify-content: space-between;
-    gap: 1rem;
-    background: none;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-  }
+    .weather-forecast__temps,
+    .weather-forecast__day-label {
+      line-height: 1;
+    }
 
-  :host-context([kiosk]) .weather-forecast__day {
-    justify-content: space-between;
-    flex: 1;
-    padding: 1rem 0;
-    width: 100%;
-    min-width: 0;
-    border-radius: var(--border-radius);
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    box-shadow: 0 14px 34px var(--shadow-color);
-  }
+    .weather-forecast__day {
+      height: auto;
+    }
 
-  :host-context([kiosk]) .weather-forecast__day-label {
-    margin-bottom: 0;
-  }
+    .weather-forecast__container {
+      flex-direction: column;
+      max-width: none;
+      width: 100%;
+      height: 100%;
+      justify-content: space-between;
+      gap: 2rem;
+      padding: 2rem;
+    }
 
-  :host-context([kiosk]) .weather-forecast__icon {
-    font-size: 3rem;
+    .weather-forecast__day-label {
+      margin-bottom: 0;
+      font-size: 1rem;
+    }
+
+    .weather-forecast__icon {
+      font-size: 3rem;
+    }
+
+    .weather-forecast__temps {
+      font-size: 1.25rem;
+    }
   }
 
   @media (max-width: 768px) {

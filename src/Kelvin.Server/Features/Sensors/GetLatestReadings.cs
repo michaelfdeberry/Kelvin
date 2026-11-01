@@ -21,7 +21,8 @@ public class GetLatestReadingsHandler(KelvinContext context) : IHandler<GetLates
   {
     // Compute the latest timestamp per sensor in the database, then join back to fetch only those rows.
     var latestPerSensor = await context
-      .SensorPackets.Where(p => p.SensorId != null && p.Sensor!.Enabled == true)
+      .SensorPackets.Include(p => p.Sensor)
+      .Where(p => p.SensorId != null && p.Sensor!.Enabled == true && p.Sensor!.DeletedAt == null)
       .GroupBy(p => p.SensorId)
       .Select(g => g.OrderByDescending(p => p.CreatedAt).First())
       .ToDictionaryAsync(p => p.SensorId!.Value, p => p, ct);
@@ -31,14 +32,16 @@ public class GetLatestReadingsHandler(KelvinContext context) : IHandler<GetLates
       return Result<GetLatestReadingsResponse>.Success(new GetLatestReadingsResponse(new EnvironmentReading { Timestamp = DateTimeOffset.UtcNow }));
     }
 
+    var co2Readings = latestPerSensor.Values.Where(p => p.Sensor?.HasCO2Sensor == true).Select(p => (float)p.CO2LevelPpm);
+    var humidityReadings = latestPerSensor.Values.Where(p => p.Sensor?.HasHumiditySensor == true).Select(p => p.HumidityPercentage);
     var reading = new EnvironmentReading
     {
       Timestamp = DateTimeOffset.UtcNow,
       TemperatureC = latestPerSensor.Values.Average(p => p.TemperatureC),
-      HumidityPercentage = latestPerSensor.Values.Average(p => p.HumidityPercentage),
-      CO2LevelPpm = (float)latestPerSensor.Values.Average(p => p.CO2LevelPpm),
+      HumidityPercentage = humidityReadings.Any() ? humidityReadings.Average() : 0,
+      CO2LevelPpm = co2Readings.Any() ? co2Readings.Average() : 0,
       Areas = new ConcurrentDictionary<Guid, SensorPacket>(latestPerSensor),
-    };
+    }.Clone(); // Clone the reading to drop the included references
 
     return Result<GetLatestReadingsResponse>.Success(new GetLatestReadingsResponse(reading));
   }

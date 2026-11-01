@@ -16,7 +16,11 @@ public class GetSensorsHandler(KelvinContext context, IMemoryCache cache) : IHan
     if (cache.TryGetValue(SensorsCache.Key, out GetSensorsResponse? cachedResponse) && cachedResponse is not null)
       return Result<GetSensorsResponse>.Success(cachedResponse);
 
-    var sensors = await context.Sensors.Where(s => !s.DeletedAt.HasValue).Select(s => SensorResponse.FromSensor(s)).ToListAsync(ct);
+    var sensors = await context
+      .Sensors.Where(s => !s.DeletedAt.HasValue)
+      .OrderBy(s => s.Name)
+      .Select(s => SensorResponse.FromSensor(s))
+      .ToListAsync(ct);
     var response = new GetSensorsResponse(sensors);
 
     cache.Set(SensorsCache.Key, response, TimeSpan.FromHours(24));

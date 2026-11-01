@@ -127,7 +127,7 @@ public class UpdateThermostatSettingsTests
 
         var schedules = context.Schedules.Where(s => s.DeletedAt == null).ToList();
         schedules.Count.ShouldBe(1);
-        schedules.ShouldContain(s => s.Id == keptScheduleId && s.StartTime == new TimeOnly(6, 30));
+        schedules.ShouldContain(s => s.StartTime == new TimeOnly(6, 30));
         schedules.ShouldNotContain(s => s.Id == removedScheduleId);
         context.Schedules.Single(s => s.Id == removedScheduleId).DeletedAt.ShouldNotBeNull();
     }

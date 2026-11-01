@@ -1,15 +1,19 @@
 import { html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
+import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 
 import appSidebarStyles from './app-sidebar.styles.js';
+import chartIcon from '../../../../assets/icons/chart.svg?raw';
+import settingsIcon from '../../../../assets/icons/gear.svg?raw';
 import { events } from '../../../events.js';
 import { NavItem } from '../../../models/nav-item.js';
 import sharedStyles from '../../../shared.styles.js';
 
 const navItems: NavItem[] = [
   { href: '/', label: 'Home', icon: 'K' },
-  { href: '/analytics', label: 'Analytics', icon: '📈' },
-  { href: '/settings', label: 'Settings', icon: '⚙️' },
+  { href: '/analytics', label: 'Analytics', icon: unsafeSVG(chartIcon) },
+  { href: '/settings', label: 'Settings', icon: unsafeSVG(settingsIcon) },
 ];
 
 @customElement('app-sidebar')
@@ -36,29 +40,34 @@ export class AppSidebar extends LitElement {
         class="app-sidebar__nav"
         aria-label="Primary navigation"
       >
-        ${navItems.map(
-          item => html`
+        ${navItems.map(item => {
+          return html`
             <a
-              class=${this.getLinkClass(item.href)}
+              class=${classMap({
+                'app-sidebar__link': true,
+                'app-sidebar__link--active': this.isLinkActive(item.href),
+              })}
               href=${item.href}
             >
               <span
-                class="app-sidebar__icon"
+                class=${classMap({
+                  'app-sidebar__icon': true,
+                  button__icon: typeof item.icon !== 'string',
+                })}
                 aria-hidden="true"
                 >${item.icon}</span
               >
               <span class="app-sidebar__label">${item.label}</span>
             </a>
-          `,
-        )}
+          `;
+        })}
       </nav>
     `;
   }
 
-  private getLinkClass(href: string): string {
+  private isLinkActive(href: string): boolean {
     const pathname = window.location.pathname;
-    const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
-    return active ? 'app-sidebar__link app-sidebar__link--active' : 'app-sidebar__link';
+    return href === '/' ? pathname === '/' : pathname.startsWith(href);
   }
 }
 

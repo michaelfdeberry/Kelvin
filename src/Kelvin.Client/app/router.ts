@@ -84,6 +84,8 @@ export class AppRouter extends LitElement {
     const routeParams = matchResult?.pathname.groups || {};
     const queryParams = Object.fromEntries(new URLSearchParams(url.search));
 
+    document.title = `Kelvin - ${matchedRoute.title}`;
+
     const nextTemplate = await matchedRoute.render(routeParams, queryParams);
     this.loading = false;
 

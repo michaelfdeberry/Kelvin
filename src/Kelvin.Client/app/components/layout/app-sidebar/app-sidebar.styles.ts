@@ -27,7 +27,7 @@ const appSidebarStyles = css`
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background: var(--border-subtle);
+    border: 1px solid var(--border-subtle);
     color: var(--text-main);
     text-decoration: none;
     font-weight: 700;
@@ -46,6 +46,13 @@ const appSidebarStyles = css`
 
   .app-sidebar__icon {
     line-height: 1;
+    display: flex;
+    align-items: center;
+
+    svg {
+      width: 1.1rem;
+      height: 1.1rem;
+    }
   }
 
   .app-sidebar__label {
@@ -58,6 +65,31 @@ const appSidebarStyles = css`
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+
+  @media (max-width: 768px) {
+    .app-sidebar__nav {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      border-right: none;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .app-sidebar__link {
+      &:nth-child(1) {
+        order: 2;
+      }
+
+      &:nth-child(2) {
+        order: 1;
+      }
+
+      &:nth-child(3) {
+        order: 3;
+      }
+    }
   }
 `;
 

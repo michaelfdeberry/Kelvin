@@ -3,6 +3,7 @@ import '../../../shared/temperature/temperature.js';
 import { Task } from '@lit/task';
 import { html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
+import { when } from 'lit/directives/when.js';
 
 import weatherForecastStyles from './weather-forecast.styles.js';
 import { WEATHER_ICONS } from './weather-icons.js';
@@ -40,77 +41,65 @@ export class WeatherForecast extends LitElement {
     args: () => [this],
   });
 
+  private renderItem(summary: string, label: string, high: number, low?: number) {
+    return html`
+      <div
+        class="weather-forecast__day"
+        title="${summary}"
+      >
+        <span class="weather-forecast__day-label">${label}</span>
+        <span
+          class="weather-forecast__icon"
+          aria-hidden="true"
+        >
+          ${WEATHER_ICONS[summary] ?? WEATHER_ICONS['Unknown']}
+        </span>
+        <span class="weather-forecast__temps">
+          <app-temperature
+            .temperature=${high}
+            show-unit
+          ></app-temperature>
+          ${when(
+            low,
+            () => html`
+              <span class="weather-forecast__temps-low">
+                <app-temperature .temperature=${low}></app-temperature>
+              </span>
+            `,
+          )}
+        </span>
+      </div>
+    `;
+  }
+
   private renderForecastDay(day: WeatherForecastDay, index: number) {
     const [year, month, dayOfMonth] = day.date.split('-').map(Number);
     const date = new Date(year!, month! - 1, dayOfMonth);
     const dateName = date.toLocaleDateString(undefined, { weekday: 'short' });
-
-    return html`
-      <div
-        class="weather-forecast__day"
-        title="${day.summary}"
-      >
-        <span class="weather-forecast__day-label">${index === 0 ? 'Today' : dateName}</span>
-        <span
-          class="weather-forecast__icon"
-          aria-hidden="true"
-        >
-          ${WEATHER_ICONS[day.summary] ?? WEATHER_ICONS['Unknown']}
-        </span>
-        <span class="weather-forecast__temps">
-          <app-temperature
-            .temperature=${day.temperatureMaxC}
-            show-unit
-          ></app-temperature>
-          <span class="weather-forecast__temps-low">
-            <app-temperature .temperature=${day.temperatureMinC}></app-temperature>
-          </span>
-        </span>
-      </div>
-    `;
+    const dateLabel = index === 0 ? 'Today' : index === 1 ? 'Tomorrow' : dateName;
+    return this.renderItem(day.summary, dateLabel, day.temperatureMaxC, day.temperatureMinC);
   }
 
   private renderCurrent(forecast: WeatherForecastResponse) {
-    const current = forecast.current;
-
-    return html`
-      <div
-        class="weather-forecast__day"
-        title="${current.summary}"
-      >
-        <span class="weather-forecast__day-label">Now</span>
-        <span
-          class="weather-forecast__icon"
-          aria-hidden="true"
-        >
-          ${WEATHER_ICONS[current.summary] ?? WEATHER_ICONS['Unknown']}
-        </span>
-        <span class="weather-forecast__temps">
-          <app-temperature
-            .temperature=${current.temperatureC}
-            show-unit
-          ></app-temperature>
-        </span>
-      </div>
-    `;
+    const { summary, temperatureC } = forecast.current;
+    return this.renderItem(summary, 'Now', temperatureC);
   }
 
   override render() {
-    return this.getWeatherTask.render({
-      pending: () => html`<p>Loading weather forecast...</p>`,
-      complete: (forecast: WeatherForecastResponse) => html`
-        <div
-          class="weather-forecast__container"
-          aria-label="5 day forecast"
-        >
-          ${this.renderCurrent(forecast)} ${forecast.daily.map((day, index) => this.renderForecastDay(day, index))}
-        </div>
-      `,
-      error: error => {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        return html`<p>${message}</p>`;
-      },
-    });
+    return html`
+      <div
+        class="weather-forecast__container"
+        aria-label="3 day forecast"
+      >
+        ${this.getWeatherTask.render({
+          pending: () => html`<p>Loading weather forecast...</p>`,
+          complete: (forecast: WeatherForecastResponse) => html`
+            ${this.renderCurrent(forecast)} ${forecast.daily.map((day, index) => this.renderForecastDay(day, index))}
+          `,
+          error: () => html`<p class="error">Failed to retrieve forecast</p>`,
+        })}
+      </div>
+    `;
   }
 }
 

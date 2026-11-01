@@ -381,9 +381,9 @@ void Ui::buildReadings(lv_obj_t *parent)
   lv_obj_set_style_pad_gap(stats, 36, 0);
   lv_obj_set_flex_flow(stats, LV_FLEX_FLOW_ROW);
 
-  createStat(stats, "Avg humidity", &humidityLabel);
-  createStat(stats, "Avg CO2", &co2Label);
-  createStat(stats, "Onboard", &onboardLabel);
+  createStat(stats, "Humidity", &humidityLabel);
+  createStat(stats, "CO2", &co2Label);
+  createStat(stats, "Sensor", &onboardLabel);
 }
 
 void Ui::buildSetPointSlider(lv_obj_t *parent)
@@ -755,7 +755,7 @@ void Ui::refreshModeButtons()
 void Ui::refreshFanButton()
 {
   bool on = thermostatState.fanEnabled;
-  lv_label_set_text(fanButtonLabel, on ? "Fan On" : "Fan Auto");
+  lv_label_set_text(fanButtonLabel, on ? "Fan: On" : "Fan: Auto");
   lv_obj_set_style_bg_color(fanButton, on ? UiTheme::accentPrimary() : UiTheme::bgPanel(), 0);
   lv_obj_set_style_border_color(fanButton, on ? UiTheme::accentPrimary() : UiTheme::borderSubtle(), 0);
   lv_obj_set_style_text_color(fanButtonLabel, on ? UiTheme::textMain() : UiTheme::textMuted(), 0);
