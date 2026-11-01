@@ -49,7 +49,7 @@ export class ThermostatControl extends LitElement {
 
   private currentControlState?: 'Heating' | 'Cooling';
 
-  protected override updated(): void {
+  protected override willUpdate(): void {
     // this component really only cares about the call changes
     // so track the call state and temp independently
     if (this.callState.targetTemperatureC !== undefined) {
@@ -112,6 +112,8 @@ export class ThermostatControl extends LitElement {
   }
 
   private renderSetpoint(): TemplateResult | typeof nothing {
+    if (this.thermostat.mode === 'Disabled' || this.thermostat.mode === 'Off') return nothing;
+
     const targetTemp = this.getTargetTemp();
     if (!targetTemp) return nothing;
 

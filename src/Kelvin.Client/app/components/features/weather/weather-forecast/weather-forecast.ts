@@ -60,7 +60,7 @@ export class WeatherForecast extends LitElement {
             show-unit
           ></app-temperature>
           ${when(
-            low,
+            low !== undefined,
             () => html`
               <span class="weather-forecast__temps-low">
                 <app-temperature .temperature=${low}></app-temperature>

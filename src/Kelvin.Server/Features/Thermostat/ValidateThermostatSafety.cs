@@ -114,15 +114,12 @@ public class ValidateThermostatSafetyHandler() : IHandler<ValidateThermostatSafe
     foreach (var coolingSchedule in coolingSchedules)
     {
       // this needs to check if there is an overlapping heating schedule
-      var overlappingHeating = heatingSchedules.FirstOrDefault(h =>
-        Overlaps(h.StartTime, h.EndTime, coolingSchedule.StartTime, coolingSchedule.EndTime)
-      );
+      var coolingMinutes = ToMinuteMap(coolingSchedule.StartTime, coolingSchedule.EndTime);
+      var scheduledHeatingMinutes = heatingSchedules.SelectMany(h => ToMinuteMap(h.StartTime, h.EndTime));
+
       if (
-        HasUnsafeTargetOverlap(
-          overlappingHeating?.TargetTemperatureC ?? heatingSetPoint?.TargetTemperatureC,
-          coolingSchedule.TargetTemperatureC,
-          effectiveHysteresis
-        )
+        coolingMinutes.Except(scheduledHeatingMinutes).Any()
+        && HasUnsafeTargetOverlap(heatingSetPoint?.TargetTemperatureC, coolingSchedule.TargetTemperatureC, effectiveHysteresis)
       )
       {
         return Result.Failure(ValidateThermostatSafetyErrors.UnsafeTargetOverlap);

@@ -62,7 +62,7 @@ public class SensingService(
       lastReadingResponse.EnsureSuccess();
 
       // Only restore if all readings are recent.
-      var cutoff = DateTimeOffset.Now - TimeSpan.FromMilliseconds(SENSOR_HEARTBEAT_INTERVAL_MS);
+      var cutoff = DateTimeOffset.Now - TimeSpan.FromMilliseconds(SENSOR_TIMEOUT_MS);
       var allRecent = lastReadingResponse.Value!.Reading.Areas.All(r => r.Value.CreatedAt > cutoff);
       if (allRecent)
       {
@@ -257,14 +257,20 @@ public class SensingService(
     if (_environment?.Areas.IsEmpty ?? true)
       return;
 
+    var sensorsResponse = await dispatcher.DispatchAsync<GetSensorsRequest, GetSensorsResponse>(new GetSensorsRequest(), stoppingToken);
+    sensorsResponse.EnsureSuccess();
+
     _environment.Timestamp = time.GetUtcNow();
     _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
 
-    var humiditySensors = _environment.Areas.Values.Where(p => p.Sensor?.HasHumiditySensor == true);
-    _environment.HumidityPercentage = humiditySensors.Any() ? humiditySensors.Average(p => p.HumidityPercentage) : 0;
+    var humiditySensorIds = sensorsResponse.Value!.Sensors.Where(s => s.HasHumiditySensor).Select(s => s.Id).ToHashSet();
+    var co2SensorIds = sensorsResponse.Value!.Sensors.Where(s => s.HasCO2Sensor).Select(s => s.Id).ToHashSet();
 
-    var co2Sensors = _environment.Areas.Values.Where(p => p.Sensor?.HasCO2Sensor == true);
-    _environment.CO2LevelPpm = co2Sensors.Any() ? (float)co2Sensors.Average(p => p.CO2LevelPpm) : 0;
+    var humidityReadings = _environment.Areas.Values.Where(p => p.SensorId.HasValue && humiditySensorIds.Contains(p.SensorId.Value));
+    _environment.HumidityPercentage = humidityReadings.Any() ? humidityReadings.Average(p => p.HumidityPercentage) : 0;
+
+    var co2Readings = _environment.Areas.Values.Where(p => p.SensorId.HasValue && co2SensorIds.Contains(p.SensorId.Value));
+    _environment.CO2LevelPpm = co2Readings.Any() ? (float)co2Readings.Average(p => p.CO2LevelPpm) : 0;
 
     await dispatcher.PublishAsync(new EnvironmentReadingChangedEvent(_environment.Clone()), stoppingToken);
   }

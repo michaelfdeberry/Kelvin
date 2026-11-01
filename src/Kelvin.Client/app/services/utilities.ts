@@ -63,7 +63,7 @@ export function getPreferredUnit(temperatureUnit: TemperatureUnit): string {
 
 export function timestampToDate(timestamp: string): Date {
   const now = new Date();
-  const todayString = now.toISOString().split('T')[0];
+  const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const targetTimeStr = `${todayString}T${timestamp}`;
   const targetDate = new Date(targetTimeStr);
   return targetDate;
