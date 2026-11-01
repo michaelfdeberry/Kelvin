@@ -50,3 +50,16 @@ upsert-schedule = {0: 1, 1: schedule-id / null, 2: run-type, 3: minutes, 4: minu
 remove-schedule = {0: 1, 1: schedule-id, * (2..4294967295) => any}
 set-lockouts = {0: 1, 1: nullable-float, 2: nullable-float, * (3..4294967295) => any}
 request-state = {0: 1, * (1..4294967295) => any}
+notification = {
+  0: 1,
+  1: bstr .size 16,
+  2: tstr,
+  3: 0..3,
+  4: bool,
+  5: tstr / null,
+  6: bool,
+  7: (0..2147483647) / null,
+  8: bool,
+  * (9..4294967295) => any
+}
+dismiss-notification = {0: 1, 1: bstr .size 16, * (2..4294967295) => any}

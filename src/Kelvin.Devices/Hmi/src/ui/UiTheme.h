@@ -10,8 +10,8 @@ LV_FONT_DECLARE(lv_font_jetbrains_mono_96_digits);
 // needs it (e.g. no CSS custom properties, so these are plain functions instead).
 namespace UiTheme
 {
-  inline lv_color_t bgDark() { return lv_color_hex(0x0f172a); }
-  inline lv_color_t bgPanel() { return lv_color_hex(0x1e293b); }
+  inline lv_color_t bgDark() { return lv_color_hex(0x0b101d); }
+  inline lv_color_t bgPanel() { return lv_color_hex(0x0f172a); }
   inline lv_color_t textMain() { return lv_color_hex(0xf8fafc); }
   inline lv_color_t textMuted() { return lv_color_hex(0x94a3b8); }
   inline lv_color_t accentHeat() { return lv_color_hex(0xf97316); }
@@ -21,6 +21,7 @@ namespace UiTheme
   inline lv_color_t accentPrimary() { return lv_color_hex(0x2563eb); }
   inline lv_color_t accentPrimaryStrong() { return lv_color_hex(0x1d4ed8); }
   inline lv_color_t accentSuccess() { return lv_color_hex(0x22c55e); }
+  inline lv_color_t accentInfo() { return lv_color_hex(0x93c5fd); }
   inline lv_color_t accentDanger() { return lv_color_hex(0xef4444); }
   inline lv_color_t accentDangerStrong() { return lv_color_hex(0xb91c1c); }
   inline lv_color_t textOnPrimaryStrong() { return lv_color_hex(0xeff6ff); }

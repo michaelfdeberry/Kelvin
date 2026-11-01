@@ -12,6 +12,8 @@ internal enum HmiMessageType : byte
     ControlStateChanged = 3,
     EnvironmentReadingChanged = 4,
     PreferencesChanged = 5,
+    Notify = 6,
+    DismissNotification = 7,
     SetMode = 0x10,
     SetFanEnabled = 0x11,
     SetSetPoint = 0x12,
@@ -87,6 +89,19 @@ internal sealed record HmiEnvironmentReading(
 );
 
 internal sealed record HmiPreferences(uint TemperatureUnit, uint TimeFormat);
+
+internal sealed record HmiNotification(
+    Guid Id,
+    string Message,
+    uint Type,
+    bool Dismissible,
+    string? Heading,
+    bool Banner,
+    uint? Duration,
+    bool Persistent
+);
+
+internal sealed record HmiNotificationDismissal(Guid Id);
 
 /// <summary>
 /// Hand-mirrored copy of the Hmi wire protocol (Kelvin.Server's Features/Hmi/HmiEnvelope.cs, the Hmi
@@ -315,6 +330,24 @@ internal static class HmiProtocol
 
     public static HmiPreferences? DecodePreferences(byte[] body) =>
         Read(body, reader => new HmiPreferences(reader.UInt(1, 1), reader.UInt(2, 1)));
+
+    public static HmiNotification? DecodeNotification(byte[] body) =>
+        Read(
+            body,
+            reader => new HmiNotification(
+                reader.Id(1)!.Value,
+                reader.Text(2, 1024)!,
+                reader.UInt(3, 3),
+                reader.Boolean(4),
+                reader.Text(5, 128, true),
+                reader.Boolean(6),
+                reader.NullableUInt(7, int.MaxValue),
+                reader.Boolean(8)
+            )
+        );
+
+    public static HmiNotificationDismissal? DecodeNotificationDismissal(byte[] body) =>
+        Read(body, reader => new HmiNotificationDismissal(reader.Id(1)!.Value));
 
     public static string Describe(HmiThermostatState state)
     {

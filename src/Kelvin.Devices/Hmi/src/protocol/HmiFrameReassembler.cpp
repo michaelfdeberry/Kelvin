@@ -13,6 +13,10 @@ HmiFrameReassembler::PendingMessage *HmiFrameReassembler::pendingFor(HmiMessageT
     return &pendingMessages[2];
   case HmiMessageType::PreferencesChanged:
     return &pendingMessages[3];
+  case HmiMessageType::Notify:
+    return &pendingMessages[4];
+  case HmiMessageType::DismissNotification:
+    return &pendingMessages[5];
   default:
     return nullptr;
   }

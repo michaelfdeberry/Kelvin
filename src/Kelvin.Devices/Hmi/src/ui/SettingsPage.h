@@ -40,6 +40,8 @@ private:
   lv_obj_t *tabButtons[2] = {nullptr, nullptr};
   lv_obj_t *scheduleTab = nullptr;
   lv_obj_t *lockoutTab = nullptr;
+  lv_obj_t *scheduleCards[2] = {nullptr, nullptr};
+  lv_obj_t *lockoutCards[2] = {nullptr, nullptr};
 
   // Index 0 = heating, 1 = cooling.
   lv_obj_t *timelines[2] = {nullptr, nullptr};
@@ -84,6 +86,7 @@ private:
 
   void showTab(size_t index);
   void rebuildSchedules();
+  void refreshTimeline(size_t column);
   void addScheduleRow(size_t column, size_t scheduleIndex);
   void refreshLockouts();
   void refreshLockoutRange(size_t index);
@@ -96,6 +99,7 @@ private:
   void deleteFromSheet();
 
   static void handleBackClicked(lv_event_t *e);
+  static void handleTimelineSizeChanged(lv_event_t *e);
   static void handleTabClicked(lv_event_t *e);
   static void handleAddClicked(lv_event_t *e);
   static void handleRowClicked(lv_event_t *e);

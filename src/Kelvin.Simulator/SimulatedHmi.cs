@@ -81,6 +81,8 @@ internal sealed class SimulatedHmi
                 or HmiMessageType.ControlStateChanged
                 or HmiMessageType.EnvironmentReadingChanged
                 or HmiMessageType.PreferencesChanged
+                or HmiMessageType.Notify
+                or HmiMessageType.DismissNotification
             )
         )
             return false;

@@ -1072,6 +1072,17 @@ internal sealed class GatewaySimulator
                         $"PreferencesChanged temperatureUnit={preferences.TemperatureUnit} timeFormat={preferences.TimeFormat}";
                 }
                 break;
+            case HmiMessageType.Notify:
+                var notification = HmiProtocol.DecodeNotification(message);
+                if (notification is not null)
+                    description =
+                        $"Notify id={notification.Id} type={notification.Type} heading={notification.Heading} message={notification.Message}";
+                break;
+            case HmiMessageType.DismissNotification:
+                var dismissal = HmiProtocol.DecodeNotificationDismissal(message);
+                if (dismissal is not null)
+                    description = $"DismissNotification id={dismissal.Id}";
+                break;
             default:
                 description = $"{type} (unhandled) {Convert.ToHexString(message)}";
                 break;

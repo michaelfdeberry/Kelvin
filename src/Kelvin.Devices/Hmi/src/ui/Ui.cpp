@@ -214,6 +214,7 @@ void Ui::begin(Communicator &communicatorRef)
   settings.begin(*this);
   settings.applyState(thermostatState);
   LOG_PRINTLN("Settings built.");
+  notifications.begin(communicatorRef);
 
   refreshDial();
   refreshModeButtons();
@@ -419,6 +420,7 @@ void Ui::buildSetPointSlider(lv_obj_t *parent)
   lv_obj_set_style_bg_opa(setPointSlider, LV_OPA_COVER, LV_PART_KNOB);
   lv_obj_set_style_border_width(setPointSlider, 6, LV_PART_KNOB);
   lv_obj_set_style_pad_all(setPointSlider, KNOB_RADIUS - SLIDER_TRACK_HEIGHT / 2, LV_PART_KNOB);
+  lv_obj_add_flag(setPointSlider, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
   lv_obj_add_event_cb(setPointSlider, handleSliderEvent, LV_EVENT_ALL, this);
 
   lv_obj_t *ends = lv_obj_create(area);
@@ -461,9 +463,9 @@ void Ui::buildControls(lv_obj_t *parent)
   lv_obj_set_flex_grow(segments, 4);
   lv_obj_set_style_pad_all(segments, 6, 0);
   lv_obj_set_style_pad_gap(segments, 6, 0);
-  lv_obj_set_style_radius(segments, 18, 0);
+  lv_obj_set_style_radius(segments, 8, 0);
   lv_obj_set_style_bg_color(segments, UiTheme::bgPanel(), 0);
-  lv_obj_set_style_bg_opa(segments, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_opa(segments, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(segments, 1, 0);
   lv_obj_set_style_border_color(segments, UiTheme::borderSubtle(), 0);
   lv_obj_set_flex_flow(segments, LV_FLEX_FLOW_ROW);
@@ -473,27 +475,29 @@ void Ui::buildControls(lv_obj_t *parent)
 
   for (size_t i = 0; i < MODE_BUTTON_COUNT; i++)
   {
-    modeButtons[i] = UiWidgets::createFlatButton(segments, labels[i], 13);
+    modeButtons[i] = UiWidgets::createFlatButton(segments, labels[i], 6);
     lv_obj_set_flex_grow(modeButtons[i], 1);
     modeButtonBindings[i] = {this, modes[i]};
     lv_obj_add_event_cb(modeButtons[i], handleModeButtonClicked, LV_EVENT_CLICKED, &modeButtonBindings[i]);
   }
 
-  fanButton = UiWidgets::createFlatButton(bar, "", 18, &fanButtonLabel);
+  fanButton = UiWidgets::createFlatButton(bar, "", 8, &fanButtonLabel);
   lv_obj_set_flex_grow(fanButton, 1);
-  lv_obj_set_style_bg_opa(fanButton, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_opa(fanButton, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(fanButton, 1, 0);
   lv_obj_add_event_cb(fanButton, handleFanButtonClicked, LV_EVENT_CLICKED, this);
 
   lv_obj_t *gearLabel = nullptr;
-  lv_obj_t *gearButton = UiWidgets::createFlatButton(bar, LV_SYMBOL_SETTINGS, 18, &gearLabel);
+  gearButton = UiWidgets::createFlatButton(bar, LV_SYMBOL_EDIT, 8, &gearLabel);
+  lv_obj_add_state(gearButton, LV_STATE_DISABLED);
+  lv_obj_set_style_opa(gearButton, LV_OPA_40, LV_STATE_DISABLED);
   lv_obj_set_size(gearButton, 96, LV_PCT(100));
   lv_obj_set_style_bg_color(gearButton, UiTheme::bgPanel(), 0);
-  lv_obj_set_style_bg_opa(gearButton, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_opa(gearButton, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(gearButton, 1, 0);
   lv_obj_set_style_border_color(gearButton, UiTheme::borderSubtle(), 0);
   lv_obj_set_style_text_font(gearLabel, UiTheme::fontValue(), 0);
-  lv_obj_set_style_text_color(gearLabel, UiTheme::textMuted(), 0);
+  lv_obj_set_style_text_color(gearLabel, UiTheme::textMain(), 0);
   lv_obj_add_event_cb(gearButton, handleSettingsButtonClicked, LV_EVENT_CLICKED, this);
 }
 
@@ -633,6 +637,8 @@ void Ui::refreshSetPointSlider()
     }
   }
 
+  refreshSliderTrack();
+
   bool hasCurrent = controlState.hasEnvironmentTemperature || hasEnvironmentReading;
   if (hasCurrent)
   {
@@ -656,6 +662,29 @@ void Ui::refreshSetPointSlider()
     lv_obj_add_flag(currentMarker, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(currentMarkerLabel, LV_OBJ_FLAG_HIDDEN);
   }
+}
+
+void Ui::refreshSliderTrack()
+{
+  bool range = thermostatState.mode == RunMode::Automatic && !lv_obj_has_state(setPointSlider, LV_STATE_DISABLED);
+  bool cooling = thermostatState.mode == RunMode::Cooling && !lv_obj_has_state(setPointSlider, LV_STATE_DISABLED);
+  lv_obj_set_style_bg_color(setPointSlider, range ? UiTheme::accentHeat() : (cooling ? UiTheme::accentCool() : UiTheme::bgPanel()), LV_PART_MAIN);
+  if (cooling)
+    lv_obj_set_style_bg_color(setPointSlider, UiTheme::bgPanel(), LV_PART_INDICATOR);
+  lv_obj_set_style_bg_grad_dir(setPointSlider, range ? LV_GRAD_DIR_HOR : LV_GRAD_DIR_NONE, LV_PART_MAIN);
+  if (!range)
+    return;
+
+  int32_t minimum = lv_slider_get_min_value(setPointSlider);
+  int32_t span = lv_slider_get_max_value(setPointSlider) - minimum;
+  if (span <= 0)
+    return;
+
+  int32_t heatingStop = (lv_slider_get_left_value(setPointSlider) - minimum) * 255 / span;
+  int32_t coolingStop = (lv_slider_get_value(setPointSlider) - minimum) * 255 / span;
+  lv_obj_set_style_bg_grad_color(setPointSlider, UiTheme::accentCool(), LV_PART_MAIN);
+  lv_obj_set_style_bg_main_stop(setPointSlider, heatingStop, LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_stop(setPointSlider, coolingStop, LV_PART_MAIN);
 }
 
 float *Ui::findOrAddSetPoint(RunType type)
@@ -722,6 +751,15 @@ void Ui::applyBattery(int level, bool externalPower)
 
 void Ui::refreshModeButtons()
 {
+  bool settingsEnabled = thermostatState.mode == RunMode::Automatic || thermostatState.mode == RunMode::Heating || thermostatState.mode == RunMode::Cooling;
+  if (settingsEnabled)
+    lv_obj_remove_state(gearButton, LV_STATE_DISABLED);
+  else
+  {
+    lv_obj_add_state(gearButton, LV_STATE_DISABLED);
+    if (lv_screen_active() == settings.screen())
+      closeSettings();
+  }
   static const RunMode modes[MODE_BUTTON_COUNT] = {RunMode::Automatic, RunMode::Heating, RunMode::Cooling, RunMode::Off};
 
   for (size_t i = 0; i < MODE_BUTTON_COUNT; i++)
@@ -747,7 +785,7 @@ void Ui::refreshModeButtons()
     }
     lv_obj_set_style_bg_color(modeButtons[i], color, 0);
     lv_obj_set_style_bg_opa(modeButtons[i], selected ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    lv_obj_set_style_text_color(lv_obj_get_child(modeButtons[i], 0), selected ? UiTheme::textMain() : UiTheme::textMuted(), 0);
+    lv_obj_set_style_text_color(lv_obj_get_child(modeButtons[i], 0), UiTheme::textMain(), 0);
     lv_obj_set_style_opa(modeButtons[i], thermostatState.mode == RunMode::Disabled ? LV_OPA_50 : LV_OPA_COVER, 0);
   }
 }
@@ -757,8 +795,9 @@ void Ui::refreshFanButton()
   bool on = thermostatState.fanEnabled;
   lv_label_set_text(fanButtonLabel, on ? "Fan: On" : "Fan: Auto");
   lv_obj_set_style_bg_color(fanButton, on ? UiTheme::accentPrimary() : UiTheme::bgPanel(), 0);
+  lv_obj_set_style_bg_opa(fanButton, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_color(fanButton, on ? UiTheme::accentPrimary() : UiTheme::borderSubtle(), 0);
-  lv_obj_set_style_text_color(fanButtonLabel, on ? UiTheme::textMain() : UiTheme::textMuted(), 0);
+  lv_obj_set_style_text_color(fanButtonLabel, UiTheme::textMain(), 0);
   lv_obj_set_style_opa(fanButton, thermostatState.mode == RunMode::Disabled ? LV_OPA_50 : LV_OPA_COVER, 0);
 }
 
@@ -949,6 +988,8 @@ void Ui::onSetForecastLockouts(const float *heatingLockoutC, const float *coolin
 
 void Ui::openSettings()
 {
+  if (lv_obj_has_state(gearButton, LV_STATE_DISABLED))
+    return;
   settings.applyState(thermostatState);
   settings.reset();
   lv_screen_load(settings.screen());
@@ -981,7 +1022,30 @@ void Ui::handleSliderEvent(lv_event_t *e)
   auto *ui = (Ui *)lv_event_get_user_data(e);
   lv_event_code_t code = lv_event_get_code(e);
 
-  if (code == LV_EVENT_PRESSED)
+  if (code == LV_EVENT_DRAW_TASK_ADDED)
+  {
+    if (ui->thermostatState.mode != RunMode::Automatic)
+      return;
+    lv_draw_task_t *task = lv_event_get_draw_task(e);
+    auto *descriptor = (lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(task);
+    if (descriptor->part != LV_PART_KNOB)
+      return;
+
+    int32_t minimum = lv_slider_get_min_value(ui->setPointSlider);
+    int32_t span = lv_slider_get_max_value(ui->setPointSlider) - minimum;
+    if (span <= 0)
+      return;
+    lv_area_t track;
+    lv_area_t thumb;
+    lv_obj_get_content_coords(ui->setPointSlider, &track);
+    lv_draw_task_get_area(task, &thumb);
+    int32_t midpoint = 2 * track.x1 + lv_area_get_width(&track) *
+                                          (lv_slider_get_left_value(ui->setPointSlider) + lv_slider_get_value(ui->setPointSlider) - 2 * minimum) / span;
+    lv_color_t color = thumb.x1 + thumb.x2 <= midpoint ? UiTheme::accentHeat() : UiTheme::accentCool();
+    if (lv_draw_task_get_type(task) == LV_DRAW_TASK_TYPE_BORDER)
+      ((lv_draw_border_dsc_t *)descriptor)->color = color;
+  }
+  else if (code == LV_EVENT_PRESSED)
   {
     ui->sliderDragging = true;
   }
@@ -992,6 +1056,7 @@ void Ui::handleSliderEvent(lv_event_t *e)
     formatReadout(readout, sizeof(readout), range, range ? lv_slider_get_left_value(ui->setPointSlider) : 0,
                   lv_slider_get_value(ui->setPointSlider));
     lv_label_set_text(ui->setPointReadout, readout);
+    ui->refreshSliderTrack();
   }
   else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST)
   {

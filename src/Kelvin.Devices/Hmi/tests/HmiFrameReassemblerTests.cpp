@@ -11,6 +11,7 @@
 #include "../src/protocol/ThermostatStateParser.h"
 #include "../src/protocol/ControlStateParser.h"
 #include "../src/protocol/PreferencesParser.h"
+#include "../src/protocol/NotificationParser.h"
 
 using Bytes = std::vector<uint8_t>;
 
@@ -48,7 +49,8 @@ static void allTypesCanBePending()
 {
   HmiFrameReassembler assembler;
   const HmiMessageType types[] = {HmiMessageType::ThermostatStateChunk, HmiMessageType::ControlStateChanged,
-                                  HmiMessageType::EnvironmentReadingChanged, HmiMessageType::PreferencesChanged};
+                                  HmiMessageType::EnvironmentReadingChanged, HmiMessageType::PreferencesChanged,
+                                  HmiMessageType::Notify, HmiMessageType::DismissNotification};
   for (auto type : types)
     assert(!add(assembler, frame(type, 0, 2, (uint32_t)type, {(uint8_t)type})));
   for (auto type : types)
@@ -349,6 +351,88 @@ static void everyUplinkAndSmallBuffer()
   assert(Bytes(buffer + HmiEnvelope::HEADER_SIZE, buffer + length) == Bytes({0xA2, 0, 1, 1, 0xF5}));
 }
 
+static Bytes notificationVector()
+{
+  return {0xA9, 0, 1, 1, 0x50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+          2, 0x66, 'F', 'a', 'i', 'l', 'e', 'd', 3, 3, 4, 0xF5, 5, 0x68,
+          'S', 'e', 't', 't', 'i', 'n', 'g', 's', 6, 0xF4, 7, 0x19, 0x27, 0x10, 8, 0xF4};
+}
+
+static void notificationGoldenVectorAndDismissal()
+{
+  auto bytes = notificationVector();
+  HmiFrameReassembler assembler;
+  Bytes first(bytes.begin(), bytes.begin() + 20);
+  Bytes second(bytes.begin() + 20, bytes.end());
+  assert(!add(assembler, frame(HmiMessageType::Notify, 0, 2, 1, first)));
+  assert(add(assembler, frame(HmiMessageType::Notify, 1, 2, 1, second)));
+  HmiNotification notification;
+  assert(NotificationParser::parse(assembler.getMessage(), assembler.getMessageLength(), notification));
+  assert(strcmp(notification.message, "Failed") == 0 && strcmp(notification.heading, "Settings") == 0);
+  assert(notification.type == 3 && notification.dismissible && !notification.banner && !notification.persistent);
+  assert(notification.duration == 10000);
+  Bytes dismissal = {0xA2, 0, 1, 1, 0x50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  uint8_t id[16];
+  assert(NotificationParser::parseDismiss(dismissal.data(), dismissal.size(), id));
+  assert(memcmp(id, notification.id, 16) == 0);
+  for (size_t length = 0; length < dismissal.size(); length++)
+  {
+    memset(id, 42, sizeof(id));
+    assert(!NotificationParser::parseDismiss(dismissal.data(), length, id));
+    assert(id[0] == 42 && id[15] == 42);
+  }
+  bytes.erase(bytes.begin() + 45, bytes.begin() + 49);
+  bytes.insert(bytes.begin() + 45, {7, 0xF6});
+  bytes.erase(bytes.begin() + 34, bytes.begin() + 43);
+  bytes.insert(bytes.begin() + 34, 0xF6);
+  assert(NotificationParser::parse(bytes.data(), bytes.size(), notification));
+  assert(notification.duration == 0 && notification.heading[0] == '\0');
+}
+
+static void malformedNotificationsAreAtomicAndBounded()
+{
+  auto golden = notificationVector();
+  std::vector<Bytes> invalid;
+  for (size_t length = 0; length < golden.size(); length++)
+    invalid.push_back(Bytes(golden.begin(), golden.begin() + length));
+  for (size_t offset : {2, 30, 32, 49})
+  {
+    auto bytes = golden;
+    bytes[offset] = 4;
+    invalid.push_back(bytes);
+  }
+  auto embeddedNull = golden;
+  embeddedNull[23] = 0;
+  invalid.push_back(embeddedNull);
+  auto trailing = golden;
+  trailing.push_back(0);
+  invalid.push_back(trailing);
+  for (size_t length : {1024, 1025})
+  {
+    auto bytes = golden;
+    bytes.erase(bytes.begin() + 22, bytes.begin() + 29);
+    Bytes text = {0x79, (uint8_t)(length >> 8), (uint8_t)length};
+    text.insert(text.end(), length, 'x');
+    bytes.insert(bytes.begin() + 22, text.begin(), text.end());
+    if (length == 1024)
+    {
+      HmiNotification notification;
+      assert(NotificationParser::parse(bytes.data(), bytes.size(), notification));
+      assert(strlen(notification.message) == 1024);
+    }
+    else
+      invalid.push_back(bytes);
+  }
+  for (const auto &bytes : invalid)
+  {
+    HmiNotification notification;
+    strcpy(notification.message, "unchanged");
+    notification.duration = 123;
+    assert(!NotificationParser::parse(bytes.data(), bytes.size(), notification));
+    assert(strcmp(notification.message, "unchanged") == 0 && notification.duration == 123);
+  }
+}
+
 int main()
 {
   interleavedTypes();
@@ -365,5 +449,7 @@ int main()
   allDownlinkStates();
   downlinkFailuresAreAtomic();
   everyUplinkAndSmallBuffer();
-  puts("All 14 firmware protocol test groups passed.");
+  notificationGoldenVectorAndDismissal();
+  malformedNotificationsAreAtomicAndBounded();
+  puts("All 16 firmware protocol test groups passed.");
 }

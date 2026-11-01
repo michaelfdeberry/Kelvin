@@ -17,6 +17,7 @@ namespace UiWidgets
     lv_obj_t *label = lv_label_create(button);
     lv_label_set_text(label, text);
     lv_obj_set_style_text_font(label, UiTheme::fontLabel(), 0);
+    lv_obj_set_style_text_color(label, UiTheme::textMain(), 0);
     lv_obj_center(label);
     if (labelOut != nullptr)
     {
@@ -29,7 +30,7 @@ namespace UiWidgets
   inline lv_obj_t *createSolidButton(lv_obj_t *parent, const char *text, int32_t width, int32_t height, lv_color_t background, lv_color_t border, lv_color_t textColor)
   {
     lv_obj_t *label = nullptr;
-    lv_obj_t *button = createFlatButton(parent, text, 14, &label);
+    lv_obj_t *button = createFlatButton(parent, text, 7, &label);
     lv_obj_set_size(button, width, height);
     lv_obj_set_style_bg_color(button, background, 0);
     lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);

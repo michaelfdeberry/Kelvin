@@ -57,7 +57,7 @@ Replace `COMX` with the board's actual serial port.
 
 HMI messages use a 9-byte envelope: `[type:1][chunk index:1][chunk count:1][body length:2 LE][message ID:4 LE]`,
 followed by the body. Every chunk of one message shares the same ID. The panel retains one assembly for
-each of the four downlink types, up to 2048 body bytes each, separately from the completed-message buffer.
+each of the six downlink types, up to 2048 body bytes each, separately from the completed-message buffer.
 Only consecutive indices starting at zero, with matching IDs and chunk counts, can complete a message.
 Malformed frames, gaps, duplicate continuations, changed IDs/counts, and overflow invalidate the affected
 assembly; a fresh chunk zero starts it again. Other message types can arrive between its chunks.
@@ -78,12 +78,32 @@ hardware. After installing TinyCBOR, run from the repository root in an MSVC Dev
 $tinyCbor = "$env:USERPROFILE/Documents/Arduino/libraries/TinyCBOR/src"
 $testOutput = Join-Path $env:TEMP "kelvin-hmi-protocol-tests"
 New-Item -ItemType Directory -Force $testOutput | Out-Null
-cl /nologo /std:c++17 /EHsc /W4 /I src/Kelvin.Devices/Common/src /I "$tinyCbor" src/Kelvin.Devices/Hmi/tests/HmiFrameReassemblerTests.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiFrameReassembler.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiCommandEncoder.cpp src/Kelvin.Devices/Hmi/src/protocol/EnvironmentReadingParser.cpp src/Kelvin.Devices/Hmi/src/protocol/ThermostatStateParser.cpp src/Kelvin.Devices/Hmi/src/protocol/ControlStateParser.cpp src/Kelvin.Devices/Hmi/src/protocol/PreferencesParser.cpp "$tinyCbor/cborparser.c" "$tinyCbor/cborencoder.c" "$tinyCbor/cborencoder_close_container_checked.c" "/Fo:$testOutput/" "/Fe:$testOutput/HmiFrameReassemblerTests.exe"
+cl /nologo /std:c++17 /EHsc /W4 /I src/Kelvin.Devices/Common/src /I "$tinyCbor" src/Kelvin.Devices/Hmi/tests/HmiFrameReassemblerTests.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiFrameReassembler.cpp src/Kelvin.Devices/Hmi/src/protocol/HmiCommandEncoder.cpp src/Kelvin.Devices/Hmi/src/protocol/EnvironmentReadingParser.cpp src/Kelvin.Devices/Hmi/src/protocol/ThermostatStateParser.cpp src/Kelvin.Devices/Hmi/src/protocol/ControlStateParser.cpp src/Kelvin.Devices/Hmi/src/protocol/PreferencesParser.cpp src/Kelvin.Devices/Hmi/src/protocol/NotificationParser.cpp "$tinyCbor/cborparser.c" "$tinyCbor/cborencoder.c" "$tinyCbor/cborencoder_close_container_checked.c" "/Fo:$testOutput/" "/Fe:$testOutput/HmiFrameReassemblerTests.exe"
 & "$testOutput/HmiFrameReassemblerTests.exe"
 ```
 
 Adjust `$tinyCbor` if the Arduino sketchbook is installed elsewhere. GCC/Clang can also compile these
 sources; compile TinyCBOR's `cborparser.c` as C and link it with the C++ test sources.
+
+## Settings and notifications
+
+Auto shows both heating and cooling schedules and forecast lockouts. Heat shows only heating;
+Cool shows only cooling. The settings button is disabled in Off and Disabled modes. A pushed mode
+change closes any open schedule sheet; entering Off or Disabled returns to the main screen.
+The server scopes set-point, schedule, and forecast commands to the current mode before validation,
+preserving the inactive mode's settings. Heat and Cool can therefore be configured independently;
+Auto still validates both together. Removing the last active schedule restores that mode's set point.
+
+Notifications mirror the client alerts with severity colors, icons, optional headings, close buttons,
+timed dismissal, and persistent banners. Up to four bottom-right toasts and one top banner appear
+above either screen. Long content scrolls. Closing or timing out a stored notification dismisses it
+across clients; a remote dismissal removes the matching alert. Gateway command failures appear only
+on the requesting panel and refresh its settings without creating a global notification.
+
+Restart the updated server and reflash the HMI together. Gateway and Node firmware are unchanged.
+On hardware, verify all five modes, an invalid schedule/lockout error on only the originating panel,
+cross-client dismissal, long alert text, toast timeouts, and active notification recovery after sleep.
+Compilation and native protocol tests do not validate touch layout or radio delivery on the device.
 
 ## Battery and power
 

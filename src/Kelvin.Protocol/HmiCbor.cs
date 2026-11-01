@@ -89,6 +89,20 @@ public sealed class HmiCborMap
 
     public bool Boolean(uint key) => Reader(key).ReadBoolean();
 
+    public string? Text(uint key, int maximumBytes, bool nullable = false)
+    {
+        var reader = Reader(key);
+        if (nullable && reader.PeekState() == CborReaderState.Null)
+            return null;
+        var text = reader.ReadTextString();
+        return System.Text.Encoding.UTF8.GetByteCount(text) <= maximumBytes && !text.Contains('\0')
+            ? text
+            : throw new FormatException("Invalid text length or content.");
+    }
+
+    public uint? NullableUInt(uint key, uint maximum = uint.MaxValue) =>
+        Reader(key).PeekState() == CborReaderState.Null ? null : UInt(key, maximum);
+
     public float Float(uint key)
     {
         var value = (float)Reader(key).ReadDouble();

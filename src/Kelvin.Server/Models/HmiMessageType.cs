@@ -36,6 +36,8 @@ public enum HmiMessageType : byte
   /// Server -> Hmi. The system-wide preferences have changed. Body: encoded preferences chunk (see HmiPreferencesEncoder).
   /// </summary>
   PreferencesChanged = 5,
+  Notify = 6,
+  DismissNotification = 7,
 
   /// <summary>Hmi -> Server. Sets RunMode.</summary>
   SetMode = 0x10,

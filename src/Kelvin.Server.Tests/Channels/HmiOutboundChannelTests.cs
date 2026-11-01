@@ -11,6 +11,19 @@ public class HmiOutboundChannelTests
     private const string PanelMac = "AA:BB:CC:DD:EE:FF";
 
     [Fact]
+    public void NotificationsAndDismissals_RetainEveryMessageInOrder()
+    {
+        var channel = new HmiOutboundChannel();
+        channel.Write(PanelMac, HmiMessageType.Notify, [1]);
+        channel.Write(PanelMac, HmiMessageType.Notify, [2]);
+        channel.Write(PanelMac, HmiMessageType.DismissNotification, [3]);
+        channel.Write(PanelMac, HmiMessageType.DismissNotification, [4]);
+        channel.Write(PanelMac, HmiMessageType.EnvironmentReadingChanged, [5]);
+        channel.Write(PanelMac, HmiMessageType.EnvironmentReadingChanged, [6]);
+        Drain(channel).SelectMany(Body).ShouldBe(new byte[] { 1, 2, 3, 4, 6 });
+    }
+
+    [Fact]
     public void RepeatedSnapshots_RetainOnlyLatestPerPanelAndType()
     {
         var channel = new HmiOutboundChannel();

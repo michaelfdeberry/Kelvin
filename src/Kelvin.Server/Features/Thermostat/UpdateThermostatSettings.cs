@@ -66,8 +66,8 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
           thermostat.HysteresisC,
           projectedSetPoints,
           projectedSchedules,
-          thermostat.HeatingLockoutC,
-          thermostat.CoolingLockoutC
+          mode is RunMode.Heating or RunMode.Automatic ? thermostat.HeatingLockoutC : null,
+          mode is RunMode.Cooling or RunMode.Automatic ? thermostat.CoolingLockoutC : null
         )
       ),
       ct
@@ -129,9 +129,7 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
   {
     var schedulesForMode = schedules.Where(x => x.Type == type);
 
-    // Skip if not in automatic mode and no schedules exist for this mode.
-    // This retains the schedule for the alternative mode.
-    if (mode != RunMode.Automatic && !schedulesForMode.Any())
+    if (mode != RunMode.Automatic && mode != (type == RunType.Heating ? RunMode.Heating : RunMode.Cooling) && !schedulesForMode.Any())
       return;
 
     var existing = thermostat.Schedules.Where(x => x.DeletedAt is null && x.Type == type).ToList();
