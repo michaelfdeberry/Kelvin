@@ -1,6 +1,7 @@
 import '../../../components/features/settings/settings-general/settings-general.js';
 import '../../../components/features/settings/settings-location/settings-location.js';
 import '../../../components/features/settings/settings-sensors/settings-sensors.js';
+import '../../../components/features/settings/settings-thermostat/settings-thermostat.js';
 import '../../../components/features/settings/settings-gateway/settings-gateway.js';
 
 import { html, LitElement } from 'lit';
@@ -20,6 +21,7 @@ export class SettingsView extends LitElement {
         <p class="settings-view__description">Manage system preferences and location data.</p>
         <app-settings-general></app-settings-general>
         <app-settings-location></app-settings-location>
+        <app-settings-thermostat></app-settings-thermostat>
         <app-settings-gateway></app-settings-gateway>
         <app-settings-sensors></app-settings-sensors>
       </section>

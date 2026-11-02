@@ -7,12 +7,6 @@ export default css`
     align-items: center;
   }
 
-  .settings-gateway__toggle-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
   .settings-gateway__pins {
     display: flex;
     gap: 1rem;

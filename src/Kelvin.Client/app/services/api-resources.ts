@@ -35,6 +35,7 @@ const apiResources = {
     getSetPoints: '/api/thermostat/set-points',
     getThermostat: '/api/thermostat',
     updateThermostat: '/api/thermostat',
+    updateThermostatConfiguration: '/api/thermostat/configuration',
     updateThermostatSettings: '/api/thermostat/settings',
   },
   weather: {
