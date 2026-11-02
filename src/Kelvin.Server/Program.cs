@@ -51,6 +51,8 @@ builder.Services.AddHostedService<ControlService>();
 builder.Services.AddHostedService<GatewayService>();
 builder.Services.AddHostedService<SensingService>();
 builder.Services.AddHostedService<ThermostatService>();
+builder.Services.AddHostedService<RecirculationService>();
+builder.Services.AddHostedService<BalancingService>();
 builder
   .Services.AddSignalR()
   .AddJsonProtocol(options =>

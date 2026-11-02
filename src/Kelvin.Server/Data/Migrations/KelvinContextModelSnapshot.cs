@@ -15,7 +15,7 @@ namespace Kelvin.Server.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("Kelvin.Server.Models.ControlStateChange", b =>
                 {
@@ -391,6 +391,21 @@ namespace Kelvin.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("CO2RecirculationDurationMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CO2RecirculationEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CO2RecirculationMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<ushort>("CO2RecirculationSatisfiedPpm")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<ushort>("CO2RecirculationTriggerPpm")
+                        .HasColumnType("INTEGER");
+
                     b.Property<float?>("CoolingLockoutC")
                         .HasColumnType("REAL");
 
@@ -402,6 +417,18 @@ namespace Kelvin.Server.Data.Migrations
 
                     b.Property<bool>("FanEnabled")
                         .HasColumnType("INTEGER");
+
+                    b.Property<int>("HeatingAutoBalanceDurationMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HeatingAutoBalanceEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<float>("HeatingBalanceSatisfiedC")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("HeatingBalanceTriggerC")
+                        .HasColumnType("REAL");
 
                     b.Property<float?>("HeatingLockoutC")
                         .HasColumnType("REAL");
