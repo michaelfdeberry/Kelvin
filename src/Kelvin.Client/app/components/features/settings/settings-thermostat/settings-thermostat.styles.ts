@@ -15,44 +15,39 @@ export default css`
     align-items: center;
   }
 
+  .settings-thermostat {
+    display: grid;
+    gap: 1rem;
+  }
+
   .settings-thermostat__toggle-label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
 
-  .settings-thermostat__section {
-    display: grid;
-    gap: 0.75rem;
-    padding: 1rem 0;
-    border-top: 1px solid var(--border-subtle);
-  }
-
-  .settings-thermostat__section:first-child {
-    padding-top: 0;
-    border-top: none;
-  }
-
-  .settings-thermostat__section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .settings-thermostat__section-title {
-    margin: 0;
-    font-size: 1.1rem;
-  }
-
   .settings-thermostat__description {
-    margin: 0;
+    margin: 0 0 1rem;
     color: var(--text-muted);
     line-height: 1.45;
   }
 
   .settings-thermostat__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     gap: 1rem;
+  }
+
+  /* Grid items share a row height, so pinning the input to the bottom keeps inputs aligned when a label wraps. */
+  .settings-thermostat__grid .form-control {
+    display: flex;
+    margin-top: 0;
+  }
+
+  .settings-thermostat__grid .form-control__label {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 100%;
   }
 `;

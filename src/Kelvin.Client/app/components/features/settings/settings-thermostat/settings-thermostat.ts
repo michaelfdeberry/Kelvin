@@ -30,6 +30,8 @@ const MS_PER_MINUTE = 60_000;
 const MIN_HYSTERESIS_C = 0.3;
 const MAX_HYSTERESIS_C = 2;
 
+type ThermostatSection = 'hysteresis' | 'co2' | 'balance';
+
 @customElement('app-settings-thermostat')
 export class SettingsThermostat extends LitElement {
   static override styles = [sharedStyles, settingsThermostatStyles];
@@ -58,9 +60,9 @@ export class SettingsThermostat extends LitElement {
     return this.balanceEnabledDraft ?? this.thermostat.heatingAutoBalanceEnabled;
   }
 
-  private clearDrafts(): void {
-    this.co2EnabledDraft = undefined;
-    this.balanceEnabledDraft = undefined;
+  private clearDraft(section: ThermostatSection): void {
+    if (section === 'co2') this.co2EnabledDraft = undefined;
+    if (section === 'balance') this.balanceEnabledDraft = undefined;
   }
 
   private relayStatesTask = new Task(this, {
@@ -68,36 +70,53 @@ export class SettingsThermostat extends LitElement {
     args: () => [this.thermostat?.mode],
   });
 
-  private async handleSave(event: Event): Promise<void> {
+  private async handleSave(section: ThermostatSection, event: Event): Promise<void> {
     event.preventDefault();
 
     const data = new FormData(event.target as HTMLFormElement);
     const unit = this.preferences.temperatureUnit;
-    const thermostat = this.thermostat;
     const value = (name: string): number => Number(data.get(name));
+    const { thermostat } = this;
 
-    // Disabled controls are left out of FormData, so a switched-off section keeps its saved values.
-    const co2 = this.co2Enabled;
-    const balance = this.balanceEnabled;
-
+    // Each card saves on its own; everything outside the card keeps its saved value.
     const request: UpdateThermostatConfigurationRequest = {
-      hysteresisC: deltaFromPreferredUnit(unit, value('hysteresis')),
-      co2RecirculationEnabled: co2,
-      co2RecirculationMode: co2 ? (data.get('co2RecirculationMode') as CO2RecirculationMode) : thermostat.co2RecirculationMode,
-      co2RecirculationTriggerPpm: co2 ? Math.round(value('co2RecirculationTrigger')) : thermostat.co2RecirculationTriggerPpm,
-      co2RecirculationSatisfiedPpm: co2 ? Math.round(value('co2RecirculationSatisfied')) : thermostat.co2RecirculationSatisfiedPpm,
-      co2RecirculationDurationMs: co2 ? Math.round(value('co2RecirculationDuration') * MS_PER_MINUTE) : thermostat.co2RecirculationDurationMs,
-      heatingAutoBalanceEnabled: balance,
-      heatingBalanceTriggerC: balance ? deltaFromPreferredUnit(unit, value('heatingBalanceTrigger')) : thermostat.heatingBalanceTriggerC,
-      heatingBalanceSatisfiedC: balance ? deltaFromPreferredUnit(unit, value('heatingBalanceSatisfied')) : thermostat.heatingBalanceSatisfiedC,
-      heatingAutoBalanceDurationMs: balance
-        ? Math.round(value('heatingAutoBalanceDuration') * MS_PER_MINUTE)
-        : thermostat.heatingAutoBalanceDurationMs,
+      hysteresisC: thermostat.hysteresisC,
+      co2RecirculationEnabled: thermostat.co2RecirculationEnabled,
+      co2RecirculationMode: thermostat.co2RecirculationMode,
+      co2RecirculationTriggerPpm: thermostat.co2RecirculationTriggerPpm,
+      co2RecirculationSatisfiedPpm: thermostat.co2RecirculationSatisfiedPpm,
+      co2RecirculationDurationMs: thermostat.co2RecirculationDurationMs,
+      heatingAutoBalanceEnabled: thermostat.heatingAutoBalanceEnabled,
+      heatingBalanceTriggerC: thermostat.heatingBalanceTriggerC,
+      heatingBalanceSatisfiedC: thermostat.heatingBalanceSatisfiedC,
+      heatingAutoBalanceDurationMs: thermostat.heatingAutoBalanceDurationMs,
     };
+
+    if (section === 'hysteresis') {
+      request.hysteresisC = deltaFromPreferredUnit(unit, value('hysteresis'));
+    } else if (section === 'co2') {
+      request.co2RecirculationEnabled = this.co2Enabled;
+
+      // Disabled controls are left out of FormData, so a switched-off card keeps its saved values.
+      if (this.co2Enabled) {
+        request.co2RecirculationMode = data.get('co2RecirculationMode') as CO2RecirculationMode;
+        request.co2RecirculationTriggerPpm = Math.round(value('co2RecirculationTrigger'));
+        request.co2RecirculationSatisfiedPpm = Math.round(value('co2RecirculationSatisfied'));
+        request.co2RecirculationDurationMs = Math.round(value('co2RecirculationDuration') * MS_PER_MINUTE);
+      }
+    } else {
+      request.heatingAutoBalanceEnabled = this.balanceEnabled;
+
+      if (this.balanceEnabled) {
+        request.heatingBalanceTriggerC = deltaFromPreferredUnit(unit, value('heatingBalanceTrigger'));
+        request.heatingBalanceSatisfiedC = deltaFromPreferredUnit(unit, value('heatingBalanceSatisfied'));
+        request.heatingAutoBalanceDurationMs = Math.round(value('heatingAutoBalanceDuration') * MS_PER_MINUTE);
+      }
+    }
 
     try {
       await apiPut<void>(apiResources.thermostat.updateThermostatConfiguration, { body: request });
-      this.clearDrafts();
+      this.clearDraft(section);
       dispatchCustomEvent(this, events.thermostatUpdated);
       dispatchToast(this, 'Success', 'Thermostat settings saved successfully.');
     } catch {
@@ -153,51 +172,78 @@ export class SettingsThermostat extends LitElement {
     `;
   }
 
-  private renderForm(): TemplateResult {
+  private renderActions(): TemplateResult {
+    return html`
+      <div class="form-group__actions">
+        <button
+          type="reset"
+          class="button button--secondary"
+        >
+          Reset
+        </button>
+        <button
+          type="submit"
+          class="button button--primary"
+        >
+          Save
+        </button>
+      </div>
+    `;
+  }
+
+  private renderHysteresisForm(): TemplateResult {
     const unit = this.preferences.temperatureUnit;
-    const thermostat = this.thermostat;
-    const co2Disabled = !this.co2Enabled;
-    const balanceDisabled = !this.balanceEnabled;
 
     return html`
       <form
-        @submit=${this.handleSave}
-        @reset=${this.clearDrafts}
+        @submit=${(event: Event) => this.handleSave('hysteresis', event)}
+        @reset=${() => this.clearDraft('hysteresis')}
       >
         <div class="form-group">
-          <section class="settings-thermostat__section">
-            <h3 class="settings-thermostat__section-title">Hysteresis</h3>
-            <p class="settings-thermostat__description">
-              How far the temperature may drift from the target before heating or cooling starts and stops.
-            </p>
-            <div class="form-control">
-              <label class="form-control__label">
-                Hysteresis (${getPreferredUnit(unit)})
-                <app-number-input
-                  id="hysteresis"
-                  name="hysteresis"
-                  step="0.1"
-                  class="form-control__input"
-                  .min=${convertDeltaToPreferredUnit(unit, MIN_HYSTERESIS_C)}
-                  .max=${convertDeltaToPreferredUnit(unit, MAX_HYSTERESIS_C)}
-                  .value=${convertDeltaToPreferredUnit(unit, thermostat.hysteresisC)}
-                ></app-number-input>
-              </label>
-            </div>
-          </section>
+          <p class="settings-thermostat__description">
+            How far the temperature may drift from the target before heating or cooling starts and stops.
+          </p>
+          <div class="form-control">
+            <label class="form-control__label">
+              Hysteresis (${getPreferredUnit(unit)})
+              <app-number-input
+                id="hysteresis"
+                name="hysteresis"
+                step="0.1"
+                class="form-control__input"
+                .min=${convertDeltaToPreferredUnit(unit, MIN_HYSTERESIS_C)}
+                .max=${convertDeltaToPreferredUnit(unit, MAX_HYSTERESIS_C)}
+                .value=${convertDeltaToPreferredUnit(unit, this.thermostat.hysteresisC)}
+              ></app-number-input>
+            </label>
+          </div>
+        </div>
+        ${this.renderActions()}
+      </form>
+    `;
+  }
 
-          <section class="settings-thermostat__section">
-            <div class="settings-thermostat__section-header">
-              <h3 class="settings-thermostat__section-title">CO<sub>2</sub> Recirculation</h3>
-              <label class="settings-thermostat__toggle-label">
-                Enabled
-                <app-toggle
-                  name="co2RecirculationEnabled"
-                  ?checked=${this.co2Enabled}
-                  @change=${(event: Event) => (this.co2EnabledDraft = (event.target as Toggle).checked)}
-                ></app-toggle>
-              </label>
-            </div>
+  private renderRecirculationCard(): TemplateResult {
+    const thermostat = this.thermostat;
+    const disabled = !this.co2Enabled;
+
+    return html`
+      <article class="card">
+        <div class="card__header">
+          <h2 class="card__title">CO<sub>2</sub> Recirculation</h2>
+          <label class="settings-thermostat__toggle-label">
+            Enabled
+            <app-toggle
+              ?checked=${this.co2Enabled}
+              @change=${(event: Event) => (this.co2EnabledDraft = (event.target as Toggle).checked)}
+            ></app-toggle>
+          </label>
+        </div>
+        <form
+          @submit=${(event: Event) => this.handleSave('co2', event)}
+          @reset=${() => this.clearDraft('co2')}
+        >
+          <div class="form-group">
             <p class="settings-thermostat__description">Runs the fan to circulate air when high CO<sub>2</sub> levels are detected.</p>
             <div class="settings-thermostat__grid">
               <div class="form-control">
@@ -208,7 +254,7 @@ export class SettingsThermostat extends LitElement {
                     name="co2RecirculationMode"
                     class="form-control__input select"
                     aria-label="CO2 recirculation mode"
-                    ?disabled=${co2Disabled}
+                    ?disabled=${disabled}
                   >
                     <option
                       value="Average"
@@ -233,7 +279,7 @@ export class SettingsThermostat extends LitElement {
                     name="co2RecirculationTrigger"
                     step="50"
                     class="form-control__input"
-                    ?disabled=${co2Disabled}
+                    ?disabled=${disabled}
                     .value=${thermostat.co2RecirculationTriggerPpm}
                   ></app-number-input>
                 </label>
@@ -246,7 +292,7 @@ export class SettingsThermostat extends LitElement {
                     name="co2RecirculationSatisfied"
                     step="50"
                     class="form-control__input"
-                    ?disabled=${co2Disabled}
+                    ?disabled=${disabled}
                     .value=${thermostat.co2RecirculationSatisfiedPpm}
                   ></app-number-input>
                 </label>
@@ -259,30 +305,44 @@ export class SettingsThermostat extends LitElement {
                     name="co2RecirculationDuration"
                     step="0.5"
                     class="form-control__input"
-                    ?disabled=${co2Disabled}
+                    ?disabled=${disabled}
                     .value=${thermostat.co2RecirculationDurationMs / MS_PER_MINUTE}
                   ></app-number-input>
                 </label>
               </div>
             </div>
-          </section>
+          </div>
+          ${this.renderActions()}
+        </form>
+      </article>
+    `;
+  }
 
-          <section class="settings-thermostat__section">
-            <div class="settings-thermostat__section-header">
-              <h3 class="settings-thermostat__section-title">Heating Balance</h3>
-              <label class="settings-thermostat__toggle-label">
-                Enabled
-                <app-toggle
-                  name="heatingAutoBalanceEnabled"
-                  ?checked=${this.balanceEnabled}
-                  @change=${(event: Event) => (this.balanceEnabledDraft = (event.target as Toggle).checked)}
-                ></app-toggle>
-              </label>
-            </div>
+  private renderBalanceCard(): TemplateResult {
+    const thermostat = this.thermostat;
+    const disabled = !this.balanceEnabled;
+
+    return html`
+      <article class="card">
+        <div class="card__header">
+          <h2 class="card__title">Heating Balance</h2>
+          <label class="settings-thermostat__toggle-label">
+            Enabled
+            <app-toggle
+              ?checked=${this.balanceEnabled}
+              @change=${(event: Event) => (this.balanceEnabledDraft = (event.target as Toggle).checked)}
+            ></app-toggle>
+          </label>
+        </div>
+        <form
+          @submit=${(event: Event) => this.handleSave('balance', event)}
+          @reset=${() => this.clearDraft('balance')}
+        >
+          <div class="form-group">
             <p class="settings-thermostat__description">Runs the fan after a heating cycle to even out temperatures when areas differ by too much.</p>
             <div class="settings-thermostat__grid">
-              ${this.renderDelta('heatingBalanceTrigger', 'Start when areas differ by more than', thermostat.heatingBalanceTriggerC, balanceDisabled)}
-              ${this.renderDelta('heatingBalanceSatisfied', 'Stop when areas differ by', thermostat.heatingBalanceSatisfiedC, balanceDisabled)}
+              ${this.renderDelta('heatingBalanceTrigger', 'Start when areas differ by more than', thermostat.heatingBalanceTriggerC, disabled)}
+              ${this.renderDelta('heatingBalanceSatisfied', 'Stop when areas differ by', thermostat.heatingBalanceSatisfiedC, disabled)}
               <div class="form-control">
                 <label class="form-control__label">
                   Maximum run time (minutes)
@@ -291,65 +351,54 @@ export class SettingsThermostat extends LitElement {
                     name="heatingAutoBalanceDuration"
                     step="0.5"
                     class="form-control__input"
-                    ?disabled=${balanceDisabled}
+                    ?disabled=${disabled}
                     .value=${thermostat.heatingAutoBalanceDurationMs / MS_PER_MINUTE}
                   ></app-number-input>
                 </label>
               </div>
             </div>
-          </section>
-        </div>
-        <div class="form-group__actions">
-          <button
-            type="reset"
-            class="button button--secondary"
-          >
-            Reset
-          </button>
-          <button
-            type="submit"
-            class="button button--primary"
-          >
-            Save
-          </button>
-        </div>
-      </form>
+          </div>
+          ${this.renderActions()}
+        </form>
+      </article>
     `;
   }
 
   override render() {
+    if (!this.thermostat || !this.preferences) {
+      return html`
+        <section class="settings-thermostat">
+          <article class="card"><p>Loading thermostat settings...</p></article>
+        </section>
+      `;
+    }
+
     return html`
       <section
         class="settings-thermostat"
-        role="tabpanel"
         aria-label="Thermostat settings"
       >
         <article class="card">
-          ${
-            !this.thermostat || !this.preferences
-              ? html`<p>Loading thermostat settings...</p>`
-              : html`
-                  <div class="card__header">
-                    <h2 class="card__title">Thermostat Settings</h2>
-                    <label class="settings-thermostat__toggle-label">
-                      HVAC Control
-                      ${this.relayStatesTask.render({
-                        complete: relayStates => html`
-                          <app-toggle
-                            class="settings-thermostat__control"
-                            @change=${this.handleControlChange}
-                            ?checked=${relayStates?.control ?? false}
-                          ></app-toggle>
-                        `,
-                        pending: () => html`<app-toggle disabled></app-toggle>`,
-                        error: () => html`<span class="error">Unavailable</span>`,
-                      })}
-                    </label>
-                  </div>
-                  ${this.renderForm()}
-                `
-          }
+          <div class="card__header">
+            <h2 class="card__title">Thermostat Settings</h2>
+            <label class="settings-thermostat__toggle-label">
+              HVAC Control
+              ${this.relayStatesTask.render({
+                complete: relayStates => html`
+                  <app-toggle
+                    class="settings-thermostat__control"
+                    @change=${this.handleControlChange}
+                    ?checked=${relayStates?.control ?? false}
+                  ></app-toggle>
+                `,
+                pending: () => html`<app-toggle disabled></app-toggle>`,
+                error: () => html`<span class="error">Unavailable</span>`,
+              })}
+            </label>
+          </div>
+          ${this.renderHysteresisForm()}
         </article>
+        ${this.renderRecirculationCard()} ${this.renderBalanceCard()}
       </section>
     `;
   }

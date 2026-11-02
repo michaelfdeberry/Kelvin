@@ -6,7 +6,6 @@ const settingsLocationTabStyles = css`
   }
 
   .settings-location-tab {
-    margin-top: 1rem;
     display: grid;
     gap: 1rem;
   }

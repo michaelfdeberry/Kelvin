@@ -154,7 +154,7 @@ export class SettingsGateway extends LitElement {
             pending: () => html`<p>Loading gateway settings...</p>`,
             complete: gateway => html`
               <div class="card__header">
-                <h2 class="card__title">Gateway Settings</h2>
+                <h2 class="card__title">Gateway</h2>
               </div>
               ${this.renderGateway(gateway)}
             `,
