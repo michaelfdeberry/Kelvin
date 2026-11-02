@@ -39,7 +39,7 @@ private:
   };
 
   PendingMessage *pendingFor(HmiMessageType messageType);
-  PendingMessage pendingMessages[4];
+  PendingMessage pendingMessages[6];
   HmiMessageType type = (HmiMessageType)0;
   uint8_t message[MAX_MESSAGE_SIZE];
   size_t messageLength = 0;

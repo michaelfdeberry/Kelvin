@@ -18,8 +18,6 @@ namespace
   const int BODY_GAP = 14;
   const int CONTENT_HEIGHT = DISPLAY_VERTICAL_RESOLUTION - HEADER_HEIGHT - BODY_PAD_TOP - BODY_PAD_BOTTOM - TAB_HEIGHT - BODY_GAP;
   const int CARD_PADDING = 18;
-  const int CARD_WIDTH = (DISPLAY_HORIZONTAL_RESOLUTION - 2 * PAGE_PADDING - COLUMN_GAP) / 2;
-  const int TIMELINE_WIDTH = CARD_WIDTH - 2 * CARD_PADDING;
   const int TIMELINE_HEIGHT = 14;
   const int MINUTES_PER_DAY = 1440;
 
@@ -61,7 +59,7 @@ namespace
     lv_obj_set_flex_grow(card, 1);
     lv_obj_set_style_bg_color(card, UiTheme::bgPanel(), 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 14, 0);
+    lv_obj_set_style_radius(card, 7, 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, UiTheme::borderSubtle(), 0);
     lv_obj_set_style_pad_all(card, CARD_PADDING, 0);
@@ -113,7 +111,7 @@ namespace
     lv_obj_set_style_bg_opa(roller, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_color(roller, UiTheme::borderSubtle(), LV_PART_MAIN);
     lv_obj_set_style_border_width(roller, 1, LV_PART_MAIN);
-    lv_obj_set_style_radius(roller, 12, LV_PART_MAIN);
+    lv_obj_set_style_radius(roller, 6, LV_PART_MAIN);
     lv_obj_set_style_text_font(roller, UiTheme::fontValue(), LV_PART_MAIN);
     lv_obj_set_style_text_color(roller, UiTheme::textMuted(), LV_PART_MAIN);
     lv_obj_set_style_text_font(roller, UiTheme::fontValue(), LV_PART_SELECTED);
@@ -197,7 +195,7 @@ void SettingsPage::buildTabs(lv_obj_t *parent)
   lv_obj_set_size(segments, 460, TAB_HEIGHT);
   lv_obj_set_style_pad_all(segments, 5, 0);
   lv_obj_set_style_pad_gap(segments, 5, 0);
-  lv_obj_set_style_radius(segments, 16, 0);
+  lv_obj_set_style_radius(segments, 8, 0);
   lv_obj_set_style_bg_color(segments, UiTheme::bgPanel(), 0);
   lv_obj_set_style_bg_opa(segments, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(segments, 1, 0);
@@ -208,7 +206,7 @@ void SettingsPage::buildTabs(lv_obj_t *parent)
   static const char *labels[2] = {"Schedules", "Forecast Lockout"};
   for (size_t i = 0; i < 2; i++)
   {
-    tabButtons[i] = UiWidgets::createFlatButton(segments, labels[i], 12);
+    tabButtons[i] = UiWidgets::createFlatButton(segments, labels[i], 6);
     lv_obj_set_flex_grow(tabButtons[i], 1);
     tabBindings[i] = {this, i};
     lv_obj_add_event_cb(tabButtons[i], handleTabClicked, LV_EVENT_CLICKED, &tabBindings[i]);
@@ -251,6 +249,7 @@ void SettingsPage::buildScheduleColumn(lv_obj_t *parent, size_t index)
 {
   lv_color_t accent = accentFor(index);
   lv_obj_t *card = createCard(parent);
+  scheduleCards[index] = card;
 
   lv_obj_t *header = createRow(card, LV_PCT(100), 44, LV_FLEX_ALIGN_SPACE_BETWEEN);
   createLabel(header, index == 0 ? "Heating" : "Cooling", UiTheme::fontValue(), accent);
@@ -262,12 +261,13 @@ void SettingsPage::buildScheduleColumn(lv_obj_t *parent, size_t index)
   // 24h overview of where this mode's schedule blocks fall.
   timelines[index] = lv_obj_create(card);
   lv_obj_remove_style_all(timelines[index]);
-  lv_obj_set_size(timelines[index], TIMELINE_WIDTH, TIMELINE_HEIGHT);
+  lv_obj_set_size(timelines[index], LV_PCT(100), TIMELINE_HEIGHT);
   lv_obj_set_style_bg_color(timelines[index], UiTheme::bgDark(), 0);
   lv_obj_set_style_bg_opa(timelines[index], LV_OPA_COVER, 0);
   lv_obj_set_style_radius(timelines[index], TIMELINE_HEIGHT / 2, 0);
   lv_obj_set_style_clip_corner(timelines[index], true, 0);
   lv_obj_remove_flag(timelines[index], LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(timelines[index], handleTimelineSizeChanged, LV_EVENT_SIZE_CHANGED, &columnBindings[index]);
 
   lv_obj_t *ticks = createRow(card, LV_PCT(100), LV_SIZE_CONTENT, LV_FLEX_ALIGN_SPACE_BETWEEN);
   static const char *tickLabels[5] = {"12a", "6a", "12p", "6p", "12a"};
@@ -324,18 +324,22 @@ void SettingsPage::rebuildSchedules()
     {
       createLabel(lists[column], "No schedules - the set point is used all day.", UiTheme::fontBody(), UiTheme::textMuted());
     }
+    refreshTimeline(column);
   }
 }
 
-void SettingsPage::addScheduleRow(size_t column, size_t scheduleIndex)
+void SettingsPage::refreshTimeline(size_t column)
 {
-  const ScheduleState &schedule = latest.schedules[scheduleIndex];
+  lv_obj_clean(timelines[column]);
+  int32_t timelineWidth = lv_obj_get_content_width(timelines[column]);
+  if (timelineWidth <= 0)
+    return;
   lv_color_t accent = accentFor(column);
 
   auto addBlock = [&](int32_t fromMinutes, int32_t toMinutes)
   {
-    int32_t x = fromMinutes * TIMELINE_WIDTH / MINUTES_PER_DAY;
-    int32_t width = (toMinutes - fromMinutes) * TIMELINE_WIDTH / MINUTES_PER_DAY;
+    int32_t x = fromMinutes * timelineWidth / MINUTES_PER_DAY;
+    int32_t width = (toMinutes - fromMinutes) * timelineWidth / MINUTES_PER_DAY;
     lv_obj_t *block = lv_obj_create(timelines[column]);
     lv_obj_remove_style_all(block);
     lv_obj_set_pos(block, x, 0);
@@ -344,22 +348,37 @@ void SettingsPage::addScheduleRow(size_t column, size_t scheduleIndex)
     lv_obj_set_style_bg_opa(block, LV_OPA_COVER, 0);
   };
 
-  // An end at or before the start means the block wraps past midnight.
-  if (schedule.endMinutes > schedule.startMinutes)
+  RunType type = column == 0 ? RunType::Heating : RunType::Cooling;
+  for (size_t index = 0; index < latest.scheduleCount; index++)
   {
-    addBlock(schedule.startMinutes, schedule.endMinutes);
+    const ScheduleState &schedule = latest.schedules[index];
+    if (schedule.type != type)
+      continue;
+    if (schedule.endMinutes > schedule.startMinutes)
+      addBlock(schedule.startMinutes, schedule.endMinutes);
+    else
+    {
+      addBlock(schedule.startMinutes, MINUTES_PER_DAY);
+      addBlock(0, schedule.endMinutes);
+    }
   }
-  else
-  {
-    addBlock(schedule.startMinutes, MINUTES_PER_DAY);
-    addBlock(0, schedule.endMinutes);
-  }
+}
 
+void SettingsPage::handleTimelineSizeChanged(lv_event_t *e)
+{
+  auto *binding = (IndexBinding *)lv_event_get_user_data(e);
+  binding->page->refreshTimeline(binding->index);
+}
+
+void SettingsPage::addScheduleRow(size_t column, size_t scheduleIndex)
+{
+  const ScheduleState &schedule = latest.schedules[scheduleIndex];
+  lv_color_t accent = accentFor(column);
   lv_obj_t *row = createRow(lists[column], LV_PCT(100), 60, LV_FLEX_ALIGN_SPACE_BETWEEN);
   lv_obj_set_style_pad_hor(row, 16, 0);
   lv_obj_set_style_bg_color(row, UiTheme::bgDark(), 0);
   lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(row, 12, 0);
+  lv_obj_set_style_radius(row, 6, 0);
   lv_obj_set_style_border_width(row, 1, 0);
   lv_obj_set_style_border_color(row, UiTheme::borderSubtle(), 0);
   lv_obj_set_style_opa(row, LV_OPA_70, LV_STATE_PRESSED);
@@ -396,6 +415,7 @@ void SettingsPage::buildLockoutCard(lv_obj_t *parent, size_t index)
   bool heating = index == 0;
   lv_color_t accent = accentFor(index);
   lv_obj_t *card = createCard(parent);
+  lockoutCards[index] = card;
   lockoutBindings[index] = {this, index};
 
   lv_obj_t *header = createRow(card, LV_PCT(100), 48, LV_FLEX_ALIGN_SPACE_BETWEEN);
@@ -461,7 +481,7 @@ void SettingsPage::refreshLockoutDimming(size_t index)
     lv_obj_add_state(lockoutSliders[index], LV_STATE_DISABLED);
   }
   lv_obj_set_style_opa(lockoutSliders[index], enabled ? LV_OPA_COVER : LV_OPA_40, 0);
-  lv_obj_set_style_text_color(lockoutValueLabels[index], enabled ? accentFor(index) : UiTheme::textMuted(), 0);
+  lv_obj_set_style_text_color(lockoutValueLabels[index], enabled ? UiTheme::sliderAccent(accentFor(index)) : UiTheme::textMuted(), 0);
 
   char text[16];
   if (enabled)
@@ -543,7 +563,7 @@ void SettingsPage::buildSheet(lv_obj_t *parent)
   lv_obj_set_size(dialog, 740, LV_SIZE_CONTENT);
   lv_obj_set_style_bg_color(dialog, UiTheme::bgPanel(), 0);
   lv_obj_set_style_bg_opa(dialog, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(dialog, 16, 0);
+  lv_obj_set_style_radius(dialog, 8, 0);
   lv_obj_set_style_border_width(dialog, 1, 0);
   lv_obj_set_style_border_color(dialog, UiTheme::borderSubtle(), 0);
   lv_obj_set_style_pad_all(dialog, 22, 0);
@@ -626,7 +646,7 @@ void SettingsPage::openSheet(RunType type, const ScheduleState *existing)
   lv_label_set_text(targetLabel, text);
   lv_label_set_text(sheetError, "");
 
-  lv_color_t accent = type == RunType::Heating ? UiTheme::accentHeat() : UiTheme::accentCool();
+  lv_color_t accent = type == RunType::Heating ? UiTheme::sliderHeat() : UiTheme::sliderCool();
   lv_obj_set_style_bg_color(targetSlider, accent, LV_PART_INDICATOR);
   lv_obj_set_style_border_color(targetSlider, accent, LV_PART_KNOB);
   lv_obj_set_style_text_color(targetLabel, accent, 0);
@@ -683,6 +703,23 @@ void SettingsPage::applyPreferences()
 
 void SettingsPage::applyState(const ThermostatState &state)
 {
+  if (latest.mode != state.mode)
+  {
+    lockoutDragging = false;
+    closeSheet();
+  }
+  for (size_t index = 0; index < 2; index++)
+  {
+    bool visible = state.mode == RunMode::Automatic || state.mode == (index == 0 ? RunMode::Heating : RunMode::Cooling);
+    lv_obj_t *cards[2] = {scheduleCards[index], lockoutCards[index]};
+    for (lv_obj_t *card : cards)
+    {
+      if (visible)
+        lv_obj_remove_flag(card, LV_OBJ_FLAG_HIDDEN);
+      else
+        lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
   latest = state;
   rebuildSchedules();
   refreshLockouts();

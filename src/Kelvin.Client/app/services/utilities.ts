@@ -60,3 +60,11 @@ export function fromPreferredUnit(temperatureUnit: TemperatureUnit, value: numbe
 export function getPreferredUnit(temperatureUnit: TemperatureUnit): string {
   return temperatureUnit === 'Fahrenheit' ? '°F' : '°C';
 }
+
+export function timestampToDate(timestamp: string): Date {
+  const now = new Date();
+  const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const targetTimeStr = `${todayString}T${timestamp}`;
+  const targetDate = new Date(targetTimeStr);
+  return targetDate;
+}

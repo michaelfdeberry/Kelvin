@@ -1,11 +1,14 @@
 :root {
-  --bg-dark: #0f172a;
-  --bg-panel: #1e293b;
+  --bg-dark: #0b101d;
+  --bg-panel: #0f172a;
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --accent-heat: #f97316;
   --accent-cool: #3b82f6;
   --accent-idle: #475569;
+  --slider-heat: #b89174;
+  --slider-cool: #819cbb;
+  --slider-range: #708f7f;
   --border-radius: 6px;
 
   /* Borders / translucent surfaces */

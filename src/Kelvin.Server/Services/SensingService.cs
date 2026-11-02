@@ -36,11 +36,44 @@ public class SensingService(
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
+    await RestoreReadingsAsync(stoppingToken);
+
     var monitorSensorHealthTask = MonitorSensorHealthAsync(stoppingToken);
     var listenForSensorPacketsTask = ListenForSensorPacketsAsync(stoppingToken);
     var listenForEnvironmentReplayTask = ListenForEnvironmentReplayAsync(stoppingToken);
 
     await Task.WhenAll(monitorSensorHealthTask, listenForSensorPacketsTask, listenForEnvironmentReplayTask);
+  }
+
+  private async Task RestoreReadingsAsync(CancellationToken stoppingToken)
+  {
+    try
+    {
+      // A scenario I encountered after an update/restart.
+      // My set points was at 70, the average before the restart was ~71, but the first reading was 68.
+      // The heat turned on and turned off shortly after the other readings came in. It could be up to 5 minutes
+      // before all sensor report in again and they will come in staggered, the control service protections would
+      // prevent short cycling, but restoring the last known good readings would prevent that single blip.
+      var lastReadingResponse = await dispatcher.DispatchAsync<GetLatestReadingsRequest, GetLatestReadingsResponse>(
+        new GetLatestReadingsRequest(),
+        stoppingToken
+      );
+
+      lastReadingResponse.EnsureSuccess();
+
+      // Only restore if all readings are recent.
+      var cutoff = DateTimeOffset.Now - TimeSpan.FromMilliseconds(SENSOR_TIMEOUT_MS);
+      var allRecent = lastReadingResponse.Value!.Reading.Areas.All(r => r.Value.CreatedAt > cutoff);
+      if (allRecent)
+      {
+        logger.LogInformation("Restoring last known good readings.");
+        _environment = lastReadingResponse.Value.Reading;
+      }
+    }
+    catch (Exception ex)
+    {
+      logger.LogError(ex, "Failed to restore readings.");
+    }
   }
 
   private async Task ListenForEnvironmentReplayAsync(CancellationToken stoppingToken)
@@ -224,10 +257,20 @@ public class SensingService(
     if (_environment?.Areas.IsEmpty ?? true)
       return;
 
+    var sensorsResponse = await dispatcher.DispatchAsync<GetSensorsRequest, GetSensorsResponse>(new GetSensorsRequest(), stoppingToken);
+    sensorsResponse.EnsureSuccess();
+
     _environment.Timestamp = time.GetUtcNow();
     _environment.TemperatureC = _environment.Areas.Values.Average(p => p.TemperatureC);
-    _environment.HumidityPercentage = _environment.Areas.Values.Average(p => p.HumidityPercentage);
-    _environment.CO2LevelPpm = (float)_environment.Areas.Values.Average(p => p.CO2LevelPpm);
+
+    var humiditySensorIds = sensorsResponse.Value!.Sensors.Where(s => s.HasHumiditySensor).Select(s => s.Id).ToHashSet();
+    var co2SensorIds = sensorsResponse.Value!.Sensors.Where(s => s.HasCO2Sensor).Select(s => s.Id).ToHashSet();
+
+    var humidityReadings = _environment.Areas.Values.Where(p => p.SensorId.HasValue && humiditySensorIds.Contains(p.SensorId.Value));
+    _environment.HumidityPercentage = humidityReadings.Any() ? humidityReadings.Average(p => p.HumidityPercentage) : 0;
+
+    var co2Readings = _environment.Areas.Values.Where(p => p.SensorId.HasValue && co2SensorIds.Contains(p.SensorId.Value));
+    _environment.CO2LevelPpm = co2Readings.Any() ? (float)co2Readings.Average(p => p.CO2LevelPpm) : 0;
 
     await dispatcher.PublishAsync(new EnvironmentReadingChangedEvent(_environment.Clone()), stoppingToken);
   }

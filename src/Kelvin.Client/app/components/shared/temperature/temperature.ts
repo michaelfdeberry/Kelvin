@@ -14,7 +14,7 @@ export class Temperature extends LitElement {
     sharedStyles,
     css`
       :host {
-        display: inline-block;
+        display: inline-flex;
         color: inherit;
       }
     `,
@@ -31,11 +31,14 @@ export class Temperature extends LitElement {
     if (this.temperature === null) return nothing;
 
     const temp = presentAsPreferredUnit(this.preferences.temperatureUnit, this.temperature, 1);
-    return html`${temp}${when(
-      this.showUnit,
-      () => getPreferredUnit(this.preferences.temperatureUnit),
-      () => html`°`,
-    )}`;
+    return html`
+      <span class="number">${temp}</span>
+      ${when(
+        this.showUnit,
+        () => getPreferredUnit(this.preferences.temperatureUnit),
+        () => html`°`,
+      )}
+    `;
   }
 }
 

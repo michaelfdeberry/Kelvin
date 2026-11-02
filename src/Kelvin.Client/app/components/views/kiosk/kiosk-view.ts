@@ -1,7 +1,7 @@
 import '../../../components/shared/alert/alert.js';
 import '../../../components/shared/modal/modal.js';
 import '../../../components/features/sensors/sensor-list/sensor-list.js';
-import '../../../components/features/thermostat/thermostat-control/thermostat-control.js';
+import '../../features/thermostat/thermostat-control/thermostat-control.js';
 import '../../../components/features/weather/weather-forecast/weather-forecast.js';
 
 import { html, LitElement } from 'lit';

@@ -6,6 +6,7 @@ export type RouteParams = Record<string, string | undefined>;
 
 export type Route = {
   name: string;
+  title: string;
   pattern: URLPattern;
   render: (params?: RouteParams, query?: Record<string, string | undefined>) => HTMLTemplateResult | Promise<HTMLTemplateResult>;
   guard?: () => boolean | Promise<boolean>;
@@ -15,6 +16,7 @@ export type Route = {
 export const routes: Route[] = [
   {
     name: 'home',
+    title: 'Dashboard',
     pattern: new URLPattern({ pathname: '/' }),
     render: async () => {
       if (isKioskMode()) {
@@ -28,6 +30,7 @@ export const routes: Route[] = [
   },
   {
     name: 'analytics',
+    title: 'Analytics',
     pattern: new URLPattern({ pathname: '/analytics' }),
     render: async () => {
       await import('./components/views/analytics/analytics-view.js');
@@ -38,6 +41,7 @@ export const routes: Route[] = [
   },
   {
     name: 'settings',
+    title: 'Settings',
     pattern: new URLPattern({ pathname: '/settings' }),
     render: async () => {
       await import('./components/views/settings/settings-view.js');
@@ -48,7 +52,13 @@ export const routes: Route[] = [
   },
   {
     name: 'not-found',
+    title: 'Not Found',
     pattern: new URLPattern({ pathname: '*' }),
-    render: () => html`<app-not-found-view></app-not-found-view>`,
+    render: () => html`
+      <div class="not-found">
+        <h2>Page not found</h2>
+        <p>The page you are looking for does not exist.</p>
+      </div>
+    `,
   },
 ];

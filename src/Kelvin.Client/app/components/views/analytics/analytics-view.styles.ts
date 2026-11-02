@@ -11,11 +11,6 @@ const analyticsViewStyles = css`
     max-width: 1200px;
     margin: 0 auto;
     padding: 1rem;
-    padding-bottom: 0;
-    border-radius: var(--border-radius);
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    box-shadow: 0 14px 34px var(--shadow-color);
   }
 
   .analytics-view__header,
@@ -60,26 +55,25 @@ const analyticsViewStyles = css`
     margin: 0;
     padding: 1rem;
     color: var(--text-muted);
-    border: 1px solid var(--border-subtle);
     background: var(--bg-panel);
   }
 
   .analytics-view__status--error {
     color: var(--accent-danger);
   }
-  /* 
+
   .analytics-view__chart {
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-subtle);
-  } */
+    &:last-of-type {
+      margin-bottom: 0;
+    }
 
-  .analytics-view__chart-heading {
-    margin-bottom: 1rem;
-  }
+    .analytics-view__chart-heading {
+      margin-bottom: 1rem;
+    }
 
-  .analytics-view__chart h2 {
-    font-size: 1.1rem;
+    h2 {
+      font-size: 1.1rem;
+    }
   }
 
   app-kelvin-chart {

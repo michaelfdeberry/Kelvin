@@ -37,14 +37,16 @@ public class HmiOutboundChannel : IHmiOutboundChannel
     lock (_lock)
     {
       var key = (macAddress.ToUpperInvariant(), messageType);
-      if (_byKey.TryGetValue(key, out var existing))
+      bool coalesce = messageType is not HmiMessageType.Notify and not HmiMessageType.DismissNotification;
+      if (coalesce && _byKey.TryGetValue(key, out var existing))
         RemovePending(existing);
 
       while (_pending.Count >= MaxPendingMessages || _pendingPayloadBytes + payload.Length > MaxPendingPayloadBytes)
         RemovePending(_pending.First!);
 
       var node = _pending.AddLast(new PendingMessage(macAddress, messageType, payload.ToArray()));
-      _byKey.Add(key, node);
+      if (coalesce)
+        _byKey.Add(key, node);
       _pendingPayloadBytes += payload.Length;
     }
   }

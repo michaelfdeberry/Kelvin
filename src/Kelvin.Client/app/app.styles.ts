@@ -48,13 +48,6 @@ const appShellStyles = css`
   }
 
   @media (max-width: 1024px) {
-    .app-shell__shell {
-      grid-template-columns: 1fr;
-    }
-
-    app-sidebar {
-      display: none;
-    }
   }
 
   @media (max-width: 768px) {
@@ -66,6 +59,7 @@ const appShellStyles = css`
       height: auto;
       min-height: unset;
       overflow: auto;
+      grid-template-columns: 1fr;
     }
   }
 

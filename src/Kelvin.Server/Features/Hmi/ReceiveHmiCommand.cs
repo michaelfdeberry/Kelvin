@@ -1,6 +1,7 @@
 using Kelvin.Protocol;
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Models;
@@ -27,7 +28,8 @@ public class ReceiveHmiCommandHandler(
   IHandler<UpdateThermostatRequest> updateThermostat,
   IHandler<UpdateThermostatSettingsRequest> updateThermostatSettings,
   IHandler<SaveSensorPacketRequest> saveSensorPacket,
-  IHandler<SendHmiStateRequest> sendHmiState
+  IHandler<SendHmiStateRequest> sendHmiState,
+  IHandler<DismissNotificationRequest> dismissNotification
 ) : IHandler<ReceiveHmiCommandRequest>
 {
   public async Task<Result> HandleAsync(ReceiveHmiCommandRequest request, CancellationToken ct = default)
@@ -46,6 +48,10 @@ public class ReceiveHmiCommandHandler(
       if (messageType == HmiMessageType.SensorReading)
       {
         command = new SaveSensorPacketRequest(BuildSensorPacket(request.MacAddress, body), DeviceType.Hmi);
+      }
+      else if (messageType == HmiMessageType.DismissNotification)
+      {
+        command = new DismissNotificationRequest(body.Id(1)!.Value);
       }
       else if (messageType == HmiMessageType.RequestState)
       {
@@ -79,6 +85,7 @@ public class ReceiveHmiCommandHandler(
     {
       SaveSensorPacketRequest reading => await saveSensorPacket.HandleAsync(reading, ct),
       SendHmiStateRequest snapshot => await sendHmiState.HandleAsync(snapshot, ct),
+      DismissNotificationRequest dismiss => await dismissNotification.HandleAsync(dismiss, ct),
       UpdateThermostatRequest update => await updateThermostat.HandleAsync(update, ct),
       UpdateThermostatSettingsRequest settings => await updateThermostatSettings.HandleAsync(settings, ct),
       _ => Result.Failure(ReceiveHmiCommandErrors.UnknownCommand),
@@ -131,7 +138,7 @@ public class ReceiveHmiCommandHandler(
     var heatingLockoutC = body.NullableFloat(1);
     var coolingLockoutC = body.NullableFloat(2);
 
-    return new UpdateThermostatSettingsRequest(heatingLockoutC, coolingLockoutC, ToSetPointInputs(thermostat), ToScheduleInputs(thermostat));
+    return BuildSettingsRequest(thermostat, heatingLockoutC, coolingLockoutC, ToSetPointInputs(thermostat), ToScheduleInputs(thermostat));
   }
 
   private static UpdateThermostatSettingsRequest BuildSetPointRequest(Models.Thermostat thermostat, HmiCborMap body)
@@ -144,7 +151,7 @@ public class ReceiveHmiCommandHandler(
       .Where(setPoint => setPoint.Type != type)
       .Append(new SetPointInput(existingId, type, targetTemperatureC));
 
-    return new UpdateThermostatSettingsRequest(thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, setPoints, ToScheduleInputs(thermostat));
+    return BuildSettingsRequest(thermostat, thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, setPoints, ToScheduleInputs(thermostat));
   }
 
   private static UpdateThermostatSettingsRequest BuildUpsertScheduleRequest(Models.Thermostat thermostat, HmiCborMap body)
@@ -162,7 +169,7 @@ public class ReceiveHmiCommandHandler(
       .Where(schedule => schedule.Id != id)
       .Append(new ScheduleInput(id, type, startTime, endTime, targetTemperatureC));
 
-    return new UpdateThermostatSettingsRequest(thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, ToSetPointInputs(thermostat), schedules);
+    return BuildSettingsRequest(thermostat, thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, ToSetPointInputs(thermostat), schedules);
   }
 
   private static UpdateThermostatSettingsRequest BuildRemoveScheduleRequest(Models.Thermostat thermostat, HmiCborMap body)
@@ -170,8 +177,26 @@ public class ReceiveHmiCommandHandler(
     var id = body.Id(1);
     var schedules = ToScheduleInputs(thermostat).Where(schedule => schedule.Id != id);
 
-    return new UpdateThermostatSettingsRequest(thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, ToSetPointInputs(thermostat), schedules);
+    return BuildSettingsRequest(thermostat, thermostat.HeatingLockoutC, thermostat.CoolingLockoutC, ToSetPointInputs(thermostat), schedules);
   }
+
+  private static UpdateThermostatSettingsRequest BuildSettingsRequest(
+    Models.Thermostat thermostat,
+    float? heatingLockoutC,
+    float? coolingLockoutC,
+    IEnumerable<SetPointInput> setPoints,
+    IEnumerable<ScheduleInput> schedules
+  ) =>
+    new(
+      heatingLockoutC,
+      coolingLockoutC,
+      setPoints.Where(setPoint => IsModeAvailable(thermostat.Mode, setPoint.Type)).ToArray(),
+      schedules.Where(schedule => IsModeAvailable(thermostat.Mode, schedule.Type)).ToArray(),
+      TargetMode: thermostat.Mode
+    );
+
+  private static bool IsModeAvailable(RunMode mode, RunType type) =>
+    mode == RunMode.Automatic || mode == (type == RunType.Heating ? RunMode.Heating : RunMode.Cooling);
 
   private static IEnumerable<SetPointInput> ToSetPointInputs(Models.Thermostat thermostat) =>
     thermostat

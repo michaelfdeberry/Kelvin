@@ -97,6 +97,7 @@ export class ThermostatEditor extends LitElement {
       coolingLockoutC,
       setPoints: this.setPointsPanel.getSetPoints(),
       schedules: Array.from(this.schedulesPanels).flatMap(panel => panel.getSchedules()),
+      targetMode: this.targetMode,
     };
 
     try {

@@ -126,6 +126,29 @@ namespace HmiCbor
 
     bool number(uint32_t key, float &result) const { return readFloat(find(key), result); }
 
+    bool text(uint32_t key, char *result, size_t capacity, bool nullable = false) const
+    {
+      auto value = find(key);
+      if (!value || capacity == 0)
+        return false;
+      if (nullable && cbor_value_is_null(value))
+      {
+        result[0] = '\0';
+        return true;
+      }
+      size_t length;
+      if (!cbor_value_is_text_string(value) || cbor_value_get_string_length(value, &length) != CborNoError || length >= capacity)
+        return false;
+      size_t copied = capacity;
+      if (cbor_value_copy_text_string(value, result, &copied, nullptr) != CborNoError || copied != length)
+        return false;
+      for (size_t index = 0; index < length; index++)
+        if (result[index] == '\0')
+          return false;
+      result[length] = '\0';
+      return true;
+    }
+
     bool nullableNumber(uint32_t key, bool &hasValue, float &result) const
     {
       auto value = find(key);

@@ -45,6 +45,7 @@ export class Slider extends LitElement {
 
   @state() private draggingThumb: ThumbKind | null = null;
   @state() private focusedThumb: ThumbKind | null = null;
+  private dragValueOffset = 0;
 
   // Captured once so `formResetCallback` can restore the values authored on the element.
   private defaultsCaptured = false;
@@ -87,7 +88,12 @@ export class Slider extends LitElement {
 
     if (rangeConfigChanged || changedProperties.has('valueLow') || changedProperties.has('valueHigh')) {
       // A plain property/attribute assignment touches both - default to treating the low thumb as the mover.
-      const movedThumb: ThumbKind = changedProperties.has('valueHigh') && !changedProperties.has('valueLow') ? 'high' : 'low';
+      const movedThumb: ThumbKind =
+        this.draggingThumb === 'low' || this.draggingThumb === 'high'
+          ? this.draggingThumb
+          : changedProperties.has('valueHigh') && !changedProperties.has('valueLow')
+            ? 'high'
+            : 'low';
       this.commitRangeValues(this.valueLow, this.valueHigh, movedThumb);
     }
   }
@@ -150,7 +156,7 @@ export class Slider extends LitElement {
     if (this.step <= 0) return clamped;
 
     const steps = Math.round((clamped - this.min) / this.step);
-    return this.clampToRange(this.min + steps * this.step);
+    return this.clampToRange(Number((this.min + steps * this.step).toFixed(10)));
   }
 
   // Clamps/orders/gap-enforces synchronously so callers can dispatch events immediately afterwards with correct values.
@@ -169,30 +175,35 @@ export class Slider extends LitElement {
 
   private enforceGap(low: number, high: number, movedThumb: ThumbKind): { low: number; high: number } {
     let result = { low, high };
+    const span = this.max - this.min;
+    const minGap = Math.min(span, Math.max(0, this.step > 0 ? Math.ceil((this.minGap ?? 0) / this.step - 1e-9) * this.step : (this.minGap ?? 0)));
+    const maxGap =
+      this.maxGap === undefined
+        ? span
+        : Math.max(minGap, Math.min(span, this.step > 0 ? Math.floor(this.maxGap / this.step + 1e-9) * this.step : this.maxGap));
 
-    if (this.minGap !== undefined && result.high - result.low < this.minGap) {
+    if (result.high - result.low < minGap) {
       result =
         movedThumb === 'low'
-          ? { low: result.low, high: this.clampToRange(result.low + this.minGap) }
-          : { low: this.clampToRange(result.high - this.minGap), high: result.high };
+          ? { low: this.clampToRange(result.high - minGap), high: result.high }
+          : { low: result.low, high: this.clampToRange(result.low + minGap) };
 
-      // Pushing the other thumb hit min/max - fall back to stopping the dragged thumb instead.
-      if (result.high - result.low < this.minGap) {
+      if (result.high - result.low < minGap - 1e-9) {
         result =
           movedThumb === 'low'
-            ? { low: this.clampToRange(result.high - this.minGap), high: result.high }
-            : { low: result.low, high: this.clampToRange(result.low + this.minGap) };
+            ? { low: result.low, high: this.clampToRange(result.low + minGap) }
+            : { low: this.clampToRange(result.high - minGap), high: result.high };
       }
     }
 
-    if (this.maxGap !== undefined && result.high - result.low > this.maxGap) {
+    if (result.high - result.low > maxGap) {
       result =
         movedThumb === 'low'
-          ? { low: result.low, high: this.clampToRange(result.low + this.maxGap) }
-          : { low: this.clampToRange(result.high - this.maxGap), high: result.high };
+          ? { low: this.clampToRange(result.high - maxGap), high: result.high }
+          : { low: result.low, high: this.clampToRange(result.low + maxGap) };
     }
 
-    return result;
+    return { low: Number(result.low.toFixed(10)), high: Number(result.high.toFixed(10)) };
   }
 
   private percentFor(value: number): number {
@@ -252,6 +263,7 @@ export class Slider extends LitElement {
 
     const rawValue = this.valueFromClientX(event.clientX);
     const thumb = this.resolveThumbForPosition(rawValue);
+    this.dragValueOffset = 0;
     this.draggingThumb = thumb;
     this.moveThumb(thumb, rawValue);
     this.dispatchInput();
@@ -261,7 +273,9 @@ export class Slider extends LitElement {
   private handleTrackPointerMove(event: PointerEvent): void {
     if (!this.draggingThumb) return;
 
-    this.moveThumb(this.draggingThumb, this.valueFromClientX(event.clientX));
+    const previous = [this.value, this.valueLow, this.valueHigh];
+    this.moveThumb(this.draggingThumb, this.valueFromClientX(event.clientX) - this.dragValueOffset);
+    if (this.value === previous[0] && this.valueLow === previous[1] && this.valueHigh === previous[2]) return;
     this.dispatchInput();
   }
 
@@ -272,6 +286,7 @@ export class Slider extends LitElement {
     if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
 
     this.draggingThumb = null;
+    this.dragValueOffset = 0;
     this.dispatchChange();
   }
 
@@ -280,9 +295,14 @@ export class Slider extends LitElement {
 
     // Stop the track's own pointerdown handler from also re-resolving the target thumb.
     event.stopPropagation();
+    event.preventDefault();
     this.trackElement?.setPointerCapture(event.pointerId);
-    this.draggingThumb = thumb;
-    (event.currentTarget as HTMLElement).focus();
+    const rawValue = this.valueFromClientX(event.clientX);
+    const selectedThumb = this.range ? this.resolveThumbForPosition(rawValue) : thumb;
+    this.draggingThumb = selectedThumb;
+    const value = selectedThumb === 'single' ? this.value : selectedThumb === 'low' ? this.valueLow : this.valueHigh;
+    this.dragValueOffset = rawValue - value;
+    this.focusThumb(selectedThumb);
   }
 
   private handleThumbKeyDown(thumb: ThumbKind, event: KeyboardEvent): void {

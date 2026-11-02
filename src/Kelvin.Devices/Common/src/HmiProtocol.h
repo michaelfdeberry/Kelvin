@@ -34,6 +34,8 @@ enum class HmiMessageType : uint8_t
 
   // Server -> Hmi. The system's preferences have changed.
   PreferencesChanged = 5,
+  Notify = 6,
+  DismissNotification = 7,
 
   // Hmi -> Server. Sets RunMode.
   SetMode = 0x10,

@@ -18,15 +18,21 @@ const dashboardViewStyles = css`
   }
 
   .dashboard-view__main {
-    justify-content: space-between;
     padding: 1rem;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
+  }
+
+  .dashboard-view__content {
+    flex-direction: column;
+    display: flex;
+    max-width: 800px;
+    width: 100%;
+    gap: 1rem;
   }
 
   .dashboard-view__settings-button {
@@ -42,7 +48,7 @@ const dashboardViewStyles = css`
 
   @media (max-width: 1024px) {
     .dashboard-view__shell {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .dashboard-view__stats {
@@ -55,19 +61,6 @@ const dashboardViewStyles = css`
   }
 
   @media (max-width: 768px) {
-    .dashboard-view__main {
-      justify-content: unset;
-    }
-
-    app-sensor-list {
-      display: none;
-    }
-
-    app-thermostat-control {
-      margin: 2rem 0;
-      flex: 1;
-    }
-
     .dashboard-view__settings-button {
       display: block;
       padding: 12px 24px;

@@ -13,6 +13,7 @@ export default css`
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    justify-content: space-between;
   }
 
   .sensor-name {

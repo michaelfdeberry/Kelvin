@@ -17,20 +17,22 @@ Every HMI payload in both directions is now CBOR schema version 1. The table lis
 in addition to key `0`, which is always the version. Nullable fields must be present, using CBOR `null`
 when unset. Booleans are CBOR booleans, not integer flags.
 
-| Message                   | Type   | Field Keys                                                                                                     |
-| ------------------------- | ------ | -------------------------------------------------------------------------------------------------------------- |
-| ThermostatStateChunk      | `0x01` | 1 mode, 2 fan enabled, 3 hysteresis, 4 heating lockout, 5 cooling lockout, 6 set-point array, 7 schedule array |
-| SensorReading             | `0x02` | 1 temperature, 2 humidity, 3 CO2 (unsigned 16-bit range), 4 battery percentage                                 |
-| ControlStateChanged       | `0x03` | 1 state, 2 environment temperature, 3 target temperature, 4 humidity, 5 CO2; keys 2-5 nullable                 |
-| EnvironmentReadingChanged | `0x04` | 1 temperature, 2 humidity, 3 CO2 (float)                                                                       |
-| PreferencesChanged        | `0x05` | 1 temperature unit, 2 time format                                                                              |
-| SetMode                   | `0x10` | 1 mode                                                                                                         |
-| SetFanEnabled             | `0x11` | 1 enabled (boolean)                                                                                            |
-| SetSetPoint               | `0x12` | 1 run type, 2 target temperature                                                                               |
-| UpsertSchedule            | `0x13` | 1 ID (nullable), 2 run type, 3 start minutes, 4 end minutes, 5 target temperature                              |
-| RemoveSchedule            | `0x14` | 1 ID                                                                                                           |
-| SetForecastLockouts       | `0x15` | 1 heating lockout, 2 cooling lockout (both nullable)                                                           |
-| RequestState              | `0x16` | Version only                                                                                                   |
+| Message                   | Type   | Field Keys                                                                                                      |
+| ------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| ThermostatStateChunk      | `0x01` | 1 mode, 2 fan enabled, 3 hysteresis, 4 heating lockout, 5 cooling lockout, 6 set-point array, 7 schedule array  |
+| SensorReading             | `0x02` | 1 temperature, 2 humidity, 3 CO2 (unsigned 16-bit range), 4 battery percentage                                  |
+| ControlStateChanged       | `0x03` | 1 state, 2 environment temperature, 3 target temperature, 4 humidity, 5 CO2; keys 2-5 nullable                  |
+| EnvironmentReadingChanged | `0x04` | 1 temperature, 2 humidity, 3 CO2 (float)                                                                        |
+| PreferencesChanged        | `0x05` | 1 temperature unit, 2 time format                                                                               |
+| Notify                    | `0x06` | 1 ID, 2 message, 3 severity, 4 dismissible, 5 heading (nullable), 6 banner, 7 duration (nullable), 8 persistent |
+| DismissNotification       | `0x07` | 1 notification ID; supported in both directions                                                                 |
+| SetMode                   | `0x10` | 1 mode                                                                                                          |
+| SetFanEnabled             | `0x11` | 1 enabled (boolean)                                                                                             |
+| SetSetPoint               | `0x12` | 1 run type, 2 target temperature                                                                                |
+| UpsertSchedule            | `0x13` | 1 ID (nullable), 2 run type, 3 start minutes, 4 end minutes, 5 target temperature                               |
+| RemoveSchedule            | `0x14` | 1 ID                                                                                                            |
+| SetForecastLockouts       | `0x15` | 1 heating lockout, 2 cooling lockout (both nullable)                                                            |
+| RequestState              | `0x16` | Version only                                                                                                    |
 
 Set-point entries are maps `{1: run type, 2: target temperature}`. Schedule entries are maps
 `{1: ID, 2: run type, 3: start minutes, 4: end minutes, 5: target temperature}`. These nested entries
@@ -89,6 +91,38 @@ For temperature `21.5`, humidity `50`, and CO2 `400`, the golden body is:
 This is a 15-byte map. The writer uses the shortest float representation that preserves each value
 exactly; arbitrary 32-bit readings may require longer encodings. The same vector is checked in the
 server/simulator tests and the native firmware tests.
+
+## Notifications v1
+
+Notification IDs use the same opaque 16-byte Guid encoding as schedule IDs. Severity is
+Information=0, Warning=1, Success=2, Error=3. Message and heading are UTF-8 text, bounded to
+1024 and 128 bytes respectively; the server shortens longer text at a complete character boundary.
+Embedded NUL characters are not supported. Duration is milliseconds; null or zero means no timeout.
+The persistent flag identifies a stored notification whose local close or timeout should send a
+DismissNotification uplink, using the standard dismissal handler and shared dismissal event.
+A dismissal push removes that ID without sending a dismissal back.
+
+Standard notify/dismiss events are broadcast to enabled, non-deleted panels. Command failures bypass
+the event system: GatewayService queues an Error notification for only the originating MAC, with
+persistent=false, a close button, and a ten-second timeout. These failures are not stored and do not
+appear on other panels or the website. An error-triggered state refresh restores authoritative
+settings; refresh requests are rate-limited to once every five seconds.
+
+Notify and DismissNotification messages retain FIFO ordering in the bounded outbound queue, rather
+than coalescing by panel/type like state snapshots. Queue capacity still bounds pending delivery;
+ESP-NOW is not an acknowledged notification transport.
+
+The panel displays up to four bottom-right toasts and one top banner using the top LVGL layer, across
+both screens. Long alerts and the toast stack scroll; newer alerts replace the oldest when full.
+On touch wake it clears cached persistent alerts, and RequestState replays the latest four active
+toasts plus the latest active banner. A dismissed notification is excluded from this replay.
+
+For message "Failed", heading "Settings", severity Error, duration 10000, dismissible=true,
+banner=false, persistent=false, and ID bytes 00 through 0F, the golden body is:
+
+`A900010150000102030405060708090A0B0C0D0E0F02664661696C6564030304F5056853657474696E677306F40719271008F4`
+
+The corresponding dismissal body is `A200010150000102030405060708090A0B0C0D0E0F`.
 
 ## Adding Messages
 

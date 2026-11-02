@@ -210,7 +210,7 @@ export class SettingsGateway extends LitElement {
               </div>
               ${this.renderGateway(gateway)}
             `,
-            error: error => html`<p>Error loading gateway settings: ${error instanceof Error ? error.message : String(error)}</p>`,
+            error: () => html`<p class="error">Unable to retrieve gateway settings</p>`,
           })}
         </article>
       </section>

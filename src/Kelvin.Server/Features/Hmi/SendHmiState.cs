@@ -50,6 +50,22 @@ public class SendHmiStateHandler(
     );
     WriteFrames(request.MacAddress, HmiMessageType.ThermostatStateChunk, HmiThermostatStateEncoder.Encode(thermostat.Value!.Thermostat));
 
+    var notifications = await context
+      .Notifications.AsNoTracking()
+      .Where(notification => notification.DeletedAt == null && notification.Banner != true)
+      .OrderByDescending(notification => notification.CreatedAt)
+      .Take(4)
+      .ToListAsync(ct);
+    var banner = await context
+      .Notifications.AsNoTracking()
+      .Where(notification => notification.DeletedAt == null && notification.Banner == true)
+      .OrderByDescending(notification => notification.CreatedAt)
+      .FirstOrDefaultAsync(ct);
+    foreach (var notification in notifications.AsEnumerable().Reverse())
+      WriteFrames(request.MacAddress, HmiMessageType.Notify, HmiNotificationEncoder.Encode(notification));
+    if (banner is not null)
+      WriteFrames(request.MacAddress, HmiMessageType.Notify, HmiNotificationEncoder.Encode(banner));
+
     return Result.Success();
   }
 

@@ -10,8 +10,8 @@ const kioskViewStyles = css`
 
   .kiosk-view__refresh-button {
     position: absolute;
-    top: 0.5rem;
-    left: 0.5rem;
+    top: 0.25rem;
+    left: 0.25rem;
     z-index: 1;
     width: 2rem;
     height: 2rem;
@@ -25,7 +25,7 @@ const kioskViewStyles = css`
   .kiosk-view__shell {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 65%) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 70%) minmax(0, 1fr);
     height: 100%;
     min-height: 0;
     background: var(--bg-dark);
@@ -35,9 +35,8 @@ const kioskViewStyles = css`
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 2rem;
+    gap: 2rem;
+    padding: 2rem 0 2rem 2rem;
     min-width: 0;
     min-height: 0;
     overflow: hidden;

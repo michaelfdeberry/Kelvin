@@ -14,6 +14,7 @@
 #include "./src/protocol/ControlStateParser.h"
 #include "./src/protocol/EnvironmentReadingParser.h"
 #include "./src/protocol/PreferencesParser.h"
+#include "./src/protocol/NotificationParser.h"
 #include "./src/ui/Ui.h"
 
 Communicator communicator;
@@ -49,7 +50,24 @@ void handleDownlinkMessages()
   const uint8_t *message = frameReassembler.getMessage();
   size_t messageLength = frameReassembler.getMessageLength();
 
-  if (messageType == HmiMessageType::ThermostatStateChunk)
+  if (messageType == HmiMessageType::Notify)
+  {
+    HmiNotification notification;
+    if (NotificationParser::parse(message, messageLength, notification))
+      ui.notify(notification);
+    else
+      LOG_PRINTLN("Invalid notification payload - ignoring.");
+  }
+  else if (messageType == HmiMessageType::DismissNotification)
+  {
+    uint8_t id[16];
+    if (NotificationParser::parseDismiss(message, messageLength, id))
+      ui.dismissNotification(id);
+    else
+      LOG_PRINTLN("Invalid notification dismissal - ignoring.");
+  }
+
+  else if (messageType == HmiMessageType::ThermostatStateChunk)
   {
     if (ui.applyThermostatState(message, messageLength))
     {
@@ -207,6 +225,7 @@ void loop()
       communicator.begin(gatewayMac, hmiFrameTag);
       if (wokeByTouch)
       {
+        ui.clearPersistentNotifications();
         ui.wakeScreen();
         controlStateReceived = false;
         preferencesReceived = false;

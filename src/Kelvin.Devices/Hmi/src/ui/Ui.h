@@ -10,6 +10,7 @@
 #include "../io/Gt911Touch.h"
 #include "../display/RgbPanel.h"
 #include "SettingsPage.h"
+#include "NotificationToasts.h"
 
 // Main screen: a header (status badge, battery), the current system-average temperature with humidity/CO2
 // and the onboard sensor, a full-width set point slider showing where the current temperature sits relative
@@ -60,6 +61,9 @@ public:
 
   void openSettings();
   void closeSettings();
+  void notify(const HmiNotification &notification) { notifications.show(notification); }
+  void dismissNotification(const uint8_t id[16]) { notifications.dismiss(id); }
+  void clearPersistentNotifications() { notifications.clearPersistent(); }
 
 private:
   struct ModeButtonBinding
@@ -70,6 +74,7 @@ private:
 
   Communicator *communicator = nullptr;
   SettingsPage settings;
+  NotificationToasts notifications;
   lv_obj_t *mainScreen = nullptr;
 
   RgbPanel panel;
@@ -111,6 +116,7 @@ private:
   ModeButtonBinding modeButtonBindings[MODE_BUTTON_COUNT];
   lv_obj_t *fanButton = nullptr;
   lv_obj_t *fanButtonLabel = nullptr;
+  lv_obj_t *gearButton = nullptr;
 
   void buildHeader(lv_obj_t *parent);
   void buildReadings(lv_obj_t *parent);
@@ -119,6 +125,7 @@ private:
 
   void refreshDial();
   void refreshSetPointSlider();
+  void refreshSliderTrack();
   void refreshModeButtons();
   void refreshFanButton();
   void refreshSensorCard();

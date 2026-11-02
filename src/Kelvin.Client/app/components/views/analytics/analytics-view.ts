@@ -69,7 +69,10 @@ export class AnalyticsView extends LitElement {
   private controlData: ChartDataset[] = [];
 
   @state()
-  private airQualityData: ChartDataset[] = [];
+  private humidityData: ChartDataset[] = [];
+
+  @state()
+  private co2Data: ChartDataset[] = [];
 
   private abortController?: AbortController;
 
@@ -139,17 +142,23 @@ export class AnalyticsView extends LitElement {
             ? html`
                 ${this.renderChart(
                   'Temperature',
-                  'Heating and cooling activity is shown behind the indoor temperature. Per-sensor readings are hidden by default - enable them from the legend.',
+                  'Temperature logs with heating and cooling activity.',
                   this.temperatureData,
                   this.temperatureData.some(
                     dataset => (dataset.type === 'line' && dataset.points.length > 0) || (dataset.type === 'state' && dataset.intervals.length > 0),
                   ),
                 )}
                 ${this.renderChart(
-                  'Air quality',
-                  'Indoor humidity and CO2 levels recorded by the sensors. Per-sensor readings are hidden by default - enable them from the legend.',
-                  this.airQualityData,
-                  this.airQualityData.some(dataset => dataset.type === 'line' && dataset.points.length > 0),
+                  'Humidity',
+                  'Indoor humidity levels.',
+                  this.humidityData,
+                  this.humidityData.some(dataset => dataset.type === 'line' && dataset.points.length > 0),
+                )}
+                ${this.renderChart(
+                  'CO₂ Levels',
+                  'Indoor CO₂ levels.',
+                  this.co2Data,
+                  this.co2Data.some(dataset => dataset.type === 'line' && dataset.points.length > 0),
                 )}
                 ${this.renderChart(
                   'Control ownership',
@@ -291,6 +300,14 @@ export class AnalyticsView extends LitElement {
         label: 'Target temperature',
         valueFormatter: temperatureUnitFormatter,
       },
+      {
+        type: 'line',
+        key: 'outdoor-temperature',
+        points: extendToDomainEnd(toMeasurementPoints(measurementChanges, 'forecastTemperatureC'), domain),
+        color: 'var(--accent-warning)',
+        label: 'Outdoor temperature',
+        valueFormatter: temperatureUnitFormatter,
+      },
       ...this.buildSensorTemperatureDatasets(sensorPeriods, sensorSeeds, domain, temperatureUnitFormatter),
     ];
 
@@ -319,7 +336,26 @@ export class AnalyticsView extends LitElement {
     const co2Periods = this.filterEntriesBySensorFeature(sensorPeriods, sensor => sensor.hasCO2Sensor);
     const co2Seeds = this.filterEntriesBySensorFeature(sensorSeeds, sensor => sensor.hasCO2Sensor);
 
-    this.airQualityData = [
+    this.co2Data = [
+      {
+        type: 'line',
+        key: 'co2',
+        points: extendToDomainEnd(toCrossSensorAverage(co2Periods, co2Seeds, 'cO2LevelPpm', domain), domain),
+        color: 'var(--accent-danger)',
+        axis: 'y1',
+        label: 'Average CO2',
+        valueFormatter: value => `${Math.round(value)} ppm`,
+      },
+      ...this.buildSensorMeasurementDatasets(co2Periods, co2Seeds, domain, {
+        measurementKey: 'cO2LevelPpm',
+        keyPrefix: 'sensor-co2',
+        axis: 'y1',
+        label: sensorName => `${sensorName} CO2`,
+        valueFormatter: value => `${Math.round(value)} ppm`,
+      }),
+    ];
+
+    this.humidityData = [
       {
         type: 'line',
         key: 'humidity',
@@ -331,15 +367,6 @@ export class AnalyticsView extends LitElement {
         label: 'Average humidity',
         valueFormatter: value => `${value.toFixed(1)}%`,
       },
-      {
-        type: 'line',
-        key: 'co2',
-        points: extendToDomainEnd(toCrossSensorAverage(co2Periods, co2Seeds, 'cO2LevelPpm', domain), domain),
-        color: 'var(--accent-danger)',
-        axis: 'y1',
-        label: 'Average CO2',
-        valueFormatter: value => `${Math.round(value)} ppm`,
-      },
       ...this.buildSensorMeasurementDatasets(humidityPeriods, humiditySeeds, domain, {
         measurementKey: 'humidityPercentage',
         keyPrefix: 'sensor-humidity',
@@ -348,13 +375,6 @@ export class AnalyticsView extends LitElement {
         max: 100,
         label: sensorName => `${sensorName} humidity`,
         valueFormatter: value => `${value.toFixed(1)}%`,
-      }),
-      ...this.buildSensorMeasurementDatasets(co2Periods, co2Seeds, domain, {
-        measurementKey: 'cO2LevelPpm',
-        keyPrefix: 'sensor-co2',
-        axis: 'y1',
-        label: sensorName => `${sensorName} CO2`,
-        valueFormatter: value => `${Math.round(value)} ppm`,
       }),
     ];
   }

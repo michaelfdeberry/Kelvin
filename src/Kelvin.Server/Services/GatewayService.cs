@@ -258,8 +258,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
     }
     else if (tag.SequenceEqual(FrameTags.Hmi))
     {
-      var result = await dispatcher.DispatchAsync(new ReceiveHmiCommandRequest(macAddress, content), stoppingToken);
-      result.EnsureSuccess();
+      await HandleHmiCommandAsync(macAddress, content, stoppingToken);
     }
     else
     {
@@ -283,6 +282,25 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
 
     var result = await dispatcher.DispatchAsync(new SaveSensorPacketRequest(packet, DeviceType.Node), stoppingToken);
     result.EnsureSuccess();
+  }
+
+  private async Task HandleHmiCommandAsync(string macAddress, byte[] content, CancellationToken stoppingToken)
+  {
+    var result = await dispatcher.DispatchAsync(new ReceiveHmiCommandRequest(macAddress, content), stoppingToken);
+    if (result.IsSuccess)
+      return;
+
+    logger.LogWarning("Hmi command from {MacAddress} failed: {Code} - {Message}", macAddress, result.Error.Code, result.Error.Message);
+    var notification = new Notification
+    {
+      Id = Guid.NewGuid(),
+      Message = result.Error.Message,
+      Type = NotificationType.Error,
+      Heading = "Unable to apply change",
+      Dismissible = true,
+      Duration = 10000,
+    };
+    hmiOutboundChannel.Write(macAddress, HmiMessageType.Notify, HmiNotificationEncoder.Encode(notification, persistent: false));
   }
 
   // GatewayService is the sole owner/writer of the serial port, so outbound frames are drained here rather

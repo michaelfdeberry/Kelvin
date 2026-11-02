@@ -194,9 +194,8 @@ export class SettingsLocationTab extends LitElement {
                 </button>
               </div>
             `,
-            error: error => {
-              const message = error instanceof Error ? error.message : 'Unknown error';
-              return message;
+            error: () => {
+              return html`<p class="error">Unable to retrieve location</p>`;
             },
           })}
         </div>
