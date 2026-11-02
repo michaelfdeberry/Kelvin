@@ -79,6 +79,7 @@ export class NumberInput extends LitElement {
     if (updatedValue <= this.max) {
       this.value = updatedValue;
       this.syncFormValue();
+      this.dispatchValueChange();
     }
   }
 
@@ -87,7 +88,17 @@ export class NumberInput extends LitElement {
     if (updatedValue >= this.min) {
       this.value = updatedValue;
       this.syncFormValue();
+      this.dispatchValueChange();
     }
+  }
+
+  private dispatchValueChange(): void {
+    this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    this.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+  }
+
+  override updated(changedProperties: Map<string, unknown>): void {
+    if (changedProperties.has('value') || changedProperties.has('disabled')) this.syncFormValue();
   }
 
   private handleInputChange(): void {

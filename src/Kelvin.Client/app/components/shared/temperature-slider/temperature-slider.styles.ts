@@ -3,53 +3,124 @@ import { css } from 'lit';
 export default css`
   :host {
     display: block;
-    margin-bottom: 1.25rem;
-    padding-block: 0;
+    --slider-thumb-size: 3rem;
+    --slider-track-color: var(--bg-panel);
+    --slider-segment-start-color: var(--bg-panel);
+    --slider-segment-end-color: var(--bg-panel);
+    --slider-segment-middle-color: var(--accent-success);
+    --temperature-thumb-accent: var(--accent-idle);
+    padding: 0;
   }
 
   .slider__track {
-    height: 2.5rem;
-    border: 1px solid var(--accent-idle);
-    background: var(--bg-dark);
+    height: 0.875rem;
+    border-radius: 999px;
+    background: var(--slider-track-color);
+  }
+
+  .slider__track::before {
+    content: '';
+    position: absolute;
+    inset: -1rem 0;
   }
 
   .slider__thumb {
-    width: 10px;
-    height: 100%;
-    border-radius: 4px;
+    border: 4px solid var(--temperature-thumb-accent);
+    background: var(--text-main);
+    z-index: 1;
   }
 
-  :host([heating][cooling]) {
-    .slider__segment--start {
-      background: var(--slider-segment-start-color, var(--accent-heat));
-    }
-
-    .slider__segment--middle {
-      background: var(--slider-segment-middle-color, var(--border-subtle));
-    }
-
-    .slider__segment--end {
-      background: var(--slider-segment-end-color, var(--accent-primary));
-    }
+  .slider__thumb--low {
+    --temperature-thumb-accent: var(--accent-heat);
   }
 
-  :host([cooling]:not([heating])) {
-    .slider__segment--start {
-      background: var(--slider-segment-start-color, var(--border-subtle));
-    }
-
-    .slider__segment--end {
-      background: var(--slider-segment-end-color, var(--accent-primary));
-    }
+  .slider__thumb--high {
+    --temperature-thumb-accent: var(--accent-cool);
   }
 
-  :host([heating]:not([cooling])) {
-    .slider__segment--start {
-      background: var(--slider-segment-start-color, var(--accent-heat));
-    }
+  .slider__thumb:focus-visible {
+    border-color: var(--temperature-thumb-accent);
+  }
 
-    .slider__segment--end {
-      background: var(--slider-segment-end-color, var(--border-subtle));
-    }
+  .slider__bubble {
+    display: none;
+  }
+
+  :host([range]) {
+    --slider-segment-start-color: var(--accent-heat);
+    --slider-segment-end-color: var(--accent-cool);
+  }
+
+  :host([cooling]:not([heating]):not([range])) {
+    --slider-segment-end-color: var(--accent-cool);
+    --temperature-thumb-accent: var(--accent-cool);
+  }
+
+  :host([heating]:not([range])) {
+    --slider-segment-start-color: var(--accent-heat);
+    --temperature-thumb-accent: var(--accent-heat);
+  }
+
+  .temperature-slider__readout {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.125rem;
+    line-height: 1.5;
+  }
+
+  .temperature-slider__heating {
+    color: var(--accent-heat);
+  }
+
+  .temperature-slider__cooling {
+    color: var(--accent-cool);
+  }
+
+  .temperature-slider__scale {
+    position: relative;
+    margin-inline: calc(var(--slider-thumb-size) / 2);
+    padding-top: 1.75rem;
+  }
+
+  .temperature-slider__scale--with-current {
+    padding-top: 3.5rem;
+  }
+
+  .temperature-slider__current-marker {
+    position: absolute;
+    top: 1.5rem;
+    left: var(--current-position);
+    width: 2px;
+    height: 1rem;
+    background: var(--text-muted);
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .temperature-slider__current-label {
+    position: absolute;
+    top: 0;
+    left: clamp(3.5rem, var(--current-position), calc(100% - 3.5rem));
+    transform: translateX(-50%);
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    pointer-events: none;
+  }
+
+  .temperature-slider__limits {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 1.5rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
   }
 `;
