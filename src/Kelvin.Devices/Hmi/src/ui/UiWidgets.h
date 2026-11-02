@@ -43,6 +43,7 @@ namespace UiWidgets
   // Thick track + large round knob, matching the main screen's set point slider.
   inline void styleSlider(lv_obj_t *slider, lv_color_t track, lv_color_t accent)
   {
+    accent = UiTheme::sliderAccent(accent);
     const int trackHeight = 20;
     const int knobRadius = 32;
     lv_obj_set_height(slider, trackHeight);

@@ -481,7 +481,7 @@ void SettingsPage::refreshLockoutDimming(size_t index)
     lv_obj_add_state(lockoutSliders[index], LV_STATE_DISABLED);
   }
   lv_obj_set_style_opa(lockoutSliders[index], enabled ? LV_OPA_COVER : LV_OPA_40, 0);
-  lv_obj_set_style_text_color(lockoutValueLabels[index], enabled ? accentFor(index) : UiTheme::textMuted(), 0);
+  lv_obj_set_style_text_color(lockoutValueLabels[index], enabled ? UiTheme::sliderAccent(accentFor(index)) : UiTheme::textMuted(), 0);
 
   char text[16];
   if (enabled)
@@ -646,7 +646,7 @@ void SettingsPage::openSheet(RunType type, const ScheduleState *existing)
   lv_label_set_text(targetLabel, text);
   lv_label_set_text(sheetError, "");
 
-  lv_color_t accent = type == RunType::Heating ? UiTheme::accentHeat() : UiTheme::accentCool();
+  lv_color_t accent = type == RunType::Heating ? UiTheme::sliderHeat() : UiTheme::sliderCool();
   lv_obj_set_style_bg_color(targetSlider, accent, LV_PART_INDICATOR);
   lv_obj_set_style_border_color(targetSlider, accent, LV_PART_KNOB);
   lv_obj_set_style_text_color(targetLabel, accent, 0);

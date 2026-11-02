@@ -17,6 +17,9 @@ namespace UiTheme
   inline lv_color_t accentHeat() { return lv_color_hex(0xf97316); }
   inline lv_color_t accentCool() { return lv_color_hex(0x3b82f6); }
   inline lv_color_t accentIdle() { return lv_color_hex(0x475569); }
+  inline lv_color_t sliderHeat() { return lv_color_hex(0xb89174); }
+  inline lv_color_t sliderCool() { return lv_color_hex(0x819cbb); }
+  inline lv_color_t sliderRange() { return lv_color_hex(0x708f7f); }
   inline lv_color_t borderSubtle() { return lv_color_hex(0x334155); }
   inline lv_color_t accentPrimary() { return lv_color_hex(0x2563eb); }
   inline lv_color_t accentPrimaryStrong() { return lv_color_hex(0x1d4ed8); }
@@ -25,6 +28,17 @@ namespace UiTheme
   inline lv_color_t accentDanger() { return lv_color_hex(0xef4444); }
   inline lv_color_t accentDangerStrong() { return lv_color_hex(0xb91c1c); }
   inline lv_color_t textOnPrimaryStrong() { return lv_color_hex(0xeff6ff); }
+
+  inline lv_color_t sliderAccent(lv_color_t accent)
+  {
+    if (lv_color_eq(accent, accentHeat()))
+      return sliderHeat();
+    if (lv_color_eq(accent, accentCool()) || lv_color_eq(accent, accentPrimary()))
+      return sliderCool();
+    if (lv_color_eq(accent, accentSuccess()))
+      return sliderRange();
+    return accent;
+  }
 
   // Only Montserrat 14/20/32/48 are enabled in lv_conf.h (see Hmi.bat) - keep to these four sizes.
   inline const lv_font_t *fontBody() { return &lv_font_montserrat_14; }

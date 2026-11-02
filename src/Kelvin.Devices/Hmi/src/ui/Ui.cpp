@@ -593,7 +593,7 @@ void Ui::refreshSetPointSlider()
   lv_color_t color = UiTheme::accentIdle();
   if (usable)
   {
-    color = range ? UiTheme::accentSuccess() : (mode == RunMode::Cooling ? UiTheme::accentCool() : UiTheme::accentHeat());
+    color = range ? UiTheme::sliderRange() : (mode == RunMode::Cooling ? UiTheme::sliderCool() : UiTheme::sliderHeat());
   }
   lv_obj_set_style_bg_color(setPointSlider, color, LV_PART_INDICATOR);
   lv_obj_set_style_border_color(setPointSlider, color, LV_PART_KNOB);
@@ -668,7 +668,7 @@ void Ui::refreshSliderTrack()
 {
   bool range = thermostatState.mode == RunMode::Automatic && !lv_obj_has_state(setPointSlider, LV_STATE_DISABLED);
   bool cooling = thermostatState.mode == RunMode::Cooling && !lv_obj_has_state(setPointSlider, LV_STATE_DISABLED);
-  lv_obj_set_style_bg_color(setPointSlider, range ? UiTheme::accentHeat() : (cooling ? UiTheme::accentCool() : UiTheme::bgPanel()), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(setPointSlider, range ? UiTheme::sliderHeat() : (cooling ? UiTheme::sliderCool() : UiTheme::bgPanel()), LV_PART_MAIN);
   if (cooling)
     lv_obj_set_style_bg_color(setPointSlider, UiTheme::bgPanel(), LV_PART_INDICATOR);
   lv_obj_set_style_bg_grad_dir(setPointSlider, range ? LV_GRAD_DIR_HOR : LV_GRAD_DIR_NONE, LV_PART_MAIN);
@@ -682,7 +682,7 @@ void Ui::refreshSliderTrack()
 
   int32_t heatingStop = (lv_slider_get_left_value(setPointSlider) - minimum) * 255 / span;
   int32_t coolingStop = (lv_slider_get_value(setPointSlider) - minimum) * 255 / span;
-  lv_obj_set_style_bg_grad_color(setPointSlider, UiTheme::accentCool(), LV_PART_MAIN);
+  lv_obj_set_style_bg_grad_color(setPointSlider, UiTheme::sliderCool(), LV_PART_MAIN);
   lv_obj_set_style_bg_main_stop(setPointSlider, heatingStop, LV_PART_MAIN);
   lv_obj_set_style_bg_grad_stop(setPointSlider, coolingStop, LV_PART_MAIN);
 }
@@ -1041,7 +1041,7 @@ void Ui::handleSliderEvent(lv_event_t *e)
     lv_draw_task_get_area(task, &thumb);
     int32_t midpoint = 2 * track.x1 + lv_area_get_width(&track) *
                                           (lv_slider_get_left_value(ui->setPointSlider) + lv_slider_get_value(ui->setPointSlider) - 2 * minimum) / span;
-    lv_color_t color = thumb.x1 + thumb.x2 <= midpoint ? UiTheme::accentHeat() : UiTheme::accentCool();
+    lv_color_t color = thumb.x1 + thumb.x2 <= midpoint ? UiTheme::sliderHeat() : UiTheme::sliderCool();
     if (lv_draw_task_get_type(task) == LV_DRAW_TASK_TYPE_BORDER)
       ((lv_draw_border_dsc_t *)descriptor)->color = color;
   }

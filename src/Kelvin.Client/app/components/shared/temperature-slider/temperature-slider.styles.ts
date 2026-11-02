@@ -7,7 +7,7 @@ export default css`
     --slider-track-color: var(--bg-panel);
     --slider-segment-start-color: var(--bg-panel);
     --slider-segment-end-color: var(--bg-panel);
-    --slider-segment-middle-color: var(--accent-success);
+    --slider-segment-middle-color: var(--slider-range);
     --temperature-thumb-accent: var(--accent-idle);
     padding: 0;
   }
@@ -31,11 +31,11 @@ export default css`
   }
 
   .slider__thumb--low {
-    --temperature-thumb-accent: var(--accent-heat);
+    --temperature-thumb-accent: var(--slider-heat);
   }
 
   .slider__thumb--high {
-    --temperature-thumb-accent: var(--accent-cool);
+    --temperature-thumb-accent: var(--slider-cool);
   }
 
   .slider__thumb:focus-visible {
@@ -47,18 +47,18 @@ export default css`
   }
 
   :host([range]) {
-    --slider-segment-start-color: var(--accent-heat);
-    --slider-segment-end-color: var(--accent-cool);
+    --slider-segment-start-color: var(--slider-heat);
+    --slider-segment-end-color: var(--slider-cool);
   }
 
   :host([cooling]:not([heating]):not([range])) {
-    --slider-segment-end-color: var(--accent-cool);
-    --temperature-thumb-accent: var(--accent-cool);
+    --slider-segment-end-color: var(--slider-cool);
+    --temperature-thumb-accent: var(--slider-cool);
   }
 
   :host([heating]:not([range])) {
-    --slider-segment-start-color: var(--accent-heat);
-    --temperature-thumb-accent: var(--accent-heat);
+    --slider-segment-start-color: var(--slider-heat);
+    --temperature-thumb-accent: var(--slider-heat);
   }
 
   .temperature-slider__readout {
@@ -73,11 +73,11 @@ export default css`
   }
 
   .temperature-slider__heating {
-    color: var(--accent-heat);
+    color: var(--slider-heat);
   }
 
   .temperature-slider__cooling {
-    color: var(--accent-cool);
+    color: var(--slider-cool);
   }
 
   .temperature-slider__scale {
