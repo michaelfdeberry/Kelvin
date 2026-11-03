@@ -33,11 +33,11 @@ export type Thermostat = {
   hysteresisC: number;
   heatingLockoutC?: number;
   coolingLockoutC?: number;
-  co2RecirculationEnabled: boolean;
-  co2RecirculationMode: CO2RecirculationMode;
-  co2RecirculationTriggerPpm: number;
-  co2RecirculationSatisfiedPpm: number;
-  co2RecirculationDurationMs: number;
+  cO2RecirculationEnabled: boolean;
+  cO2RecirculationMode: CO2RecirculationMode;
+  cO2RecirculationTriggerPpm: number;
+  cO2RecirculationSatisfiedPpm: number;
+  cO2RecirculationDurationMs: number;
   heatingAutoBalanceEnabled: boolean;
   heatingBalanceTriggerC: number;
   heatingBalanceSatisfiedC: number;
@@ -47,11 +47,11 @@ export type Thermostat = {
 export type UpdateThermostatConfigurationRequest = Pick<
   Thermostat,
   | 'hysteresisC'
-  | 'co2RecirculationEnabled'
-  | 'co2RecirculationMode'
-  | 'co2RecirculationTriggerPpm'
-  | 'co2RecirculationSatisfiedPpm'
-  | 'co2RecirculationDurationMs'
+  | 'cO2RecirculationEnabled'
+  | 'cO2RecirculationMode'
+  | 'cO2RecirculationTriggerPpm'
+  | 'cO2RecirculationSatisfiedPpm'
+  | 'cO2RecirculationDurationMs'
   | 'heatingAutoBalanceEnabled'
   | 'heatingBalanceTriggerC'
   | 'heatingBalanceSatisfiedC'

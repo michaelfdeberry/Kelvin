@@ -21,6 +21,8 @@ public class RecirculationService(
 
   private CancellationTokenSource? _activeRecirculationTaskCancellation;
 
+  private DateTimeOffset? _lastEndTime;
+
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
     Task<EnvironmentReading>? environmentReadingTask = null;
@@ -51,7 +53,7 @@ public class RecirculationService(
 
           var runDuration = TimeSpan.FromMilliseconds(thermostat.CO2RecirculationDurationMs).TotalMinutes;
           var notification = new SendNotificationRequest(
-            $"CO2 Recirculation cycle stopped after running for {runDuration:0.#} minutes.",
+            $"Recirculation cycle stopped after running for {runDuration:0.#} minutes.",
             NotificationType.Information,
             Dismissible: true,
             Duration: 5000
@@ -61,14 +63,13 @@ public class RecirculationService(
           continue;
         }
 
-        // otherwise, process the reading
         var reading = await environmentReadingTask;
         environmentReadingTask = null;
 
         var co2Level = thermostat.CO2RecirculationMode switch
         {
           CO2RecirculationMode.Average => reading.CO2LevelPpm,
-          CO2RecirculationMode.Peak => reading.Areas.Any() ? reading.Areas.Max(a => a.Value.CO2LevelPpm) : reading.CO2LevelPpm,
+          CO2RecirculationMode.Peak => !reading.Areas.IsEmpty ? reading.Areas.Max(a => a.Value.CO2LevelPpm) : reading.CO2LevelPpm,
           _ => throw new InvalidOperationException($"Unknown recirculation mode {thermostat.CO2RecirculationMode}."),
         };
 
@@ -77,7 +78,7 @@ public class RecirculationService(
           logger.LogInformation("{Co2Level} ppm reached, stopping recirculation.", co2Level);
 
           var notification = new SendNotificationRequest(
-            $"CO2 Recirculation completed by achieving {co2Level}ppm.",
+            $"Recirculation completed by achieving {co2Level}ppm of CO2.",
             NotificationType.Information,
             Dismissible: true,
             Duration: 5000
@@ -89,19 +90,26 @@ public class RecirculationService(
 
         if (_activeRecirculationTask is null && co2Level > thermostat.CO2RecirculationTriggerPpm)
         {
+          var cycleDuration = TimeSpan.FromMilliseconds(thermostat.CO2RecirculationDurationMs);
+
+          var elapsedTimeSinceLastCycle = _lastEndTime is { } last ? time.GetUtcNow() - last : TimeSpan.MaxValue;
+          if (cycleDuration > elapsedTimeSinceLastCycle)
+          {
+            // Not enough time since last cycle
+            continue;
+          }
+
           logger.LogInformation("{Mode} CO2 level of {CO2Level}ppm detected, enabling recirculation.", thermostat.CO2RecirculationMode, co2Level);
 
           var fanResult = await dispatcher.DispatchAsync(new UpdateThermostatRequest(thermostat.Mode, FanEnabled: true), stoppingToken);
           fanResult.EnsureSuccess();
 
           _activeRecirculationTaskCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-
-          var duration = TimeSpan.FromMilliseconds(thermostat.CO2RecirculationDurationMs);
-          _activeRecirculationTask = Task.Delay(duration, time, _activeRecirculationTaskCancellation.Token);
+          _activeRecirculationTask = Task.Delay(cycleDuration, time, _activeRecirculationTaskCancellation.Token);
 
           var notificationResult = await dispatcher.DispatchAsync<SendNotificationRequest, SendNotificationResponse>(
             new SendNotificationRequest(
-              $"CO2 Recirculation enabled because a {thermostat.CO2RecirculationMode} level of {co2Level} detected.",
+              $"Recirculation activated because a {thermostat.CO2RecirculationMode} CO2 level of {co2Level}ppm detected.",
               NotificationType.Warning,
               Dismissible: false
             ),
@@ -133,6 +141,7 @@ public class RecirculationService(
     _activeRecirculationTaskCancellation?.Dispose();
     _activeRecirculationTaskCancellation = null;
     _activeRecirculationTask = null;
+    _lastEndTime = time.GetUtcNow();
 
     if (_activeNotificationId.HasValue)
     {

@@ -13,16 +13,17 @@ namespace Kelvin.Server.Tests.Services;
 public class BalancingServiceTests
 {
     /// <summary>
-    /// Starts the service mid heat call, then ends the call. The next reading pushed is the one that evaluates
-    /// the completed cycle.
+    /// Starts the service with the given reading as the latest one, then ends a heat call. The cycle is evaluated
+    /// against that reading as soon as the call ends, without waiting for another one.
     /// </summary>
-    private static async Task StartAfterHeatCycleAsync(FanServiceHarness harness)
+    private static async Task StartAfterHeatCycleAsync(
+        FanServiceHarness harness,
+        params float[] areaTemperaturesC
+    )
     {
-        harness.CallState = ControlState.Heating;
         await harness.StartAsync();
-
-        harness.CallState = ControlState.Dwell;
-        await harness.PushAsync(Spread(20, 20));
+        await harness.PushAsync(Spread(areaTemperaturesC));
+        await harness.EndHeatCallAsync();
     }
 
     [Theory]
@@ -33,8 +34,7 @@ public class BalancingServiceTests
         var harness = FanServiceHarness.ForBalancing();
         harness.Thermostat.Mode = mode;
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 24));
+        await StartAfterHeatCycleAsync(harness, 20, 24);
 
         var update = harness.FanUpdates.ShouldHaveSingleItem();
         update.FanEnabled.ShouldBeTrue();
@@ -48,12 +48,27 @@ public class BalancingServiceTests
     }
 
     [Fact]
+    public async Task HeatCycleEndingBeforeFirstReading_IsEvaluatedWhenOneArrives()
+    {
+        var harness = FanServiceHarness.ForBalancing();
+
+        await harness.StartAsync();
+        await harness.EndHeatCallAsync();
+        harness.FanUpdates.ShouldBeEmpty();
+
+        await harness.PushAsync(Spread(20, 24));
+
+        harness.FanUpdates.ShouldHaveSingleItem().FanEnabled.ShouldBeTrue();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
     public async Task SpreadAtTrigger_AfterHeatCycle_DoesNothing()
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 23));
+        await StartAfterHeatCycleAsync(harness, 20, 23);
 
         harness.FanUpdates.ShouldBeEmpty();
 
@@ -75,29 +90,13 @@ public class BalancingServiceTests
     }
 
     [Fact]
-    public async Task LargeSpread_WhileHeatCallStillRunning_DoesNothing()
-    {
-        var harness = FanServiceHarness.ForBalancing();
-        harness.CallState = ControlState.Heating;
-
-        await harness.StartAsync();
-        await harness.PushAsync(Spread(20, 26));
-        await harness.PushAsync(Spread(20, 26));
-
-        harness.FanUpdates.ShouldBeEmpty();
-
-        await harness.StopAsync();
-    }
-
-    [Fact]
     public async Task CoolingCycleCompleting_IsNotAHeatCycle()
     {
         var harness = FanServiceHarness.ForBalancing();
-        harness.CallState = ControlState.Cooling;
 
         await harness.StartAsync();
-        harness.CallState = ControlState.Dwell;
-        await harness.PushAsync(Spread(20, 20));
+        await harness.PushAsync(Spread(20, 26));
+        harness.RaiseCallChange(ControlState.Cooling, ControlState.Dwell);
         await harness.PushAsync(Spread(20, 26));
 
         harness.FanUpdates.ShouldBeEmpty();
@@ -110,8 +109,7 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 22));
+        await StartAfterHeatCycleAsync(harness, 20, 22);
         await harness.PushAsync(Spread(20, 26));
 
         harness.FanUpdates.ShouldBeEmpty();
@@ -127,11 +125,10 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
         harness.Thermostat.Mode = mode;
-        harness.CallState = ControlState.Heating;
         harness.Enqueue(Spread(20, 26));
 
         await harness.StartAsync();
-        harness.CallState = ControlState.Dwell;
+        harness.RaiseCallChange(ControlState.Heating, ControlState.Dwell);
         await harness.AdvanceAsync(TimeSpan.FromSeconds(1));
         await harness.AdvanceAsync(TimeSpan.FromSeconds(1));
 
@@ -145,11 +142,10 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
         harness.Thermostat.HeatingAutoBalanceEnabled = false;
-        harness.CallState = ControlState.Heating;
         harness.Enqueue(Spread(20, 26));
 
         await harness.StartAsync();
-        harness.CallState = ControlState.Dwell;
+        harness.RaiseCallChange(ControlState.Heating, ControlState.Dwell);
         await harness.AdvanceAsync(TimeSpan.FromSeconds(1));
         await harness.AdvanceAsync(TimeSpan.FromSeconds(1));
 
@@ -164,8 +160,7 @@ public class BalancingServiceTests
         var harness = FanServiceHarness.ForBalancing();
         harness.Thermostat.FanEnabled = true;
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 26));
+        await StartAfterHeatCycleAsync(harness, 20, 26);
 
         harness.FanUpdates.ShouldBeEmpty();
 
@@ -177,8 +172,7 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20));
+        await StartAfterHeatCycleAsync(harness, 20);
 
         harness.FanUpdates.ShouldBeEmpty();
 
@@ -190,8 +184,7 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 24));
+        await StartAfterHeatCycleAsync(harness, 20, 24);
         await harness.PushAsync(Spread(20, 21.5f));
 
         harness.FanUpdates.Select(u => u.FanEnabled).ShouldBe([true, false]);
@@ -207,8 +200,7 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 24));
+        await StartAfterHeatCycleAsync(harness, 20, 24);
         await harness.PushAsync(Spread(20, 22));
 
         harness.FanUpdates.Count.ShouldBe(1);
@@ -222,8 +214,7 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 24));
+        await StartAfterHeatCycleAsync(harness, 20, 24);
         await harness.AdvanceAsync(
             TimeSpan.FromMilliseconds(harness.Thermostat.HeatingAutoBalanceDurationMs)
         );
@@ -240,8 +231,7 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 24));
+        await StartAfterHeatCycleAsync(harness, 20, 24);
         harness.Thermostat.HeatingAutoBalanceEnabled = false;
         await harness.PushAsync(Spread(20, 24));
         await harness.AdvanceAsync(TimeSpan.FromSeconds(1));
@@ -258,10 +248,11 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
+        await harness.StartAsync();
+        await harness.PushAsync(Spread(20, 24));
 
         harness.FailFanUpdates = true;
-        harness.Enqueue(Spread(20, 24));
+        harness.RaiseCallChange(ControlState.Heating, ControlState.Dwell);
         await harness.AdvanceAsync(TimeSpan.FromSeconds(1));
 
         harness.Notifications.ShouldBeEmpty();
@@ -280,8 +271,7 @@ public class BalancingServiceTests
     {
         var harness = FanServiceHarness.ForBalancing();
 
-        await StartAfterHeatCycleAsync(harness);
-        await harness.PushAsync(Spread(20, 24));
+        await StartAfterHeatCycleAsync(harness, 20, 24);
 
         harness.FailFanUpdates = true;
         harness.Enqueue(Spread(20, 20));

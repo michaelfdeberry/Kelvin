@@ -1,8 +1,8 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
-using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Features.Thermostat;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Services;
@@ -12,19 +12,36 @@ public class BalancingService(
   TimeProvider time,
   IDispatcher dispatcher,
   IEnvironmentReadingsChannel environmentReadingsChannel
-) : BackgroundService
+) : BackgroundService, IEventHandler<ControlStateChangedEvent>
 {
   private readonly Guid _subscriberId = Guid.NewGuid();
 
-  private ControlState? _lastCallState;
+  private volatile bool _evaluationPending;
 
-  private bool _evaluationPending;
+  private volatile TaskCompletionSource _heatCallEnded = NewSignal();
+
+  private EnvironmentReading? _latestReading;
 
   private Guid? _activeNotificationId;
 
   private Task? _activeBalanceTask;
 
   private CancellationTokenSource? _activeBalanceCancellation;
+
+  private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+  /// <summary>Called from a scoped publish, so it only flags the cycle and wakes the loop.</summary>
+  public Task HandleAsync(ControlStateChangedEvent @event, CancellationToken cancellationToken = default)
+  {
+    var change = @event.Change;
+    if (change is { Kind: ControlChangeKind.Call, State: ControlState.Dwell, PreviousState: ControlState.Heating })
+    {
+      _evaluationPending = true;
+      _heatCallEnded.TrySetResult();
+    }
+
+    return Task.CompletedTask;
+  }
 
   protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
@@ -36,21 +53,7 @@ public class BalancingService(
         var thermostatResult = await dispatcher.DispatchAsync<GetThermostatRequest, GetThermostatResponse>(new GetThermostatRequest(), stoppingToken);
         thermostatResult.EnsureSuccess();
 
-        var controlResult = await dispatcher.DispatchAsync<GetControlStateRequest, GetControlStateResponse>(
-          new GetControlStateRequest(),
-          stoppingToken
-        );
-        controlResult.EnsureSuccess();
-
         var thermostat = thermostatResult.Value!.Thermostat;
-        var callState = controlResult.Value!.CallState;
-
-        if (_lastCallState == ControlState.Heating && callState == ControlState.Dwell)
-        {
-          _evaluationPending = true;
-        }
-
-        _lastCallState = callState;
 
         if (!thermostat.HeatingAutoBalanceEnabled || thermostat.Mode is not (RunMode.Heating or RunMode.Automatic))
         {
@@ -67,7 +70,12 @@ public class BalancingService(
 
         environmentReadingTask ??= environmentReadingsChannel.ReadAsync(_subscriberId, stoppingToken);
 
-        if (_activeBalanceTask is not null && await Task.WhenAny(_activeBalanceTask, environmentReadingTask) == _activeBalanceTask)
+        var heatCallEnded = _heatCallEnded.Task;
+        var completed = _activeBalanceTask is null
+          ? await Task.WhenAny(environmentReadingTask, heatCallEnded)
+          : await Task.WhenAny(environmentReadingTask, heatCallEnded, _activeBalanceTask);
+
+        if (completed == _activeBalanceTask)
         {
           logger.LogInformation("Balancing ran for {Duration}ms, stopping.", thermostat.HeatingAutoBalanceDurationMs);
 
@@ -83,16 +91,28 @@ public class BalancingService(
           continue;
         }
 
-        // otherwise, process the reading
-        var reading = await environmentReadingTask;
-        environmentReadingTask = null;
+        var readingArrived = completed == environmentReadingTask;
+        if (readingArrived)
+        {
+          _latestReading = await environmentReadingTask;
+          environmentReadingTask = null;
+        }
+        else
+        {
+          // Re-armed before evaluating so a cycle ending mid-evaluation wakes the next iteration.
+          _heatCallEnded = NewSignal();
+        }
 
-        var temperatures = reading.Areas.Values.Select(a => a.TemperatureC).ToArray();
+        // A cycle that ends before the first reading is evaluated once one arrives.
+        if (_latestReading is null)
+          continue;
+
+        var temperatures = _latestReading.Areas.Values.Select(a => a.TemperatureC).ToArray();
         var spreadC = temperatures.Length < 2 ? 0f : temperatures.Max() - temperatures.Min();
 
         if (_activeBalanceTask is not null)
         {
-          if (spreadC <= thermostat.HeatingBalanceSatisfiedC)
+          if (readingArrived && spreadC <= thermostat.HeatingBalanceSatisfiedC)
           {
             logger.LogInformation("Temperature spread of {SpreadC}C reached, stopping balancing.", spreadC);
 

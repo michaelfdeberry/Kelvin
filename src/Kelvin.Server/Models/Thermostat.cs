@@ -61,7 +61,7 @@ public class Thermostat : Entity
   public ushort CO2RecirculationSatisfiedPpm { get; set; } = 800;
 
   /// <summary>
-  /// The max duration to run the fan during the interval for CO2 recirculation in milliseconds.
+  /// The cycle, fan on and off, duration for CO2 recirculation in milliseconds.
   /// </summary>
   public int CO2RecirculationDurationMs { get; set; } = 60000;
 

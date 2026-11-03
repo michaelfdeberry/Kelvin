@@ -53,7 +53,7 @@ export class SettingsThermostat extends LitElement {
   private balanceEnabledDraft?: boolean;
 
   private get co2Enabled(): boolean {
-    return this.co2EnabledDraft ?? this.thermostat.co2RecirculationEnabled;
+    return this.co2EnabledDraft ?? this.thermostat.cO2RecirculationEnabled;
   }
 
   private get balanceEnabled(): boolean {
@@ -81,11 +81,11 @@ export class SettingsThermostat extends LitElement {
     // Each card saves on its own; everything outside the card keeps its saved value.
     const request: UpdateThermostatConfigurationRequest = {
       hysteresisC: thermostat.hysteresisC,
-      co2RecirculationEnabled: thermostat.co2RecirculationEnabled,
-      co2RecirculationMode: thermostat.co2RecirculationMode,
-      co2RecirculationTriggerPpm: thermostat.co2RecirculationTriggerPpm,
-      co2RecirculationSatisfiedPpm: thermostat.co2RecirculationSatisfiedPpm,
-      co2RecirculationDurationMs: thermostat.co2RecirculationDurationMs,
+      cO2RecirculationEnabled: thermostat.cO2RecirculationEnabled,
+      cO2RecirculationMode: thermostat.cO2RecirculationMode,
+      cO2RecirculationTriggerPpm: thermostat.cO2RecirculationTriggerPpm,
+      cO2RecirculationSatisfiedPpm: thermostat.cO2RecirculationSatisfiedPpm,
+      cO2RecirculationDurationMs: thermostat.cO2RecirculationDurationMs,
       heatingAutoBalanceEnabled: thermostat.heatingAutoBalanceEnabled,
       heatingBalanceTriggerC: thermostat.heatingBalanceTriggerC,
       heatingBalanceSatisfiedC: thermostat.heatingBalanceSatisfiedC,
@@ -95,14 +95,14 @@ export class SettingsThermostat extends LitElement {
     if (section === 'hysteresis') {
       request.hysteresisC = deltaFromPreferredUnit(unit, value('hysteresis'));
     } else if (section === 'co2') {
-      request.co2RecirculationEnabled = this.co2Enabled;
+      request.cO2RecirculationEnabled = this.co2Enabled;
 
       // Disabled controls are left out of FormData, so a switched-off card keeps its saved values.
       if (this.co2Enabled) {
-        request.co2RecirculationMode = data.get('co2RecirculationMode') as CO2RecirculationMode;
-        request.co2RecirculationTriggerPpm = Math.round(value('co2RecirculationTrigger'));
-        request.co2RecirculationSatisfiedPpm = Math.round(value('co2RecirculationSatisfied'));
-        request.co2RecirculationDurationMs = Math.round(value('co2RecirculationDuration') * MS_PER_MINUTE);
+        request.cO2RecirculationMode = data.get('co2RecirculationMode') as CO2RecirculationMode;
+        request.cO2RecirculationTriggerPpm = Math.round(value('co2RecirculationTrigger'));
+        request.cO2RecirculationSatisfiedPpm = Math.round(value('co2RecirculationSatisfied'));
+        request.cO2RecirculationDurationMs = Math.round(value('co2RecirculationDuration') * MS_PER_MINUTE);
       }
     } else {
       request.heatingAutoBalanceEnabled = this.balanceEnabled;
@@ -244,7 +244,7 @@ export class SettingsThermostat extends LitElement {
           @reset=${() => this.clearDraft('co2')}
         >
           <div class="form-group">
-            <p class="settings-thermostat__description">Runs the fan to circulate air when high CO<sub>2</sub> levels are detected.</p>
+            <p class="settings-thermostat__description">Cycles the fan to circulate air when high CO<sub>2</sub> levels are detected.</p>
             <div class="settings-thermostat__grid">
               <div class="form-control">
                 <label class="form-control__label">
@@ -258,13 +258,13 @@ export class SettingsThermostat extends LitElement {
                   >
                     <option
                       value="Average"
-                      ?selected=${thermostat.co2RecirculationMode === 'Average'}
+                      ?selected=${thermostat.cO2RecirculationMode === 'Average'}
                     >
                       Average of all sensors
                     </option>
                     <option
                       value="Peak"
-                      ?selected=${thermostat.co2RecirculationMode === 'Peak'}
+                      ?selected=${thermostat.cO2RecirculationMode === 'Peak'}
                     >
                       Highest sensor
                     </option>
@@ -280,7 +280,7 @@ export class SettingsThermostat extends LitElement {
                     step="50"
                     class="form-control__input"
                     ?disabled=${disabled}
-                    .value=${thermostat.co2RecirculationTriggerPpm}
+                    .value=${thermostat.cO2RecirculationTriggerPpm}
                   ></app-number-input>
                 </label>
               </div>
@@ -293,20 +293,20 @@ export class SettingsThermostat extends LitElement {
                     step="50"
                     class="form-control__input"
                     ?disabled=${disabled}
-                    .value=${thermostat.co2RecirculationSatisfiedPpm}
+                    .value=${thermostat.cO2RecirculationSatisfiedPpm}
                   ></app-number-input>
                 </label>
               </div>
               <div class="form-control">
                 <label class="form-control__label">
-                  Maximum run time (minutes)
+                  Cycle Duration (minutes)
                   <app-number-input
                     id="co2RecirculationDuration"
                     name="co2RecirculationDuration"
                     step="0.5"
                     class="form-control__input"
                     ?disabled=${disabled}
-                    .value=${thermostat.co2RecirculationDurationMs / MS_PER_MINUTE}
+                    .value=${thermostat.cO2RecirculationDurationMs / MS_PER_MINUTE}
                   ></app-number-input>
                 </label>
               </div>

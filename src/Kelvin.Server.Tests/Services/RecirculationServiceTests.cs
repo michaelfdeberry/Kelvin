@@ -157,6 +157,57 @@ public class RecirculationServiceTests
     }
 
     [Fact]
+    public async Task AfterDurationElapses_HighLevelWithinRestPeriod_DoesNotReactivate()
+    {
+        var harness = FanServiceHarness.ForRecirculation();
+        var duration = TimeSpan.FromMilliseconds(harness.Thermostat.CO2RecirculationDurationMs);
+
+        await harness.StartAsync();
+        await harness.PushAsync(Reading(1200));
+        await harness.AdvanceAsync(duration);
+
+        harness.Time.Advance(duration - TimeSpan.FromSeconds(1));
+        await harness.PushAsync(Reading(1200));
+
+        harness.FanUpdates.Select(u => u.FanEnabled).ShouldBe([true, false]);
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task AfterDurationElapses_HighLevelAfterRestPeriod_Reactivates()
+    {
+        var harness = FanServiceHarness.ForRecirculation();
+        var duration = TimeSpan.FromMilliseconds(harness.Thermostat.CO2RecirculationDurationMs);
+
+        await harness.StartAsync();
+        await harness.PushAsync(Reading(1200));
+        await harness.AdvanceAsync(duration);
+
+        harness.Time.Advance(duration);
+        await harness.PushAsync(Reading(1200));
+
+        harness.FanUpdates.Select(u => u.FanEnabled).ShouldBe([true, false, true]);
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task AfterLevelSatisfied_HighLevelWithinRestPeriod_DoesNotReactivate()
+    {
+        var harness = FanServiceHarness.ForRecirculation();
+
+        await harness.StartAsync();
+        await harness.PushAsync(Reading(1200));
+        await harness.PushAsync(Reading(800));
+        await harness.PushAsync(Reading(1200));
+
+        harness.FanUpdates.Select(u => u.FanEnabled).ShouldBe([true, false]);
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
     public async Task Active_DisabledMidRun_StopsFanWithoutCompletionNotification()
     {
         var harness = FanServiceHarness.ForRecirculation();

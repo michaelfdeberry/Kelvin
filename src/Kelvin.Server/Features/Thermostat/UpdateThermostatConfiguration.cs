@@ -56,15 +56,21 @@ public class UpdateThermostatConfigurationHandler(KelvinContext context, IMemory
       return Result.Failure(UpdateThermostatConfigurationErrors.InvalidHysteresis);
     }
 
-    if (request.CO2RecirculationSatisfiedPpm >= request.CO2RecirculationTriggerPpm || request.CO2RecirculationDurationMs <= 0)
+    if (
+      request.CO2RecirculationEnabled
+      && (request.CO2RecirculationSatisfiedPpm >= request.CO2RecirculationTriggerPpm || request.CO2RecirculationDurationMs <= 0)
+    )
     {
       return Result.Failure(UpdateThermostatConfigurationErrors.InvalidRecirculation);
     }
 
     if (
-      request.HeatingBalanceSatisfiedC < 0
-      || request.HeatingBalanceSatisfiedC >= request.HeatingBalanceTriggerC
-      || request.HeatingAutoBalanceDurationMs <= 0
+      request.HeatingAutoBalanceEnabled
+      && (
+        request.HeatingBalanceSatisfiedC < 0
+        || request.HeatingBalanceSatisfiedC >= request.HeatingBalanceTriggerC
+        || request.HeatingAutoBalanceDurationMs <= 0
+      )
     )
     {
       return Result.Failure(UpdateThermostatConfigurationErrors.InvalidBalancing);

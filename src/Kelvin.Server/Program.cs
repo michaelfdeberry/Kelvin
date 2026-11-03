@@ -3,6 +3,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Data;
 using Kelvin.Server.Integration.GeoCoding;
 using Kelvin.Server.Integration.Weather;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Services;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.EntityFrameworkCore;
@@ -52,7 +53,9 @@ builder.Services.AddHostedService<GatewayService>();
 builder.Services.AddHostedService<SensingService>();
 builder.Services.AddHostedService<ThermostatService>();
 builder.Services.AddHostedService<RecirculationService>();
-builder.Services.AddHostedService<BalancingService>();
+builder.Services.AddSingleton<BalancingService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<BalancingService>());
+builder.Services.AddScoped<IEventHandler<ControlStateChangedEvent>>(sp => sp.GetRequiredService<BalancingService>());
 builder
   .Services.AddSignalR()
   .AddJsonProtocol(options =>

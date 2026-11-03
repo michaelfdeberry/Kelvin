@@ -2,9 +2,9 @@ using System.Threading.Channels;
 using FakeItEasy;
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
-using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Features.Thermostat;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
 using Microsoft.Extensions.Hosting;
@@ -36,9 +36,6 @@ public sealed class FanServiceHarness
     /// <summary>The thermostat the services read. Mutate it in place between pushes.</summary>
     public Thermostat Thermostat { get; } = ThermostatFixtures.CreateThermostat(RunMode.Heating);
 
-    /// <summary>The call state reported by the control state query.</summary>
-    public ControlState CallState { get; set; } = ControlState.Dwell;
-
     public bool FailThermostatReads { get; set; }
 
     public bool FailFanUpdates { get; set; }
@@ -54,8 +51,7 @@ public sealed class FanServiceHarness
     public FakeTimeProvider Time { get; } = new(ThermostatFixtures.Now);
 
     private FanServiceHarness(
-        Func<TimeProvider, IDispatcher, IEnvironmentReadingsChannel, BackgroundService> create,
-        bool signalOnControlState
+        Func<TimeProvider, IDispatcher, IEnvironmentReadingsChannel, BackgroundService> create
     )
     {
         A.CallTo(() => _environmentChannel.ReadAsync(A<Guid>._, A<CancellationToken>._))
@@ -73,38 +69,9 @@ public sealed class FanServiceHarness
                     ? Result<GetThermostatResponse>.Failure(new Error("Test.Thermostat", "failed"))
                     : Result<GetThermostatResponse>.Success(new GetThermostatResponse(Thermostat));
 
-                if (!signalOnControlState)
-                {
-                    _iterationStarted.Release();
-                }
+                _iterationStarted.Release();
 
                 return result;
-            });
-
-        A.CallTo(() =>
-                _dispatcher.DispatchAsync<GetControlStateRequest, GetControlStateResponse>(
-                    A<GetControlStateRequest>._,
-                    A<CancellationToken>._
-                )
-            )
-            .ReturnsLazily(() =>
-            {
-                var response = new GetControlStateResponse(
-                    ControlState.Enable,
-                    null,
-                    CallState,
-                    null,
-                    false,
-                    null,
-                    null
-                );
-
-                if (signalOnControlState)
-                {
-                    _iterationStarted.Release();
-                }
-
-                return Result<GetControlStateResponse>.Success(response);
             });
 
         A.CallTo(() =>
@@ -156,8 +123,7 @@ public sealed class FanServiceHarness
                     time,
                     dispatcher,
                     channel
-                ),
-            signalOnControlState: false
+                )
         );
         harness.Thermostat.CO2RecirculationEnabled = true;
         return harness;
@@ -172,8 +138,7 @@ public sealed class FanServiceHarness
                     time,
                     dispatcher,
                     channel
-                ),
-            signalOnControlState: true
+                )
         );
         harness.Thermostat.HeatingAutoBalanceEnabled = true;
         return harness;
@@ -187,6 +152,29 @@ public sealed class FanServiceHarness
     }
 
     public Task StopAsync() => _service.StopAsync(new CancellationToken(canceled: true));
+
+    /// <summary>Delivers a call transition to the service without waiting for it to react.</summary>
+    public void RaiseCallChange(ControlState from, ControlState to) =>
+        ((IEventHandler<ControlStateChangedEvent>)_service)
+            .HandleAsync(
+                new ControlStateChangedEvent(
+                    new ControlStateChange
+                    {
+                        Kind = ControlChangeKind.Call,
+                        State = to,
+                        PreviousState = from,
+                    }
+                )
+            )
+            .GetAwaiter()
+            .GetResult();
+
+    /// <summary>Ends a heat call and waits for the service to finish reacting to it.</summary>
+    public async Task EndHeatCallAsync()
+    {
+        RaiseCallChange(ControlState.Heating, ControlState.Dwell);
+        await _iterationStarted.WaitAsync();
+    }
 
     /// <summary>Queues a reading without waiting, for iterations that end in a backoff delay.</summary>
     public void Enqueue(EnvironmentReading reading) => _readings.Writer.TryWrite(reading);
