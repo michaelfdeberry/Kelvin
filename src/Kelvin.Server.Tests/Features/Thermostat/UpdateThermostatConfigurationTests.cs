@@ -24,7 +24,6 @@ public class UpdateThermostatConfigurationTests
         new(
             hysteresisC,
             true,
-            CO2RecirculationMode.Peak,
             recirculationTrigger,
             recirculationSatisfied,
             recirculationDurationMs,
@@ -96,7 +95,6 @@ public class UpdateThermostatConfigurationTests
         var thermostat = verifyContext.Thermostats.Single();
         thermostat.HysteresisC.ShouldBe(0.8f);
         thermostat.CO2RecirculationEnabled.ShouldBeTrue();
-        thermostat.CO2RecirculationMode.ShouldBe(CO2RecirculationMode.Peak);
         thermostat.CO2RecirculationTriggerPpm.ShouldBe((ushort)1200);
         thermostat.CO2RecirculationSatisfiedPpm.ShouldBe((ushort)900);
         thermostat.CO2RecirculationDurationMs.ShouldBe(120000);

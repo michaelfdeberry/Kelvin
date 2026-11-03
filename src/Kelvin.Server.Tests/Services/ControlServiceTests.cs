@@ -44,6 +44,36 @@ public class ControlServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_FanLeftEnabled_TurnsItOff()
+    {
+        var harness = new ControlServiceHarness();
+        var thermostat = ThermostatFixtures.CreateThermostat(RunMode.Heating);
+        thermostat.FanEnabled = true;
+        harness.SetThermostat(thermostat);
+
+        await harness.StartAsync();
+
+        var update = harness.ThermostatUpdates.ShouldHaveSingleItem();
+        update.FanEnabled.ShouldBeFalse();
+        update.Mode.ShouldBe(RunMode.Heating);
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task StartAsync_FanAlreadyOff_LeavesTheThermostatAlone()
+    {
+        var harness = new ControlServiceHarness();
+        harness.SetThermostat(ThermostatFixtures.CreateThermostat(RunMode.Heating));
+
+        await harness.StartAsync();
+
+        harness.ThermostatUpdates.ShouldBeEmpty();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
     public async Task StartAsync_RecordsAStartupLifecycleEvent()
     {
         var harness = new ControlServiceHarness();

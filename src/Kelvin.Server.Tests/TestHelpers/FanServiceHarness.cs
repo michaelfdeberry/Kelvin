@@ -78,7 +78,14 @@ public sealed class FanServiceHarness
                 _dispatcher.DispatchAsync(A<UpdateThermostatRequest>._, A<CancellationToken>._)
             )
             .Invokes(
-                (UpdateThermostatRequest request, CancellationToken _) => FanUpdates.Add(request)
+                (UpdateThermostatRequest request, CancellationToken _) =>
+                {
+                    FanUpdates.Add(request);
+                    if (!FailFanUpdates)
+                    {
+                        Thermostat.FanEnabled = request.FanEnabled;
+                    }
+                }
             )
             .ReturnsLazily(() =>
                 FailFanUpdates ? Result.Failure(new Error("Test.Fan", "failed")) : Result.Success()
@@ -122,6 +129,7 @@ public sealed class FanServiceHarness
                     NullLogger<RecirculationService>.Instance,
                     time,
                     dispatcher,
+                    new FanArbiter(dispatcher),
                     channel
                 )
         );
@@ -137,6 +145,7 @@ public sealed class FanServiceHarness
                     NullLogger<BalancingService>.Instance,
                     time,
                     dispatcher,
+                    new FanArbiter(dispatcher),
                     channel
                 )
         );
@@ -176,8 +185,19 @@ public sealed class FanServiceHarness
         await _iterationStarted.WaitAsync();
     }
 
+    /// <summary>Ends a cool call and waits for the service to finish reacting to it.</summary>
+    public async Task EndCoolCallAsync()
+    {
+        RaiseCallChange(ControlState.Cooling, ControlState.Dwell);
+        await _iterationStarted.WaitAsync();
+    }
+
     /// <summary>Queues a reading without waiting, for iterations that end in a backoff delay.</summary>
-    public void Enqueue(EnvironmentReading reading) => _readings.Writer.TryWrite(reading);
+    public void Enqueue(EnvironmentReading reading)
+    {
+        reading.Timestamp = Time.GetUtcNow();
+        _readings.Writer.TryWrite(reading);
+    }
 
     /// <summary>
     /// Queues a reading and waits for the next iteration to begin, so everything the reading caused has happened.

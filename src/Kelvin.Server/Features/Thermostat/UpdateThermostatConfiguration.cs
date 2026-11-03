@@ -10,7 +10,6 @@ namespace Kelvin.Server.Features.Thermostat;
 public record UpdateThermostatConfigurationRequest(
   float HysteresisC,
   bool CO2RecirculationEnabled,
-  CO2RecirculationMode CO2RecirculationMode,
   ushort CO2RecirculationTriggerPpm,
   ushort CO2RecirculationSatisfiedPpm,
   int CO2RecirculationDurationMs,
@@ -105,7 +104,6 @@ public class UpdateThermostatConfigurationHandler(KelvinContext context, IMemory
 
     thermostat.HysteresisC = request.HysteresisC;
     thermostat.CO2RecirculationEnabled = request.CO2RecirculationEnabled;
-    thermostat.CO2RecirculationMode = request.CO2RecirculationMode;
     thermostat.CO2RecirculationTriggerPpm = request.CO2RecirculationTriggerPpm;
     thermostat.CO2RecirculationSatisfiedPpm = request.CO2RecirculationSatisfiedPpm;
     thermostat.CO2RecirculationDurationMs = request.CO2RecirculationDurationMs;

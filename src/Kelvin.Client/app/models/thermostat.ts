@@ -2,8 +2,6 @@ export type RunMode = 'Disabled' | 'Off' | 'Heating' | 'Cooling' | 'Automatic';
 
 export type RunType = 'Heating' | 'Cooling';
 
-export type CO2RecirculationMode = 'Average' | 'Peak';
-
 export type SetPoint = {
   id: string;
   type: RunType;
@@ -34,7 +32,6 @@ export type Thermostat = {
   heatingLockoutC?: number;
   coolingLockoutC?: number;
   cO2RecirculationEnabled: boolean;
-  cO2RecirculationMode: CO2RecirculationMode;
   cO2RecirculationTriggerPpm: number;
   cO2RecirculationSatisfiedPpm: number;
   cO2RecirculationDurationMs: number;
@@ -48,7 +45,6 @@ export type UpdateThermostatConfigurationRequest = Pick<
   Thermostat,
   | 'hysteresisC'
   | 'cO2RecirculationEnabled'
-  | 'cO2RecirculationMode'
   | 'cO2RecirculationTriggerPpm'
   | 'cO2RecirculationSatisfiedPpm'
   | 'cO2RecirculationDurationMs'

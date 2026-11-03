@@ -2,6 +2,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
+using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 
@@ -56,6 +57,7 @@ public class ControlService(
     relays.Initialize();
 
     await RestoreCallClockAsync(cancellationToken);
+    await ResetFanAsync(cancellationToken);
     await RecordStartupEventAsync(cancellationToken);
     await base.StartAsync(cancellationToken);
   }
@@ -630,6 +632,34 @@ public class ControlService(
       // Without history the safe assumption is that a call ended moments ago; enforce a full minimum off-time.
       _lastCallChangeAt = time.GetUtcNow();
       logger.LogError(ex, "Failed to restore the call clock from history. Measuring the minimum off-time from startup.");
+    }
+  }
+
+  /// <summary>
+  /// Initialize released the fan relay, so a fan setting persisted as on would claim a fan that is not running and
+  /// that no service remembers owning.
+  /// </summary>
+  private async Task ResetFanAsync(CancellationToken cancellationToken)
+  {
+    try
+    {
+      var thermostatResult = await dispatcher.DispatchAsync<GetThermostatRequest, GetThermostatResponse>(
+        new GetThermostatRequest(),
+        cancellationToken
+      );
+      var thermostat = thermostatResult?.Value?.Thermostat;
+      if (thermostat is null || !thermostat.FanEnabled)
+        return;
+
+      logger.LogWarning("The fan was left enabled by the previous run. Turning it off.");
+
+      var update = await dispatcher.DispatchAsync(new UpdateThermostatRequest(thermostat.Mode, FanEnabled: false), cancellationToken);
+      if (update.IsFailure)
+        logger.LogError("Failed to turn the fan off at startup: {Error}", update.Error.Message);
+    }
+    catch (Exception ex)
+    {
+      logger.LogError(ex, "Failed to reset the fan at startup.");
     }
   }
 

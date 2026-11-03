@@ -9,7 +9,6 @@ export const defaultThermostat: Thermostat = {
   fanEnabled: false,
   hysteresisC: 0.6,
   cO2RecirculationEnabled: false,
-  cO2RecirculationMode: 'Average',
   cO2RecirculationTriggerPpm: 1000,
   cO2RecirculationSatisfiedPpm: 800,
   cO2RecirculationDurationMs: 60000,

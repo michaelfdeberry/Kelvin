@@ -64,6 +64,24 @@ public class BalancingServiceTests
     }
 
     [Fact]
+    public async Task StaleReading_AtHeatCycleEnd_IsNotEvaluatedUntilAFreshOneArrives()
+    {
+        var harness = FanServiceHarness.ForBalancing();
+
+        await harness.StartAsync();
+        await harness.PushAsync(Spread(20, 24));
+        harness.Time.Advance(TimeSpan.FromMinutes(20));
+        await harness.EndHeatCallAsync();
+        harness.FanUpdates.ShouldBeEmpty();
+
+        await harness.PushAsync(Spread(20, 24));
+
+        harness.FanUpdates.ShouldHaveSingleItem().FanEnabled.ShouldBeTrue();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
     public async Task SpreadAtTrigger_AfterHeatCycle_DoesNothing()
     {
         var harness = FanServiceHarness.ForBalancing();

@@ -3,6 +3,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
+using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
 using Microsoft.Extensions.Hosting;
@@ -57,6 +58,20 @@ public sealed class ControlServiceHarness
     /// <summary>How many reads the service has started. A reused outstanding read does not increment this.</summary>
     public int ReadCount { get; private set; }
 
+    /// <summary>The thermostat updates the service dispatched, such as turning off a fan left on.</summary>
+    public List<UpdateThermostatRequest> ThermostatUpdates { get; } = [];
+
+    public void SetThermostat(Models.Thermostat thermostat) =>
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync<GetThermostatRequest, GetThermostatResponse>(
+                    A<GetThermostatRequest>._,
+                    A<CancellationToken>._
+                )
+            )
+            .ReturnsLazily(() =>
+                Result<GetThermostatResponse>.Success(new GetThermostatResponse(thermostat))
+            );
+
     /// <summary>Completes when the service asks the host to shut down after an unusable GPIO.</summary>
     public Task StopApplicationRequested => _stopApplicationRequested.Task;
 
@@ -76,6 +91,15 @@ public sealed class ControlServiceHarness
             .Invokes(() => _stopApplicationRequested.TrySetResult());
 
         SetRecordingResult(Result.Success());
+
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync(A<UpdateThermostatRequest>._, A<CancellationToken>._)
+            )
+            .Invokes(
+                (UpdateThermostatRequest request, CancellationToken _) =>
+                    ThermostatUpdates.Add(request)
+            )
+            .Returns(Result.Success());
 
         A.CallTo(() =>
                 _dispatcher.DispatchAsync<

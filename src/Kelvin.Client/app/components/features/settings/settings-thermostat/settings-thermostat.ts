@@ -12,7 +12,7 @@ import { thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
 import { RelayStates } from '../../../../models/gateway.js';
 import { Preferences } from '../../../../models/preferences.js';
-import { CO2RecirculationMode, Thermostat, UpdateThermostatConfigurationRequest } from '../../../../models/thermostat.js';
+import { Thermostat, UpdateThermostatConfigurationRequest } from '../../../../models/thermostat.js';
 import apiResources from '../../../../services/api-resources.js';
 import { apiGet, apiPut } from '../../../../services/api.js';
 import {
@@ -82,7 +82,6 @@ export class SettingsThermostat extends LitElement {
     const request: UpdateThermostatConfigurationRequest = {
       hysteresisC: thermostat.hysteresisC,
       cO2RecirculationEnabled: thermostat.cO2RecirculationEnabled,
-      cO2RecirculationMode: thermostat.cO2RecirculationMode,
       cO2RecirculationTriggerPpm: thermostat.cO2RecirculationTriggerPpm,
       cO2RecirculationSatisfiedPpm: thermostat.cO2RecirculationSatisfiedPpm,
       cO2RecirculationDurationMs: thermostat.cO2RecirculationDurationMs,
@@ -99,7 +98,6 @@ export class SettingsThermostat extends LitElement {
 
       // Disabled controls are left out of FormData, so a switched-off card keeps its saved values.
       if (this.co2Enabled) {
-        request.cO2RecirculationMode = data.get('co2RecirculationMode') as CO2RecirculationMode;
         request.cO2RecirculationTriggerPpm = Math.round(value('co2RecirculationTrigger'));
         request.cO2RecirculationSatisfiedPpm = Math.round(value('co2RecirculationSatisfied'));
         request.cO2RecirculationDurationMs = Math.round(value('co2RecirculationDuration') * MS_PER_MINUTE);
@@ -246,31 +244,6 @@ export class SettingsThermostat extends LitElement {
           <div class="form-group">
             <p class="settings-thermostat__description">Cycles the fan to circulate air when high CO<sub>2</sub> levels are detected.</p>
             <div class="settings-thermostat__grid">
-              <div class="form-control">
-                <label class="form-control__label">
-                  Mode
-                  <select
-                    id="co2RecirculationMode"
-                    name="co2RecirculationMode"
-                    class="form-control__input select"
-                    aria-label="CO2 recirculation mode"
-                    ?disabled=${disabled}
-                  >
-                    <option
-                      value="Average"
-                      ?selected=${thermostat.cO2RecirculationMode === 'Average'}
-                    >
-                      Average of all sensors
-                    </option>
-                    <option
-                      value="Peak"
-                      ?selected=${thermostat.cO2RecirculationMode === 'Peak'}
-                    >
-                      Highest sensor
-                    </option>
-                  </select>
-                </label>
-              </div>
               <div class="form-control">
                 <label class="form-control__label">
                   Start above (ppm)

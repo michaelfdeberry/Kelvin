@@ -11,9 +11,13 @@ public class BalancingService(
   ILogger<BalancingService> logger,
   TimeProvider time,
   IDispatcher dispatcher,
+  IFanArbiter fanArbiter,
   IEnvironmentReadingsChannel environmentReadingsChannel
 ) : BackgroundService, IEventHandler<ControlStateChangedEvent>
 {
+  /// <summary>Matches the sensing service's sensor timeout, beyond which a reading no longer describes the rooms.</summary>
+  private static readonly TimeSpan MaxReadingAge = TimeSpan.FromMinutes(15);
+
   private readonly Guid _subscriberId = Guid.NewGuid();
 
   private volatile bool _evaluationPending;
@@ -107,6 +111,10 @@ public class BalancingService(
         if (_latestReading is null)
           continue;
 
+        // Stays pending, so a fresh reading evaluates the cycle instead of an outdated one.
+        if (time.GetUtcNow() - _latestReading.Timestamp > MaxReadingAge)
+          continue;
+
         var temperatures = _latestReading.Areas.Values.Select(a => a.TemperatureC).ToArray();
         var spreadC = temperatures.Length < 2 ? 0f : temperatures.Max() - temperatures.Min();
 
@@ -140,7 +148,7 @@ public class BalancingService(
           {
             logger.LogInformation("Heat cycle completed with a {SpreadC}C temperature spread, enabling balancing.", spreadC);
 
-            var fanResult = await dispatcher.DispatchAsync(new UpdateThermostatRequest(thermostat.Mode, FanEnabled: true), stoppingToken);
+            var fanResult = await fanArbiter.AcquireAsync(FanOwner.Balancing, thermostat, stoppingToken);
             fanResult.EnsureSuccess();
 
             // cleared only on success so a failed enable is retried on the next reading
@@ -179,7 +187,7 @@ public class BalancingService(
 
   private async Task EndBalancing(Thermostat thermostat, SendNotificationRequest? notification, CancellationToken stoppingToken)
   {
-    var result = await dispatcher.DispatchAsync(new UpdateThermostatRequest(thermostat.Mode, FanEnabled: false), stoppingToken);
+    var result = await fanArbiter.ReleaseAsync(FanOwner.Balancing, thermostat, stoppingToken);
     result.EnsureSuccess();
 
     // State is only cleared once the fan is off, so a failed stop is retried next iteration.

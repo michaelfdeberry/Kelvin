@@ -397,9 +397,6 @@ namespace Kelvin.Server.Data.Migrations
                     b.Property<bool>("CO2RecirculationEnabled")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("CO2RecirculationMode")
-                        .HasColumnType("INTEGER");
-
                     b.Property<ushort>("CO2RecirculationSatisfiedPpm")
                         .HasColumnType("INTEGER");
 

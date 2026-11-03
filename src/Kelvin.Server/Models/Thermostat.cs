@@ -1,18 +1,5 @@
 namespace Kelvin.Server.Models;
 
-public enum CO2RecirculationMode
-{
-  /// <summary>
-  /// Will enabled the fan when the average CO2 is above the threshold.
-  /// </summary>
-  Average,
-
-  /// <summary>
-  /// Will enable the fan when any CO2 reading is above the threshold.
-  /// </summary>
-  Peak,
-}
-
 public class Thermostat : Entity
 {
   /// <summary>
@@ -44,11 +31,6 @@ public class Thermostat : Entity
   /// Whether CO2 recirculation is enabled.
   /// </summary>
   public bool CO2RecirculationEnabled { get; set; } = false;
-
-  /// <summary>
-  /// The mode for CO2 recirculation.
-  /// </summary>
-  public CO2RecirculationMode CO2RecirculationMode { get; set; } = CO2RecirculationMode.Average;
 
   /// <summary>
   /// The CO2 level to trigger recirculation.
