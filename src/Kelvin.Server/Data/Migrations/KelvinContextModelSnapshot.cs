@@ -179,13 +179,7 @@ namespace Kelvin.Server.Data.Migrations
                     b.Property<long?>("DeletedAt")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("MacAddress")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("SensorId")

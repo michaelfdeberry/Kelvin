@@ -124,7 +124,9 @@ internal sealed class HmiController(
         if (hmi is null)
         {
             var mac = string.Join(":", macAddress.Select(value => value.ToString("X2")));
-            output($"[{mac}] <- {payload.Length} byte(s) for an unknown device, dropped.");
+            output(
+                $"[{mac}] <- {payload.Length} byte(s) for an unknown device, dropped: {DescribeFrame(payload)}"
+            );
             return;
         }
         if (!hmi.Enabled)
@@ -208,6 +210,25 @@ internal sealed class HmiController(
         output(
             $"[{hmi.Label}] <- {description ?? $"{type} malformed body: {Convert.ToHexString(message)}"}"
         );
+    }
+
+    private static string DescribeFrame(byte[] payload)
+    {
+        var tag = HmiProtocol.FrameTag;
+        if (payload.Length < tag.Length || !payload.AsSpan(0, tag.Length).SequenceEqual(tag))
+            return $"untagged {Convert.ToHexString(payload)}";
+        if (
+            !HmiProtocol.TryReadEnvelope(
+                payload.AsSpan(tag.Length),
+                out var type,
+                out var chunkIndex,
+                out var chunkCount,
+                out var messageId,
+                out var body
+            )
+        )
+            return $"bad envelope {Convert.ToHexString(payload)}";
+        return $"{type} message {messageId} chunk {chunkIndex + 1}/{chunkCount} body {Convert.ToHexString(body)}";
     }
 
     public void PrintHelp() =>

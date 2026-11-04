@@ -1,8 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
-using Kelvin.Server.Data;
 using Kelvin.Server.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace Kelvin.Server.Features.Hmi;
 
@@ -13,14 +11,15 @@ public static class BroadcastHmiPreferencesErrors
   public static readonly Error DefaultError = new("BroadcastHmiPreferences.Failed", "An error occurred processing the request.");
 }
 
-public class BroadcastHmiPreferencesHandler(KelvinContext context, IHmiOutboundChannel outboundChannel) : IHandler<BroadcastHmiPreferencesRequest>
+public class BroadcastHmiPreferencesHandler(
+  IHandler<GetHmiMacAddressesRequest, GetHmiMacAddressesResponse> getMacAddresses,
+  IHmiOutboundChannel outboundChannel
+) : IHandler<BroadcastHmiPreferencesRequest>
 {
   public async Task<Result> HandleAsync(BroadcastHmiPreferencesRequest request, CancellationToken ct = default)
   {
-    var macAddresses = await context
-      .Hmis.Where(hmi => hmi.Enabled && hmi.DeletedAt == null && hmi.MacAddress != null)
-      .Select(hmi => hmi.MacAddress!)
-      .ToListAsync(ct);
+    var macAddressesResult = await getMacAddresses.HandleAsync(new GetHmiMacAddressesRequest(), ct);
+    var macAddresses = macAddressesResult.Value!.MacAddresses;
 
     if (macAddresses.Count == 0)
       return Result.Success();

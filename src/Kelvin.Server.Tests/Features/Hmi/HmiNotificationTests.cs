@@ -94,18 +94,24 @@ public class HmiNotificationTests
         using var harness = new KelvinContextHarness();
         await using var context = harness.CreateContext();
         context.Hmis.AddRange(
-            new Models.Hmi { MacAddress = Mac, Enabled = true },
-            new Models.Hmi { MacAddress = "disabled", Enabled = false },
             new Models.Hmi
             {
-                MacAddress = "deleted",
-                Enabled = true,
-                DeletedAt = DateTimeOffset.UtcNow,
-            }
+                MacAddress = Mac,
+                Sensor = new Sensor { Enabled = true },
+            },
+            new Models.Hmi
+            {
+                MacAddress = "disabled",
+                Sensor = new Sensor { MacAddress = "disabled", Enabled = false },
+            },
+            new Models.Hmi { MacAddress = "deleted", DeletedAt = DateTimeOffset.UtcNow }
         );
         await context.SaveChangesAsync();
         var channel = new HmiOutboundChannel();
-        var handler = new BroadcastHmiNotificationHandler(context, channel);
+        var handler = new BroadcastHmiNotificationHandler(
+            new GetHmiMacAddressesHandler(context),
+            channel
+        );
         var notification = new Notification { Message = "Test" };
         await handler.HandleAsync(new BroadcastHmiNotificationRequest(notification));
         await handler.HandleAsync(new BroadcastHmiDismissNotificationRequest(notification.Id));

@@ -4,18 +4,52 @@ updates:
     directory: '/src/Kelvin.Client'
     schedule:
       interval: 'weekly'
+    groups:
+      dependencies:
+        patterns:
+          - '*'
 
   - package-ecosystem: 'nuget'
     directory: '/src/Kelvin.Server'
     schedule:
       interval: 'weekly'
+    groups:
+      dependencies:
+        patterns:
+          - '*'
 
   - package-ecosystem: 'nuget'
     directory: '/src/Kelvin.Server.Tests'
     schedule:
       interval: 'weekly'
+    groups:
+      dependencies:
+        patterns:
+          - '*'
+
+  - package-ecosystem: 'nuget'
+    directory: '/src/Kelvin.Simulator'
+    schedule:
+      interval: 'weekly'
+    groups:
+      dependencies:
+        patterns:
+          - '*'
+
+  - package-ecosystem: 'nuget'
+    directory: '/src/Kelvin.Simulator.Tests'
+    schedule:
+      interval: 'weekly'
+    groups:
+      dependencies:
+        patterns:
+          - '*'
 
   - package-ecosystem: 'pip'
     directory: '/src/Kelvin.Devices/Kiosk'
     schedule:
       interval: 'weekly'
+    groups:
+      dependencies:
+        patterns:
+          - '*'

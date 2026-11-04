@@ -9,12 +9,7 @@ public class Hmi : Entity
 {
   public string? MacAddress { get; set; }
 
-  public string? Name { get; set; }
-
-  public bool Enabled { get; set; } = true;
-
-  // The panel's own onboard temperature/humidity sensor - its Name is managed through this Sensor, not set
-  // directly on the Hmi (see UpdateSensorHandler).
+  // The panel's onboard sensor, which owns its name and enabled state.
   public Guid? SensorId { get; set; }
 
   [ForeignKey(nameof(SensorId))]
