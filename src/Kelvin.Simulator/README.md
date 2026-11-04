@@ -11,6 +11,10 @@ CLI simulator for manually testing Kelvin with gateway-like sensor packets.
 - Starts with 1 simulated HMI (wall panel) by default. Each HMI sends its onboard reading every
   interval (registering it with the server), can send thermostat commands on demand, and prints every
   downlink message the server sends it (thermostat state, control state, environment readings).
+- Starts with 1 simulated humidifier by default. It powers up only while control is enabled and
+  the server is calling for heat, sends a `KHUM` ping immediately and every 15 seconds, and applies
+  the server's relay-state replies. The relay resets when heating stops or replies time out
+  after 2 minutes. Humidifier pings are independent of `--interval` and the ambient scenario.
 - Uses a shared ambient temperature that rises/falls gradually, plus per-sensor room drift.
 - Polls Kelvin.Server's `/api/thermostat` and `/api/control/state` endpoints so the `auto` scenario
   can track the server's real heating/cooling/idle state.
@@ -21,6 +25,7 @@ CLI simulator for manually testing Kelvin with gateway-like sensor packets.
 - `--port` virtual COM port. Required.
 - `--sensor-count` starting sensor count. Defaults to 5.
 - `--hmi-count` starting HMI count. Defaults to 1 (0 disables HMIs).
+- `--humidifier` includes the humidifier (the default); `--no-humidifier` excludes it.
 - `--base-temp` starting environment temperature in Celsius. Defaults to 21.5.
 - `--interval` packet emit cadence (e.g. `00:00:30`). Defaults to 30 seconds.
 - `--non-interactive` disables the live command loop for scripted runs.
@@ -29,7 +34,7 @@ CLI simulator for manually testing Kelvin with gateway-like sensor packets.
   request/response (URI, status code, body) for every poll and the resolved ambient directive
   every simulation tick.
 
-Each option also accepts an `=` form, e.g. `--port=COM5`.
+Options taking values also accept an `=` form, e.g. `--port=COM5`.
 
 ## Live commands
 
@@ -47,6 +52,9 @@ When running interactively, the simulator accepts these commands:
   ambient target direction.
 - `list` prints the current sensor roster.
 - `status` prints the current simulator state.
+- `humidifier add` adds the humidifier if absent.
+- `humidifier remove` removes the humidifier, stopping pings and ignoring replies. This does not
+  delete the device's existing registration on Kelvin.Server.
 
 ### HMI commands
 
@@ -100,3 +108,26 @@ virtual serial port setup. That means:
 - the virtual COM pair must exist,
 - one end must be assigned to the simulator via `--port`,
 - and the other end must be visible to Kelvin.Server so it can discover the gateway.
+
+## Code layout
+
+- `GatewaySimulator` coordinates polling, commands, fleets, and device routing.
+- `AmbientSimulation` resolves scenario targets and advances the shared temperature with fleet-bias correction.
+- `SimulatorCommandParser` parses live commands into the records in `SimulationContracts`.
+- `KelvinServerClient` retrieves server snapshots and preserves the previous snapshot on request or decoding errors.
+- `GatewayProtocol` encodes gateway frames and incrementally parses discovery probes and device downlinks.
+- `GatewayConnection` owns the serial port and dispatches the parsed messages.
+- `HmiController` sends HMI commands and readings, applies replies, and prints HMI state.
+
+## Tests
+
+Run the standalone simulator tests from the repository root:
+
+```powershell
+dotnet test src/Kelvin.Simulator.Tests/Kelvin.Simulator.Tests.csproj
+```
+
+Tests cover device and fleet behavior, ambient targets and temperature movement, active-fleet bias,
+command parsing, serial wire formats and fragmented input, HTTP snapshots and failures, and HMI commands
+and reply handling. These tests do not require Kelvin.Server or a virtual serial port; the live serial
+connection still requires the end-to-end setup above.

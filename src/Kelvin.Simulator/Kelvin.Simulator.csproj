@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Kelvin.Simulator.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="..\Kelvin.Protocol\HmiCbor.cs" Link="Protocol\HmiCbor.cs" />
     <PackageReference Include="System.Formats.Cbor" Version="10.0.9" />
     <PackageReference Include="System.IO.Ports" Version="10.0.9" />

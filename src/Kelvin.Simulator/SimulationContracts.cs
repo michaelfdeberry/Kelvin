@@ -39,6 +39,10 @@ internal sealed record ListSensorsCommand : SimulatorCommand;
 
 internal sealed record StatusCommand : SimulatorCommand;
 
+internal sealed record AddHumidifierCommand : SimulatorCommand;
+
+internal sealed record RemoveHumidifierCommand : SimulatorCommand;
+
 internal sealed record AddHmiCommand : SimulatorCommand;
 
 internal sealed record RemoveHmiCommand(int Index) : SimulatorCommand;
