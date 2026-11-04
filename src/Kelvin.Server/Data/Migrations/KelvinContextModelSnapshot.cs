@@ -81,6 +81,51 @@ namespace Kelvin.Server.Data.Migrations
                     b.ToTable("ControlStateChanges");
                 });
 
+            modelBuilder.Entity("Kelvin.Server.Models.Device", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ConfigurationJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("Configuration");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastSeenAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MacAddress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Devices");
+
+                    b.HasDiscriminator<int>("Type");
+
+                    b.UseTphMappingStrategy();
+                });
+
             modelBuilder.Entity("Kelvin.Server.Models.Gateway", b =>
                 {
                     b.Property<Guid>("Id")
@@ -442,6 +487,13 @@ namespace Kelvin.Server.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Thermostats");
+                });
+
+            modelBuilder.Entity("Kelvin.Server.Models.HumidifierDevice", b =>
+                {
+                    b.HasBaseType("Kelvin.Server.Models.Device");
+
+                    b.HasDiscriminator().HasValue(3);
                 });
 
             modelBuilder.Entity("Kelvin.Server.Models.Hmi", b =>

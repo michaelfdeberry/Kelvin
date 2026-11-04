@@ -3,6 +3,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Gateways;
 using Kelvin.Server.Features.Hmi;
+using Kelvin.Server.Features.Humidifiers;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Models;
 
@@ -260,6 +261,10 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
     {
       await HandleHmiCommandAsync(macAddress, content, stoppingToken);
     }
+    else if (tag.SequenceEqual(FrameTags.Humidifier))
+    {
+      await HandleHumidifierMessageAsync(port, macAddress, content, stoppingToken);
+    }
     else
     {
       logger.LogWarning("Received a frame from {MacAddress} with an unrecognized device tag; discarding.", macAddress);
@@ -301,6 +306,22 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
       Duration = 10000,
     };
     hmiOutboundChannel.Write(macAddress, HmiMessageType.Notify, HmiNotificationEncoder.Encode(notification, persistent: false));
+  }
+
+  // The humidifier is strictly request/response, so the reply is written immediately instead of being queued.
+  private async Task HandleHumidifierMessageAsync(SerialPort port, string macAddress, byte[] content, CancellationToken stoppingToken)
+  {
+    var result = await dispatcher.DispatchAsync<ReceiveHumidifierMessageRequest, byte[]>(
+      new ReceiveHumidifierMessageRequest(macAddress, content),
+      stoppingToken
+    );
+    if (result.IsFailure)
+    {
+      logger.LogWarning("Humidifier message from {MacAddress} failed: {Code} - {Message}", macAddress, result.Error.Code, result.Error.Message);
+      return;
+    }
+
+    WriteDeviceDownlinkFrame(port, macAddress, [.. FrameTags.Humidifier, .. result.Value!]);
   }
 
   // GatewayService is the sole owner/writer of the serial port, so outbound frames are drained here rather

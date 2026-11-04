@@ -15,6 +15,7 @@ static volatile bool txSucceeded = false;
 // Written by the ESP-NOW recv callback, drained by tryReceive() - see Communicator.h for why a single
 // slot (rather than a queue) is sufficient here.
 static uint8_t expectedFrameTag[FRAME_TAG_SIZE] = {0};
+static uint8_t expectedSourceMac[6] = {0};
 
 // A queue, not a single slot: the server sends several frames back to back (state, then preferences).
 static const size_t RECEIVE_QUEUE_DEPTH = 11;
@@ -31,6 +32,12 @@ static void onDataSent(const esp_now_send_info_t *info, esp_now_send_status_t st
 
 static void onDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int len)
 {
+  // ESP-NOW is unauthenticated; only trust frames relayed by our gateway.
+  if (memcmp(info->src_addr, expectedSourceMac, sizeof(expectedSourceMac)) != 0)
+  {
+    return;
+  }
+
   if (len < FRAME_TAG_SIZE || memcmp(incomingData, expectedFrameTag, FRAME_TAG_SIZE) != 0)
   {
     return; // not tagged for this device's protocol - ignore (radio noise or an unrelated frame)
@@ -48,11 +55,12 @@ static void onDataRecv(const esp_now_recv_info *info, const uint8_t *incomingDat
   receiveTail = nextTail;
 }
 
-void Communicator::begin(const uint8_t gatewayMac[6], const uint8_t frameTag[4])
+bool Communicator::begin(const uint8_t gatewayMac[6], const uint8_t frameTag[4])
 {
   receiveHead = 0;
   receiveTail = 0;
   memcpy(gatewayMacAddress, gatewayMac, sizeof(gatewayMacAddress));
+  memcpy(expectedSourceMac, gatewayMac, sizeof(expectedSourceMac));
   memcpy(expectedFrameTag, frameTag, sizeof(expectedFrameTag));
 
   LOG_PRINTLN("Initializing ESP-NOW...");
@@ -63,7 +71,8 @@ void Communicator::begin(const uint8_t gatewayMac[6], const uint8_t frameTag[4])
   if (esp_now_init() != ESP_OK)
   {
     LOG_PRINTLN("Error initializing ESP-NOW");
-    return;
+    end();
+    return false;
   }
 
   esp_now_register_send_cb(onDataSent);
@@ -77,8 +86,11 @@ void Communicator::begin(const uint8_t gatewayMac[6], const uint8_t frameTag[4])
   if (esp_now_add_peer(&peerInfo) != ESP_OK)
   {
     LOG_PRINTLN("Failed to add peer");
-    return;
+    end();
+    return false;
   }
+
+  return true;
 }
 
 bool Communicator::send(const void *payload, size_t payloadLength)

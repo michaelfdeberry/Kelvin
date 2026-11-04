@@ -6,7 +6,8 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Kelvin.Server.Features.Weather;
 
-public record GetWeatherForecastRequest() : IRequest<GetWeatherForecastResponse>;
+/// <param name="CachedOnly">Fail instead of calling the weather service when nothing is cached.</param>
+public record GetWeatherForecastRequest(bool CachedOnly = false) : IRequest<GetWeatherForecastResponse>;
 
 public record GetWeatherForecastResponse(
   double Latitude,
@@ -20,6 +21,7 @@ public record GetWeatherForecastResponse(
 public static class GetWeatherForecastErrors
 {
   public static readonly Error ForecastNotFound = new("GetWeatherForecast.ForecastNotFound", "The weather forecast was not found.");
+  public static readonly Error NotCached = new("GetWeatherForecast.NotCached", "No cached weather forecast is available.");
   public static readonly Error DefaultError = new("GetWeatherForecast.Failed", "An error occurred processing the request.");
 }
 
@@ -42,6 +44,11 @@ public class GetWeatherForecastHandler(IDispatcher dispatcher, ILogger<GetWeathe
       if (cache.TryGetValue(cacheKey, out GetWeatherForecastResponse? cachedResponse) && cachedResponse is not null)
       {
         return Result<GetWeatherForecastResponse>.Success(cachedResponse);
+      }
+
+      if (request.CachedOnly)
+      {
+        return Result<GetWeatherForecastResponse>.Failure(GetWeatherForecastErrors.NotCached);
       }
 
       var forecast = await weatherApi.GetForecastAsync(location.Latitude, location.Longitude, ct);
