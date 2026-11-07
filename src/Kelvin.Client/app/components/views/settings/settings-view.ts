@@ -1,4 +1,6 @@
 import '../../../components/features/settings/settings-general/settings-general.js';
+import '../../../components/features/settings/settings-devices/settings-devices.js';
+import '../../../components/features/settings/settings-humidifier/settings-humidifier.js';
 import '../../../components/features/settings/settings-location/settings-location.js';
 import '../../../components/features/settings/settings-sensors/settings-sensors.js';
 import '../../../components/features/settings/settings-thermostat/settings-thermostat.js';
@@ -31,15 +33,19 @@ const sections: SettingsSection[] = [
   {
     id: 'climate',
     label: 'Climate',
-    description: 'Thermostat behavior, hysteresis, CO2 recirculation and heating balance.',
-    render: () => html`<app-settings-thermostat></app-settings-thermostat>`,
+    description: 'Thermostat behavior, hysteresis, CO2 recirculation, heating balance and humidification.',
+    render: () => html`
+      <app-settings-thermostat></app-settings-thermostat>
+      <app-settings-humidifier></app-settings-humidifier>
+    `,
   },
   {
     id: 'devices',
     label: 'Devices',
-    description: 'Sensors and the gateway wiring.',
+    description: 'Sensors, other devices and the gateway wiring.',
     render: () => html`
       <app-settings-sensors></app-settings-sensors>
+      <app-settings-devices></app-settings-devices>
       <app-settings-gateway></app-settings-gateway>
     `,
   },

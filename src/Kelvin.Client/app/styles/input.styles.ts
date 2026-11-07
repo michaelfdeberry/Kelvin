@@ -6,17 +6,20 @@ const inputStyles = css`
     display: block;
     min-width: 0;
     max-width: 100%;
-    border: 1px solid var(--accent-idle);
+    border: 1px solid var(--control-border-color);
     border-radius: var(--border-radius);
     background: var(--bg-dark);
     color: var(--text-main);
     font: inherit;
     padding: 0 1rem;
-    height: 2.5rem;
+    height: var(--control-height);
     transition:
       border-color 140ms ease,
-      box-shadow 140ms ease,
-      background-color 140ms ease;
+      box-shadow 140ms ease;
+  }
+
+  .input::placeholder {
+    color: var(--text-muted);
   }
 
   .input[type='number']::-webkit-outer-spin-button,
@@ -33,8 +36,7 @@ const inputStyles = css`
 
   .input:hover:not(:disabled),
   .select:hover:not(:disabled) {
-    border-color: var(--accent-idle);
-    background-color: var(--surface-overlay-panel);
+    border-color: var(--control-border-color-hover);
   }
 
   .input:focus,
@@ -44,13 +46,17 @@ const inputStyles = css`
 
   .input:focus-visible,
   .select:focus-visible {
-    border-color: var(--accent-info);
-    box-shadow: 0 0 0 2px rgb(147 197 253 / 22%);
+    border-color: var(--control-border-color-focus);
+    box-shadow: var(--control-focus-ring);
+  }
+
+  .input:read-only:not(:disabled) {
+    color: var(--text-muted);
   }
 
   .input:disabled,
   .select:disabled {
-    opacity: 0.6;
+    opacity: var(--control-disabled-opacity);
     cursor: not-allowed;
   }
 

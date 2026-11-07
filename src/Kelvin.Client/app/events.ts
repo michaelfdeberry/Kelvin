@@ -1,6 +1,7 @@
 export const events = {
   preferencesSaved: 'preferences-saved',
   sensorsUpdated: 'sensors-updated',
+  devicesUpdated: 'devices-updated',
   routeChanged: 'route-changed',
   alertDismissed: 'alert-dismissed',
   toast: 'toast',

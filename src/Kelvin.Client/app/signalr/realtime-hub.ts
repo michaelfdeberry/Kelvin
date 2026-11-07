@@ -21,6 +21,7 @@ const MessageType = {
   ControlStateChanged: 'ControlStateChanged',
   ThermostatStateChanged: 'ThermostatStateChanged',
   SensorsStateChanged: 'SensorsStateChanged',
+  DevicesStateChanged: 'DevicesStateChanged',
   ReadingsUpdated: 'ReadingsUpdated',
   Notify: 'Notify',
   DismissNotification: 'DismissNotification',
@@ -76,6 +77,9 @@ export class RealtimeHub extends SignalRHubBase {
         break;
       case MessageType.SensorsStateChanged:
         dispatchCustomEvent(this, events.sensorsUpdated);
+        break;
+      case MessageType.DevicesStateChanged:
+        dispatchCustomEvent(this, events.devicesUpdated);
         break;
       case MessageType.PreferencesChanged:
         dispatchCustomEvent(this, events.preferencesSaved, message.payload as Preferences);

@@ -102,47 +102,51 @@ export class Modal extends LitElement {
       return false;
     }
 
+    // Also catches elements hidden by an ancestor, which their own computed style doesn't reveal.
+    if (element.getClientRects().length === 0) {
+      return false;
+    }
+
     const styles = window.getComputedStyle(element);
     return styles.display !== 'none' && styles.visibility !== 'hidden';
   }
 
-  private appendFocusableUnique(elements: HTMLElement[], candidate: HTMLElement) {
-    if (!elements.includes(candidate)) {
-      elements.push(candidate);
+  // Walks in tab order through nested shadow roots and slots, which querySelectorAll cannot see across.
+  private collectFocusable(node: Node, elements: HTMLElement[]) {
+    if (!(node instanceof HTMLElement)) {
+      return;
     }
-  }
 
-  private collectFocusableFrom(root: ParentNode, elements: HTMLElement[], skipSlotFallback = false) {
-    for (const element of root.querySelectorAll<HTMLElement>(focusableSelector)) {
-      if (skipSlotFallback && element.closest('slot')) {
-        continue;
-      }
+    if (node.matches(focusableSelector) && this.isFocusable(node) && !elements.includes(node)) {
+      elements.push(node);
+    }
 
-      if (this.isFocusable(element)) {
-        this.appendFocusableUnique(elements, element);
+    if (node instanceof HTMLSlotElement) {
+      const assigned = node.assignedNodes({ flatten: true });
+      for (const child of assigned.length > 0 ? assigned : Array.from(node.childNodes)) {
+        this.collectFocusable(child, elements);
       }
+      return;
+    }
+
+    // A shadow host only renders its shadow tree; its light children are reached through slots.
+    if (node.shadowRoot) {
+      for (const child of node.shadowRoot.children) {
+        this.collectFocusable(child, elements);
+      }
+      return;
+    }
+
+    for (const child of node.children) {
+      this.collectFocusable(child, elements);
     }
   }
 
   private getFocusableElements(): HTMLElement[] {
     const focusableElements: HTMLElement[] = [];
 
-    this.collectFocusableFrom(this.renderRoot, focusableElements, true);
-
-    const slots = this.renderRoot.querySelectorAll('slot');
-    for (const slot of slots) {
-      const assignedElements = slot.assignedElements({ flatten: true });
-      for (const assignedElement of assignedElements) {
-        if (!(assignedElement instanceof HTMLElement)) {
-          continue;
-        }
-
-        if (assignedElement.matches(focusableSelector) && this.isFocusable(assignedElement)) {
-          this.appendFocusableUnique(focusableElements, assignedElement);
-        }
-
-        this.collectFocusableFrom(assignedElement, focusableElements);
-      }
+    for (const child of this.renderRoot.children) {
+      this.collectFocusable(child, focusableElements);
     }
 
     return focusableElements;
@@ -159,17 +163,7 @@ export class Modal extends LitElement {
   }
 
   private getActiveElementInModal(): HTMLElement | null {
-    const shadowActiveElement = this.shadowRoot ? this.getDeepActiveElement(this.shadowRoot) : null;
-    if (shadowActiveElement && this.renderRoot.contains(shadowActiveElement)) {
-      return shadowActiveElement;
-    }
-
-    const documentActiveElement = this.getDeepActiveElement(document);
-    if (documentActiveElement && this.contains(documentActiveElement)) {
-      return documentActiveElement;
-    }
-
-    return null;
+    return this.getDeepActiveElement(document);
   }
 
   private focusInitialElement() {

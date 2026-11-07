@@ -49,6 +49,16 @@ const sharedStyles = css`
     text-align: center;
     padding: 4rem;
   }
+
+  p {
+    a {
+      color: inherit;
+
+      &:hover {
+        color: var(--text-main);
+      }
+    }
+  }
 `;
 
 export default sharedStyles;

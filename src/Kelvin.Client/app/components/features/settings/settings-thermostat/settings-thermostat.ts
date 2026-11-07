@@ -242,7 +242,9 @@ export class SettingsThermostat extends LitElement {
           @reset=${() => this.clearDraft('co2')}
         >
           <div class="form-group">
-            <p class="settings-thermostat__description">Cycles the fan to circulate air when high CO<sub>2</sub> levels are detected.</p>
+            <p class="settings-thermostat__description">
+              Cycles the fan to circulate air when a high CO<sub>2</sub> level is detected by any sensor.
+            </p>
             <div class="settings-thermostat__grid">
               <div class="form-control">
                 <label class="form-control__label">
