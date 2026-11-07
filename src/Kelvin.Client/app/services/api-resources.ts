@@ -9,6 +9,7 @@ const apiResources = {
     disableDevice: '/api/devices/{deviceId}/disable',
     enableDevice: '/api/devices/{deviceId}/enable',
     getDevices: '/api/devices',
+    getDeviceStates: '/api/devices/state',
     restoreDevice: '/api/devices/{id}',
     updateDevice: '/api/devices/{id}',
   },

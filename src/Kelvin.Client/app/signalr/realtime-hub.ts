@@ -11,6 +11,7 @@ import { dispatchCustomEvent, dispatchToast } from '../services/utilities.js';
 
 import type { ControlStateChange } from '../models/control-state-change.js';
 import type { ControlStateResponse } from '../models/control-state.js';
+import type { DeviceStates } from '../models/devices.js';
 import type { EnvironmentReading } from '../models/sensors.js';
 import type { ToastDetail } from '../models/toast-detail.js';
 
@@ -22,6 +23,7 @@ const MessageType = {
   ThermostatStateChanged: 'ThermostatStateChanged',
   SensorsStateChanged: 'SensorsStateChanged',
   DevicesStateChanged: 'DevicesStateChanged',
+  DeviceStateChanged: 'DeviceStateChanged',
   ReadingsUpdated: 'ReadingsUpdated',
   Notify: 'Notify',
   DismissNotification: 'DismissNotification',
@@ -80,6 +82,9 @@ export class RealtimeHub extends SignalRHubBase {
         break;
       case MessageType.DevicesStateChanged:
         dispatchCustomEvent(this, events.devicesUpdated);
+        break;
+      case MessageType.DeviceStateChanged:
+        dispatchCustomEvent<DeviceStates>(this, events.deviceStateChanged, message.payload as DeviceStates);
         break;
       case MessageType.PreferencesChanged:
         dispatchCustomEvent(this, events.preferencesSaved, message.payload as Preferences);

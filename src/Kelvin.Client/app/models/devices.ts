@@ -13,6 +13,15 @@ export type Devices = {
   devices: Device[];
 };
 
+export type HumidifierState = {
+  enabled: boolean;
+};
+
+// Latest reported state per device type; each type adds its own optional entry.
+export type DeviceStates = {
+  humidifier?: HumidifierState;
+};
+
 export type UpdateDeviceRequest = {
   name: string;
 };

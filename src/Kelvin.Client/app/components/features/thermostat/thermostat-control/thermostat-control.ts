@@ -11,10 +11,12 @@ import { when } from 'lit/directives/when.js';
 import thermostatControlStyles from './thermostat-control.styles.js';
 import editIcon from '../../../../../assets/icons/edit.svg?raw';
 import { callContext } from '../../../../contexts/control-context.js';
+import { devicesContext, deviceStatesContext } from '../../../../contexts/devices-context.js';
 import { environmentReadingsContext } from '../../../../contexts/sensors-context.js';
 import { schedulesContext, setPointsContext, thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
 import { ControlStateChange } from '../../../../models/control-state-change.js';
+import { Device, DeviceStates } from '../../../../models/devices.js';
 import { EnvironmentReading } from '../../../../models/sensors.js';
 import { RunMode, Schedule, SetPoint, Thermostat } from '../../../../models/thermostat.js';
 import { ToastDetail } from '../../../../models/toast-detail.js';
@@ -42,6 +44,12 @@ export class ThermostatControl extends LitElement {
   @consume({ context: callContext, subscribe: true })
   callState!: Partial<ControlStateChange>;
 
+  @consume({ context: devicesContext, subscribe: true })
+  devices!: Device[];
+
+  @consume({ context: deviceStatesContext, subscribe: true })
+  deviceStates!: DeviceStates;
+
   @query('app-thermostat-editor')
   private thermostatEditor!: ThermostatEditor;
 
@@ -63,6 +71,12 @@ export class ThermostatControl extends LitElement {
         this.currentControlState = this.callState.state === 'Heating' ? 'Heating' : 'Cooling';
       }
     }
+  }
+
+  private get isHumidifierRunning(): boolean {
+    // A disabled device's last reported state can linger until it next reports in.
+    const hasEnabledHumidifier = this.devices?.some(device => device.type === 'Humidifier' && device.enabled) ?? false;
+    return hasEnabledHumidifier && (this.deviceStates?.humidifier?.enabled ?? false);
   }
 
   private getTargetTemp() {
@@ -218,8 +232,11 @@ export class ThermostatControl extends LitElement {
             </div>
           </div>
           <div class="thermostat__air-quality ">
-            <div class="thermostat__air-quality-item">
-              <div class="text-muted">Humidity</div>
+            <div
+              class=${classMap({ 'thermostat__air-quality-item': true, 'thermostat__air-quality-item--humidifying': this.isHumidifierRunning })}
+              title=${this.isHumidifierRunning ? 'The humidifier is enabled' : ''}
+            >
+              <div class="text-muted">${when(this.isHumidifierRunning, () => html`<span aria-hidden="true">💧</span> `)}Humidity</div>
               <div class="thermostat__air-quality-value">${this.environment.humidityPercentage?.toFixed(1)}<span class="unit">%</span></div>
             </div>
             <div class="thermostat__air-quality-item">

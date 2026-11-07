@@ -12,6 +12,7 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
     IEventHandler<ThermostatConfigChangedEvent>,
     IEventHandler<SensorsChangedEvent>,
     IEventHandler<DevicesChangedEvent>,
+    IEventHandler<DeviceStateChangedEvent>,
     IEventHandler<SendNotificationEvent>,
     IEventHandler<DismissNotificationEvent>,
     IEventHandler<PreferencesChangedEvent>
@@ -30,6 +31,9 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
 
   public Task HandleAsync(DevicesChangedEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DevicesStateChanged, null));
+
+  public Task HandleAsync(DeviceStateChangedEvent @event, CancellationToken cancellationToken = default) =>
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DeviceStateChanged, @event.States));
 
   public Task HandleAsync(SendNotificationEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.Notify, @event.Notification));
@@ -50,6 +54,7 @@ public class SignalRBroadcastServiceRegistration : IRegistration
     services.AddScoped<IEventHandler<ThermostatConfigChangedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<SensorsChangedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<DevicesChangedEvent>, SignalRBroadcastService>();
+    services.AddScoped<IEventHandler<DeviceStateChangedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<SendNotificationEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<DismissNotificationEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<PreferencesChangedEvent>, SignalRBroadcastService>();

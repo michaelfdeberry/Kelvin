@@ -2,6 +2,7 @@ using FakeItEasy;
 using Kelvin.Protocol;
 using Kelvin.Server.Application;
 using Kelvin.Server.Features.Control;
+using Kelvin.Server.Features.Devices;
 using Kelvin.Server.Features.Humidifiers;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Features.Weather;
@@ -250,7 +251,8 @@ public class HumidifierTests : IDisposable
         await AddDeviceAsync();
         using (var context = _harness.CreateContext())
         {
-            (await context.Devices.OfType<HumidifierDevice>().SingleAsync()).ConfigurationJson = "{not json";
+            (await context.Devices.OfType<HumidifierDevice>().SingleAsync()).ConfigurationJson =
+                "{not json";
             await context.SaveChangesAsync();
         }
 
@@ -325,6 +327,7 @@ public class HumidifierTests : IDisposable
             context,
             _harness.Time,
             CreateEvaluator(context),
+            A.Fake<IHandler<UpdateDeviceStateRequest>>(),
             A.Fake<ILogger<ReceiveHumidifierMessageHandler>>()
         );
         return await handler.HandleAsync(new ReceiveHumidifierMessageRequest(MacAddress, payload));

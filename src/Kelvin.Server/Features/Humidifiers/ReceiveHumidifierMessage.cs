@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Kelvin.Server.Features.Devices;
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,6 +21,7 @@ public class ReceiveHumidifierMessageHandler(
   KelvinContext context,
   TimeProvider time,
   IHandler<EvaluateHumidifierRequest, EvaluateHumidifierResponse> evaluateHumidifier,
+  IHandler<UpdateDeviceStateRequest> deviceStates,
   ILogger<ReceiveHumidifierMessageHandler> logger
 ) : IHandler<ReceiveHumidifierMessageRequest, byte[]>
 {
@@ -29,18 +31,21 @@ public class ReceiveHumidifierMessageHandler(
       return Result<byte[]>.Failure(ReceiveHumidifierMessageErrors.InvalidPayload);
 
     Result<EvaluateHumidifierResponse> evaluation;
+    HumidifierDevice? device = null;
     try
     {
-      var device = await RegisterAsync(request.MacAddress, ct);
+      device = await RegisterAsync(request.MacAddress, ct);
       evaluation = await evaluateHumidifier.HandleAsync(new EvaluateHumidifierRequest(device.Id, relayOn), ct);
     }
     catch (Exception exception) when (!ct.IsCancellationRequested)
     {
       logger.LogError(exception, "Humidifier {MacAddress} evaluation failed, turning it off.", request.MacAddress);
+      await PublishStateAsync(device, false, ct);
       return Result<byte[]>.Success(HumidifierProtocol.EncodeState(false));
     }
 
     var enabled = evaluation.IsSuccess && evaluation.Value!.Enabled;
+    await PublishStateAsync(device, enabled, ct);
 
     if (evaluation.IsFailure)
     {
@@ -61,6 +66,11 @@ public class ReceiveHumidifierMessageHandler(
 
     return Result<byte[]>.Success(HumidifierProtocol.EncodeState(enabled));
   }
+
+  private Task PublishStateAsync(HumidifierDevice? device, bool enabled, CancellationToken ct) =>
+    device is null
+      ? Task.CompletedTask
+      : deviceStates.HandleAsync(new UpdateDeviceStateRequest(DeviceStateNames.Humidifier, device.Enabled, new HumidifierState(enabled)), ct);
 
   private async Task<HumidifierDevice> RegisterAsync(string macAddress, CancellationToken ct)
   {
