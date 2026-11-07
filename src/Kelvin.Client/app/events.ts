@@ -13,7 +13,6 @@ export const events = {
 export const signalrEvents = {
   controlHub: {
     controlStateChanged: 'signalr:control-hub:control-state-changed',
-    thermostatStateChanged: 'signalr:control-hub:thermostat-state-changed',
     callStateChanged: 'signalr:control-hub:call-state-changed',
   },
   readingsHub: {

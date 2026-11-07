@@ -20,13 +20,13 @@ const RECEIVE_HANDLER = 'Receive';
 // Mirrors Kelvin.Server's Hubs/RealtimeHub.cs RealtimeMessageTypes - keep these literal strings in sync.
 const MessageType = {
   ControlStateChanged: 'ControlStateChanged',
-  ThermostatStateChanged: 'ThermostatStateChanged',
-  SensorsStateChanged: 'SensorsStateChanged',
-  DevicesStateChanged: 'DevicesStateChanged',
+  ThermostatSettingsChanged: 'ThermostatSettingsChanged',
+  SensorsSettingsChanged: 'SensorsSettingsChanged',
+  DevicesSettingsChanged: 'DevicesSettingsChanged',
   DeviceStateChanged: 'DeviceStateChanged',
-  ReadingsUpdated: 'ReadingsUpdated',
-  Notify: 'Notify',
-  DismissNotification: 'DismissNotification',
+  EnvironmentReadingChanged: 'EnvironmentReadingChanged',
+  NotificationSent: 'NotificationSent',
+  NotificationDismissed: 'NotificationDismissed',
   PreferencesChanged: 'PreferencesChanged',
 } as const;
 
@@ -74,13 +74,13 @@ export class RealtimeHub extends SignalRHubBase {
 
         break;
       }
-      case MessageType.ThermostatStateChanged:
+      case MessageType.ThermostatSettingsChanged:
         dispatchCustomEvent(this, events.thermostatUpdated);
         break;
-      case MessageType.SensorsStateChanged:
+      case MessageType.SensorsSettingsChanged:
         dispatchCustomEvent(this, events.sensorsUpdated);
         break;
-      case MessageType.DevicesStateChanged:
+      case MessageType.DevicesSettingsChanged:
         dispatchCustomEvent(this, events.devicesUpdated);
         break;
       case MessageType.DeviceStateChanged:
@@ -89,13 +89,13 @@ export class RealtimeHub extends SignalRHubBase {
       case MessageType.PreferencesChanged:
         dispatchCustomEvent(this, events.preferencesSaved, message.payload as Preferences);
         break;
-      case MessageType.ReadingsUpdated:
+      case MessageType.EnvironmentReadingChanged:
         dispatchCustomEvent<EnvironmentReading>(this, signalrEvents.readingsHub.sensorReadingsUpdated, message.payload as EnvironmentReading);
         break;
-      case MessageType.Notify:
+      case MessageType.NotificationSent:
         this.handleNotify(message.payload as Notification);
         break;
-      case MessageType.DismissNotification:
+      case MessageType.NotificationDismissed:
         this.handleDismissNotification(message.payload as string);
         break;
       default:

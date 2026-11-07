@@ -236,7 +236,7 @@ export class ThermostatControl extends LitElement {
               class=${classMap({ 'thermostat__air-quality-item': true, 'thermostat__air-quality-item--humidifying': this.isHumidifierRunning })}
               title=${this.isHumidifierRunning ? 'The humidifier is enabled' : ''}
             >
-              <div class="text-muted">${when(this.isHumidifierRunning, () => html`<span aria-hidden="true">💧</span> `)}Humidity</div>
+              <div class="text-muted">Humidity${when(this.isHumidifierRunning, () => html`<span aria-hidden="true">💧</span> `)}</div>
               <div class="thermostat__air-quality-value">${this.environment.humidityPercentage?.toFixed(1)}<span class="unit">%</span></div>
             </div>
             <div class="thermostat__air-quality-item">

@@ -25,7 +25,7 @@ public enum HmiMessageType : byte
 
   /// <summary>
   /// Server -> Hmi. The same system-wide average reading pushed to web clients via
-  /// <see cref="Hubs.RealtimeHub" />'s ReadingsUpdated message - fires far more often than
+  /// <see cref="Hubs.RealtimeHub" />'s EnvironmentReadingChanged message - fires far more often than
   /// ControlStateChanged (every sensor packet, not just on an HVAC state transition), so this is the panel's
   /// real-time source for the current reading. See HmiEnvironmentReadingEncoder. Body: versioned CBOR
   /// map {0: version, 1: temperatureC, 2: humidityPercentage, 3: co2LevelPpm}; see docs/HMI Protocol.md.

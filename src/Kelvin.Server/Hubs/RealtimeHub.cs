@@ -12,13 +12,13 @@ public record RealtimeMessage(string Type, object? Payload);
 public static class RealtimeMessageTypes
 {
   public const string ControlStateChanged = "ControlStateChanged";
-  public const string ThermostatStateChanged = "ThermostatStateChanged";
-  public const string SensorsStateChanged = "SensorsStateChanged";
-  public const string DevicesStateChanged = "DevicesStateChanged";
+  public const string ThermostatSettingsChanged = "ThermostatSettingsChanged";
+  public const string SensorsSettingsChanged = "SensorsSettingsChanged";
+  public const string DevicesSettingsChanged = "DevicesSettingsChanged";
   public const string DeviceStateChanged = "DeviceStateChanged";
-  public const string ReadingsUpdated = "ReadingsUpdated";
-  public const string Notify = "Notify";
-  public const string DismissNotification = "DismissNotification";
+  public const string EnvironmentReadingChanged = "EnvironmentReadingChanged";
+  public const string NotificationSent = "NotificationSent";
+  public const string NotificationDismissed = "NotificationDismissed";
   public const string PreferencesChanged = "PreferencesChanged";
 }
 

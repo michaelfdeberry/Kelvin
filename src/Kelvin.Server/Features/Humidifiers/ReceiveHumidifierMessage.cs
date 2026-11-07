@@ -67,10 +67,13 @@ public class ReceiveHumidifierMessageHandler(
     return Result<byte[]>.Success(HumidifierProtocol.EncodeState(enabled));
   }
 
-  private Task PublishStateAsync(HumidifierDevice? device, bool enabled, CancellationToken ct) =>
-    device is null
-      ? Task.CompletedTask
-      : deviceStates.HandleAsync(new UpdateDeviceStateRequest(DeviceStateNames.Humidifier, device.Enabled, new HumidifierState(enabled)), ct);
+  private Task PublishStateAsync(HumidifierDevice? device, bool enabled, CancellationToken ct)
+  {
+    if (device is null)
+      return Task.CompletedTask;
+
+    return deviceStates.HandleAsync(new UpdateDeviceStateRequest(DeviceStateNames.Humidifier, device.Enabled, new HumidifierState(enabled)), ct);
+  }
 
   private async Task<HumidifierDevice> RegisterAsync(string macAddress, CancellationToken ct)
   {
