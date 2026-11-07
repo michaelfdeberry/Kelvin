@@ -1,7 +1,7 @@
 namespace Kelvin.Server.Models;
 
 /// <summary>
-/// Identifies how to decode an Hmi message's body (the content of <see cref="Features.Hmi.HmiEnvelope" />,
+/// Identifies how to decode an Hmi message's body (the content of <see cref="Kelvin.Protocol.DeviceEnvelope" />,
 /// both directions) - the type/chunk-index/chunk-count/length framing itself lives in the shared envelope,
 /// not in any one message's body. Every body is a versioned CBOR map defined in docs/hmi-payloads.cddl.
 /// </summary>

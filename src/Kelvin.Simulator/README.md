@@ -11,10 +11,10 @@ CLI simulator for manually testing Kelvin with gateway-like sensor packets.
 - Starts with 1 simulated HMI (wall panel) by default. Each HMI sends its onboard reading every
   interval (registering it with the server), can send thermostat commands on demand, and prints every
   downlink message the server sends it (thermostat state, control state, environment readings).
-- Starts with 1 simulated humidifier by default. It powers up only while control is enabled and
-  the server is calling for heat, sends a `KHUM` ping immediately and every 15 seconds, and applies
-  the server's relay-state replies. The relay resets when heating stops or replies time out
-  after 2 minutes. Humidifier pings are independent of `--interval` and the ambient scenario.
+- Starts with 1 simulated humidifier by default. Like the firmware it's always powered, sends a
+  `KHUM` check-in immediately and every 5 minutes, and applies and acknowledges every state the
+  server pushes. The relay releases if no state arrives for 2 minutes. Humidifier traffic is
+  independent of `--interval` and the ambient scenario.
 - Uses a shared ambient temperature that rises/falls gradually, plus per-sensor room drift.
 - Polls Kelvin.Server's `/api/thermostat` and `/api/control/state` endpoints so the `auto` scenario
   can track the server's real heating/cooling/idle state.
@@ -53,7 +53,7 @@ When running interactively, the simulator accepts these commands:
 - `list` prints the current sensor roster.
 - `status` prints the current simulator state.
 - `humidifier add` adds the humidifier if absent.
-- `humidifier remove` removes the humidifier, stopping pings and ignoring replies. This does not
+- `humidifier remove` removes the humidifier, stopping check-ins and ignoring pushed states. This does not
   delete the device's existing registration on Kelvin.Server.
 
 ### HMI commands

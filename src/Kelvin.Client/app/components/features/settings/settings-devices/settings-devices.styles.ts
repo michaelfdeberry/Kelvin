@@ -43,9 +43,16 @@ export default css`
   }
 
   .last-seen {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
     color: var(--text-soft);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+
+  .last-seen--stale {
+    color: var(--accent-danger);
   }
 
   .table__actions-header {

@@ -9,7 +9,7 @@ using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Services;
 
-public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatcher, IHmiOutboundChannel hmiOutboundChannel) : BackgroundService
+public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatcher, IDeviceOutboundChannel outboundChannel) : BackgroundService
 {
   const int BAUD_RATE = 9600;
   const int DEFAULT_READ_DELAY = 1000;
@@ -19,7 +19,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
   const int MAC_SIZE = 6;
   const int NODE_PAYLOAD_SIZE = 16;
 
-  // Main-loop reads must not block indefinitely, or a quiet Node/panel would starve outbound Hmi writes.
+  // Main-loop reads must not block indefinitely, or a quiet Node/panel would starve outbound device writes.
   const int MAIN_PORT_READ_TIMEOUT = 250;
   const int MAX_OUTBOUND_FRAMES_PER_PASS = 4;
   static readonly byte[] GATEWAY_INFO_HEADER = [0xAB, 0x56];
@@ -54,7 +54,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
           await Task.Delay(GATEWAY_BOOT_DELAY, stoppingToken);
         }
 
-        DrainOutboundHmiMessages(port, stoppingToken);
+        DrainOutboundMessages(port, stoppingToken);
 
         var header = TryReadIncomingHeader(port, KNOWN_INCOMING_HEADERS, stoppingToken);
         if (header is null)
@@ -263,7 +263,7 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
     }
     else if (tag.SequenceEqual(FrameTags.Humidifier))
     {
-      await HandleHumidifierMessageAsync(port, macAddress, content, stoppingToken);
+      await HandleHumidifierMessageAsync(macAddress, content, stoppingToken);
     }
     else
     {
@@ -305,41 +305,32 @@ public class GatewayService(ILogger<GatewayService> logger, IDispatcher dispatch
       Dismissible = true,
       Duration = 10000,
     };
-    hmiOutboundChannel.Write(macAddress, HmiMessageType.Notify, HmiNotificationEncoder.Encode(notification, persistent: false));
+    outboundChannel.WriteHmi(macAddress, HmiMessageType.Notify, HmiNotificationEncoder.Encode(notification, persistent: false));
   }
 
-  // The humidifier is strictly request/response, so the reply is written immediately instead of being queued.
-  private async Task HandleHumidifierMessageAsync(SerialPort port, string macAddress, byte[] content, CancellationToken stoppingToken)
+  private async Task HandleHumidifierMessageAsync(string macAddress, byte[] content, CancellationToken stoppingToken)
   {
-    var result = await dispatcher.DispatchAsync<ReceiveHumidifierMessageRequest, byte[]>(
-      new ReceiveHumidifierMessageRequest(macAddress, content),
-      stoppingToken
-    );
+    var result = await dispatcher.DispatchAsync(new ReceiveHumidifierMessageRequest(macAddress, content), stoppingToken);
     if (result.IsFailure)
-    {
       logger.LogWarning("Humidifier message from {MacAddress} failed: {Code} - {Message}", macAddress, result.Error.Code, result.Error.Message);
-      return;
-    }
-
-    WriteDeviceDownlinkFrame(port, macAddress, [.. FrameTags.Humidifier, .. result.Value!]);
   }
 
   // GatewayService is the sole owner/writer of the serial port, so outbound frames are drained here rather
   // than written directly by whichever handler produced them (e.g. BroadcastHmiStateHandler).
-  private void DrainOutboundHmiMessages(SerialPort port, CancellationToken stoppingToken)
+  private void DrainOutboundMessages(SerialPort port, CancellationToken stoppingToken)
   {
     for (var count = 0; count < MAX_OUTBOUND_FRAMES_PER_PASS && !stoppingToken.IsCancellationRequested; count++)
     {
-      if (!hmiOutboundChannel.TryRead(out var message))
+      if (!outboundChannel.TryRead(out var frame))
         break;
 
       try
       {
-        WriteDeviceDownlinkFrame(port, message.MacAddress, message.Payload);
+        WriteDeviceDownlinkFrame(port, frame.MacAddress, frame.Payload);
       }
       catch (Exception ex)
       {
-        logger.LogWarning(ex, "Failed to relay an outbound Hmi message to {MacAddress}.", message.MacAddress);
+        logger.LogWarning(ex, "Failed to relay an outbound device message to {MacAddress}.", frame.MacAddress);
         break;
       }
     }

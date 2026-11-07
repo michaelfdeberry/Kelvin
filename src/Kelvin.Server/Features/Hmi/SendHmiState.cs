@@ -15,7 +15,7 @@ public record SendHmiStateRequest(string MacAddress) : IRequest;
 /// </summary>
 public class SendHmiStateHandler(
   KelvinContext context,
-  IHmiOutboundChannel outboundChannel,
+  IDeviceOutboundChannel outboundChannel,
   ILogger<SendHmiStateHandler> logger,
   IHandler<GetThermostatRequest, GetThermostatResponse> getThermostat,
   IHandler<GetPreferencesRequest, GetPreferencesResponse> getPreferences
@@ -71,7 +71,7 @@ public class SendHmiStateHandler(
 
   private void WriteFrames(string macAddress, HmiMessageType messageType, byte[] payload)
   {
-    outboundChannel.Write(macAddress, messageType, payload);
+    outboundChannel.WriteHmi(macAddress, messageType, payload);
   }
 }
 

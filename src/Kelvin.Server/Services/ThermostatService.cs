@@ -79,10 +79,7 @@ public class ThermostatService(
         }
 
         var forecastTemperatureC = weatherResult.Value?.Current?.TemperatureC;
-        // this returns the run mode for future use.
-        // E.g. when humidifier support is added it would only run in heating mode
-        // if a dehumidifier is added it might make sense to only run that when in cooling mode but the cooling mode is not active, etc.
-        var runMode = await ProcessTemperature(context, environment, thermostat, forecastTemperatureC, stoppingToken);
+        await ProcessTemperature(context, environment, thermostat, forecastTemperatureC, stoppingToken);
         continue;
       }
       catch (OperationCanceledException)

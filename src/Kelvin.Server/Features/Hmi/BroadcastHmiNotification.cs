@@ -10,7 +10,7 @@ public record BroadcastHmiDismissNotificationRequest(Guid NotificationId) : IReq
 
 public class BroadcastHmiNotificationHandler(
   IHandler<GetHmiMacAddressesRequest, GetHmiMacAddressesResponse> getMacAddresses,
-  IHmiOutboundChannel outboundChannel
+  IDeviceOutboundChannel outboundChannel
 ) : IHandler<BroadcastHmiNotificationRequest>, IHandler<BroadcastHmiDismissNotificationRequest>
 {
   public Task<Result> HandleAsync(BroadcastHmiNotificationRequest request, CancellationToken ct = default) =>
@@ -26,7 +26,7 @@ public class BroadcastHmiNotificationHandler(
 
     foreach (var address in macAddresses)
     {
-      outboundChannel.Write(address, type, payload);
+      outboundChannel.WriteHmi(address, type, payload);
     }
 
     return Result.Success();

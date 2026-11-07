@@ -13,7 +13,7 @@ public static class BroadcastHmiPreferencesErrors
 
 public class BroadcastHmiPreferencesHandler(
   IHandler<GetHmiMacAddressesRequest, GetHmiMacAddressesResponse> getMacAddresses,
-  IHmiOutboundChannel outboundChannel
+  IDeviceOutboundChannel outboundChannel
 ) : IHandler<BroadcastHmiPreferencesRequest>
 {
   public async Task<Result> HandleAsync(BroadcastHmiPreferencesRequest request, CancellationToken ct = default)
@@ -31,7 +31,7 @@ public class BroadcastHmiPreferencesHandler(
     var payload = HmiPreferencesEncoder.Encode(preferences);
     foreach (var macAddress in macAddresses)
     {
-      outboundChannel.Write(macAddress, HmiMessageType.PreferencesChanged, payload);
+      outboundChannel.WriteHmi(macAddress, HmiMessageType.PreferencesChanged, payload);
     }
 
     return Result.Success();

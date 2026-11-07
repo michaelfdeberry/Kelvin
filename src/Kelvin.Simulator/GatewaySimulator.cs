@@ -245,19 +245,27 @@ internal sealed class GatewaySimulator(
     }
 
     private void ReadIncoming(GatewayConnection connection, HmiController controller) =>
-        connection.ReadIncoming((mac, payload) => HandleDownlink(controller, mac, payload));
+        connection.ReadIncoming(
+            (mac, payload) => HandleDownlink(connection, controller, mac, payload)
+        );
 
-    private void HandleDownlink(HmiController controller, byte[] macAddress, byte[] payload)
+    private void HandleDownlink(
+        GatewayConnection connection,
+        HmiController controller,
+        byte[] macAddress,
+        byte[] payload
+    )
     {
         if (macAddress.AsSpan().SequenceEqual(SimulatedHumidifier.MacAddress))
         {
-            if (humidifier?.ReceiveState(payload, DateTimeOffset.UtcNow) == true)
-                Console.WriteLine($"[humidifier] <- State relayOn={humidifier.RelayOn}");
-            else
-                LogDebug(
-                    DebugLevel.Info,
-                    "[humidifier] absent, unpowered, or invalid state; dropped reply."
-                );
+            var ack = humidifier?.ReceiveState(payload, DateTimeOffset.UtcNow);
+            if (ack is null)
+            {
+                LogDebug(DebugLevel.Info, "[humidifier] absent or invalid state; dropped.");
+                return;
+            }
+            Console.WriteLine($"[humidifier] <- State relayOn={humidifier!.RelayOn}, -> StateAck");
+            connection.Write(GatewayProtocol.EncodeUplink(SimulatedHumidifier.MacAddress, ack));
             return;
         }
         controller.Receive(macAddress, payload);
@@ -265,11 +273,11 @@ internal sealed class GatewaySimulator(
 
     private void TickHumidifier(GatewayConnection connection)
     {
-        var payload = humidifier?.Tick(gatewayStatus.Control, DateTimeOffset.UtcNow);
+        var payload = humidifier?.Tick(DateTimeOffset.UtcNow);
         if (payload is null)
             return;
         connection.Write(GatewayProtocol.EncodeUplink(SimulatedHumidifier.MacAddress, payload));
-        Console.WriteLine($"[humidifier] -> Ping relayOn={humidifier!.RelayOn}");
+        Console.WriteLine($"[humidifier] -> CheckIn relayOn={humidifier!.RelayOn}");
     }
 
     private void LogDebug(DebugLevel level, string message)
@@ -316,9 +324,7 @@ internal sealed class GatewaySimulator(
         Console.WriteLine($"Sensors: {sensors.Count}");
         Console.WriteLine($"HMIs: {hmis.Count}");
         Console.WriteLine(
-            humidifier is null
-                ? "Humidifier: absent"
-                : $"Humidifier: powered={humidifier.Powered} relayOn={humidifier.RelayOn}"
+            humidifier is null ? "Humidifier: absent" : $"Humidifier: relayOn={humidifier.RelayOn}"
         );
         Console.WriteLine($"Ambient trend: {ambient.LastDirective.Trend}");
         Console.WriteLine(

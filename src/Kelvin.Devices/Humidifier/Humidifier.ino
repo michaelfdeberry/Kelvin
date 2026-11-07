@@ -5,8 +5,8 @@
 #include "Config.h"
 #include "./src/protocol/HumidifierMessages.h"
 
-// Powered from the humidifier's own transformer, so this only runs while the furnace is heating. It pings the
-// server through the Gateway and drives the solenoid relay from the reply.
+// Always powered (USB); the solenoid's 24V AC still only exists while the furnace heats. The server pushes the
+// relay state through the Gateway and the device acknowledges each one; otherwise it checks in periodically.
 
 static Communicator communicator;
 static const uint8_t gatewayMac[6] = GATEWAY_MAC_ADDRESS_BYTES;
@@ -14,9 +14,9 @@ static const uint8_t gatewayMac[6] = GATEWAY_MAC_ADDRESS_BYTES;
 static bool relayOn = false;
 static bool communicatorReady = false;
 static unsigned long lastBeginAttemptAt = 0;
-static bool hasPinged = false;
-static unsigned long lastPingAt = 0;
-static unsigned long lastResponseAt = 0;
+static bool hasCheckedIn = false;
+static unsigned long lastCheckInAt = 0;
+static unsigned long lastStateAt = 0;
 
 static void writeRelay(bool on)
 {
@@ -33,15 +33,18 @@ static void setRelay(bool on)
   LOG_PRINTF("Humidifier relay %s\n", on ? "on" : "off");
 }
 
-static void sendPing()
+static bool sendRelayState(HumidifierMessageType type)
 {
-  uint8_t buffer[16];
-  size_t length = HumidifierMessages::encodePing(buffer, sizeof(buffer), relayOn);
-  if (length == 0 || !communicator.send(buffer, length))
-    LOG_PRINTLN("Failed to send ping");
+  uint8_t buffer[32];
+  size_t length = HumidifierMessages::encodeRelayState(buffer, sizeof(buffer), type, relayOn);
+  if (length > 0 && communicator.send(buffer, length))
+    return true;
+
+  LOG_PRINTF("Failed to send message type %u\n", (unsigned)type);
+  return false;
 }
 
-static void handleResponses()
+static void handleStates()
 {
   uint8_t buffer[Communicator::MAX_FRAME_CONTENT];
   size_t length;
@@ -54,8 +57,9 @@ static void handleResponses()
       continue;
     }
 
-    lastResponseAt = millis();
+    lastStateAt = millis();
     setRelay(enabled);
+    sendRelayState(HumidifierMessageType::StateAck);
   }
 }
 
@@ -86,19 +90,20 @@ void loop()
     return;
   }
 
-  if (!hasPinged || millis() - lastPingAt >= PING_INTERVAL_MS)
+  if (!hasCheckedIn || millis() - lastCheckInAt >= CHECK_IN_INTERVAL_MS)
   {
-    sendPing();
-    lastPingAt = millis();
-    hasPinged = true;
+    bool sent = sendRelayState(HumidifierMessageType::CheckIn);
+    // A check-in the Gateway didn't acknowledge is retried after COMMUNICATOR_RETRY_MS instead of a full interval.
+    lastCheckInAt = sent ? millis() : millis() - CHECK_IN_INTERVAL_MS + COMMUNICATOR_RETRY_MS;
+    hasCheckedIn = true;
   }
 
-  handleResponses();
+  handleStates();
 
-  // Never leave the solenoid open without a recent answer from the server.
-  if (relayOn && millis() - lastResponseAt >= RESPONSE_TIMEOUT_MS)
+  // Never leave the solenoid open without recent state from the server.
+  if (relayOn && millis() - lastStateAt >= STATE_TIMEOUT_MS)
   {
-    LOG_PRINTLN("No response from the server, releasing the relay");
+    LOG_PRINTLN("No state from the server, releasing the relay");
     setRelay(false);
   }
 

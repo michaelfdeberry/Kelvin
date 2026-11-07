@@ -21,6 +21,10 @@ import sharedStyles from '../../../../shared.styles.js';
 import { confirmModal } from '../../../shared/modal/modal-utilities.js';
 import { Modal } from '../../../shared/modal/modal.js';
 
+// Devices check in every 5 minutes; the extra minute absorbs clock drift so a healthy device never flashes stale.
+const DEVICE_STALE_MS = 6 * 60 * 1000;
+const STALE_REFRESH_MS = 30 * 1000;
+
 @customElement('app-settings-devices')
 export class SettingsDevices extends LitElement {
   static override styles = [sharedStyles, settingsDevicesStyles];
@@ -36,6 +40,23 @@ export class SettingsDevices extends LitElement {
 
   @state()
   private isModalOpen = false;
+
+  private staleRefreshTimer?: ReturnType<typeof setInterval>;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // Nothing else re-renders while a device is silent, so re-check staleness on a timer.
+    this.staleRefreshTimer = setInterval(() => this.requestUpdate(), STALE_REFRESH_MS);
+  }
+
+  override disconnectedCallback(): void {
+    clearInterval(this.staleRefreshTimer);
+    super.disconnectedCallback();
+  }
+
+  private isStale(device: Device): boolean {
+    return !!device.lastSeenAt && Date.now() - new Date(device.lastSeenAt).getTime() > DEVICE_STALE_MS;
+  }
 
   private get editingDevice(): Device | undefined {
     return this.devices?.find(device => device.id === this.editingId);
@@ -211,7 +232,11 @@ export class SettingsDevices extends LitElement {
                       </td>
                       <td data-label="Address"><span class="address">${device.macAddress ?? 'N/A'}</span></td>
                       <td data-label="Last Seen">
-                        <span class="last-seen">
+                        <span
+                          class="last-seen ${this.isStale(device) ? 'last-seen--stale' : ''}"
+                          title=${this.isStale(device) ? 'No check-in for over 6 minutes' : ''}
+                        >
+                          ${when(this.isStale(device), () => html`<span aria-hidden="true">⚠️</span>`)}
                           ${when(
                             !!device.lastSeenAt,
                             () => html`<app-date-time .dateTime=${device.lastSeenAt!}></app-date-time>`,

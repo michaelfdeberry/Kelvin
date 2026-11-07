@@ -15,7 +15,7 @@ public record BroadcastHmiStateRequest() : IRequest;
 public class BroadcastHmiStateHandler(
   KelvinContext context,
   IHandler<GetHmiMacAddressesRequest, GetHmiMacAddressesResponse> getMacAddresses,
-  IHmiOutboundChannel outboundChannel
+  IDeviceOutboundChannel outboundChannel
 ) : IHandler<BroadcastHmiStateRequest>
 {
   public async Task<Result> HandleAsync(BroadcastHmiStateRequest request, CancellationToken ct = default)
@@ -33,7 +33,7 @@ public class BroadcastHmiStateHandler(
     var payload = HmiThermostatStateEncoder.Encode(thermostat);
     foreach (var macAddress in macAddresses)
     {
-      outboundChannel.Write(macAddress, HmiMessageType.ThermostatStateChunk, payload);
+      outboundChannel.WriteHmi(macAddress, HmiMessageType.ThermostatStateChunk, payload);
     }
 
     return Result.Success();

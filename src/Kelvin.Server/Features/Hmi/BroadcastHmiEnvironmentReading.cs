@@ -13,7 +13,7 @@ public record BroadcastHmiEnvironmentReadingRequest(EnvironmentReading Reading) 
 /// </summary>
 public class BroadcastHmiEnvironmentReadingHandler(
   IHandler<GetHmiMacAddressesRequest, GetHmiMacAddressesResponse> getMacAddresses,
-  IHmiOutboundChannel outboundChannel
+  IDeviceOutboundChannel outboundChannel
 ) : IHandler<BroadcastHmiEnvironmentReadingRequest>
 {
   public async Task<Result> HandleAsync(BroadcastHmiEnvironmentReadingRequest request, CancellationToken ct = default)
@@ -27,7 +27,7 @@ public class BroadcastHmiEnvironmentReadingHandler(
     var payload = HmiEnvironmentReadingEncoder.Encode(request.Reading);
     foreach (var macAddress in macAddresses)
     {
-      outboundChannel.Write(macAddress, HmiMessageType.EnvironmentReadingChanged, payload);
+      outboundChannel.WriteHmi(macAddress, HmiMessageType.EnvironmentReadingChanged, payload);
     }
 
     return Result.Success();

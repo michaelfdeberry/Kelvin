@@ -7,11 +7,11 @@
 #define RELAY_PIN 26
 #define RELAY_ACTIVE_HIGH 1
 
-// How often the server is asked whether the humidifier should run.
-#define PING_INTERVAL_MS 15000UL
+// How often the device checks in with the server (it also checks in at boot).
+#define CHECK_IN_INTERVAL_MS 300000UL
 
-// Release the relay if the server hasn't answered for this long.
-#define RESPONSE_TIMEOUT_MS 120000UL
+// Release the relay if the server hasn't sent a state for this long; it resends every 30 seconds while running.
+#define STATE_TIMEOUT_MS 120000UL
 
 // How long to wait before retrying a failed ESP-NOW startup.
 #define COMMUNICATOR_RETRY_MS 5000UL

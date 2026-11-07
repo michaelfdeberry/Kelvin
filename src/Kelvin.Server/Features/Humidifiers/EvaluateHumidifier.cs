@@ -63,7 +63,7 @@ public class EvaluateHumidifierHandler(
     if (control.IsFailure || control.Value!.ControlState != ControlState.Enable || control.Value.CallState != ControlState.Heating)
       return Off("The system is not heating.");
 
-    // Runs on the gateway's serial loop, so never wait on the weather service; ThermostatService keeps the cache warm.
+    // Evaluated on a short timer, so never wait on the weather service; ThermostatService keeps the cache warm.
     var forecast = await getWeatherForecast.HandleAsync(new GetWeatherForecastRequest(CachedOnly: true), ct);
     var outdoorTemperatureC = forecast.IsSuccess ? forecast.Value!.Current?.TemperatureC : null;
     if (outdoorTemperatureC is null)

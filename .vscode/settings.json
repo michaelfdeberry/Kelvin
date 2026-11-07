@@ -29,6 +29,7 @@
   },
   "csharpOrganizeUsings.splitGroups": false,
   "chat.tools.terminal.autoApprove": {
-    "dotnet test": true
+    "dotnet test": true,
+    "dotnet build": true
   }
 }

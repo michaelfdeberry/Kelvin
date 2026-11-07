@@ -107,7 +107,7 @@ public class HmiNotificationTests
             new Models.Hmi { MacAddress = "deleted", DeletedAt = DateTimeOffset.UtcNow }
         );
         await context.SaveChangesAsync();
-        var channel = new HmiOutboundChannel();
+        var channel = new DeviceOutboundChannel();
         var handler = new BroadcastHmiNotificationHandler(
             new GetHmiMacAddressesHandler(context),
             channel
@@ -141,9 +141,9 @@ public class HmiNotificationTests
             A.Fake<IHandler<SendHmiStateRequest>>(),
             new DismissNotificationHandler(context, dispatcher)
         );
-        var frame = HmiEnvelope
+        var frame = DeviceEnvelope
             .Encode(
-                HmiMessageType.DismissNotification,
+                (byte)HmiMessageType.DismissNotification,
                 HmiNotificationEncoder.EncodeDismiss(notification.Id)
             )
             .Single();
@@ -167,7 +167,7 @@ public class HmiNotificationTests
     public async Task GatewayFailure_NotifiesOnlyOriginatingPanelWithoutPublishing(bool failure)
     {
         var dispatcher = A.Fake<IDispatcher>();
-        var outbound = new HmiOutboundChannel();
+        var outbound = new DeviceOutboundChannel();
         A.CallTo(() =>
                 dispatcher.DispatchAsync(A<ReceiveHmiCommandRequest>._, A<CancellationToken>._)
             )
@@ -184,7 +184,9 @@ public class HmiNotificationTests
         {
             frame.MacAddress.ShouldBe(Mac);
             frame.Payload[FrameTags.Size].ShouldBe((byte)HmiMessageType.Notify);
-            var map = HmiCborMap.Parse(frame.Payload[(FrameTags.Size + HmiEnvelope.HeaderSize)..]);
+            var map = HmiCborMap.Parse(
+                frame.Payload[(FrameTags.Size + DeviceEnvelope.HeaderSize)..]
+            );
             map.Boolean(8).ShouldBeFalse();
             map.UInt(3, 3).ShouldBe((uint)NotificationType.Error);
         }
@@ -206,7 +208,7 @@ public class HmiNotificationTests
         );
         await context.SaveChangesAsync();
         using var cache = new MemoryCache(new MemoryCacheOptions());
-        var channel = new HmiOutboundChannel();
+        var channel = new DeviceOutboundChannel();
         var handler = new SendHmiStateHandler(
             context,
             channel,

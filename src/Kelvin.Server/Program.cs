@@ -59,6 +59,10 @@ builder.Services.AddScoped<IEventHandler<ControlStateChangedEvent>>(sp => sp.Get
 builder.Services.AddSingleton<BalancingService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<BalancingService>());
 builder.Services.AddScoped<IEventHandler<ControlStateChangedEvent>>(sp => sp.GetRequiredService<BalancingService>());
+builder.Services.AddSingleton<DeviceIntegrationService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceIntegrationService>());
+builder.Services.AddScoped<IEventHandler<ControlStateChangedEvent>>(sp => sp.GetRequiredService<DeviceIntegrationService>());
+builder.Services.AddScoped<IEventHandler<DevicesChangedEvent>>(sp => sp.GetRequiredService<DeviceIntegrationService>());
 builder
   .Services.AddSignalR()
   .AddJsonProtocol(options =>

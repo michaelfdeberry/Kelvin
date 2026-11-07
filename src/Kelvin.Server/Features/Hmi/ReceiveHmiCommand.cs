@@ -35,11 +35,13 @@ public class ReceiveHmiCommandHandler(
   public async Task<Result> HandleAsync(ReceiveHmiCommandRequest request, CancellationToken ct = default)
   {
     if (
-      !HmiEnvelope.TryDecode(request.Payload, out var messageType, out var chunkIndex, out var chunkCount, out _, out _)
+      !DeviceEnvelope.TryDecode(request.Payload, out var type, out var chunkIndex, out var chunkCount, out _, out _)
       || chunkIndex != 0
       || chunkCount != 1
     )
       return Result.Failure(ReceiveHmiCommandErrors.EmptyPayload);
+
+    var messageType = (HmiMessageType)type;
 
     IRequest? command;
     try
@@ -92,7 +94,8 @@ public class ReceiveHmiCommandHandler(
     };
   }
 
-  private static byte[] DecodeBody(byte[] payload) => HmiEnvelope.TryDecode(payload, out _, out _, out _, out _, out var body) ? body.ToArray() : [];
+  private static byte[] DecodeBody(byte[] payload) =>
+    DeviceEnvelope.TryDecode(payload, out _, out _, out _, out _, out var body) ? body.ToArray() : [];
 
   private static SensorPacket BuildSensorPacket(string macAddress, HmiCborMap body) =>
     new()

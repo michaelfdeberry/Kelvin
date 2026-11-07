@@ -12,7 +12,7 @@ public record BroadcastHmiControlStateRequest(ControlStateChange Change) : IRequ
 /// </summary>
 public class BroadcastHmiControlStateHandler(
   IHandler<GetHmiMacAddressesRequest, GetHmiMacAddressesResponse> getMacAddresses,
-  IHmiOutboundChannel outboundChannel
+  IDeviceOutboundChannel outboundChannel
 ) : IHandler<BroadcastHmiControlStateRequest>
 {
   public async Task<Result> HandleAsync(BroadcastHmiControlStateRequest request, CancellationToken ct = default)
@@ -29,7 +29,7 @@ public class BroadcastHmiControlStateHandler(
     var payload = HmiControlStateEncoder.Encode(request.Change);
     foreach (var macAddress in macAddresses)
     {
-      outboundChannel.Write(macAddress, HmiMessageType.ControlStateChanged, payload);
+      outboundChannel.WriteHmi(macAddress, HmiMessageType.ControlStateChanged, payload);
     }
 
     return Result.Success();
