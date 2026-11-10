@@ -60,7 +60,7 @@ flowchart TD
     MAINS["120V AC mains"] --> PSU["Mean Well DIN PSU<br/>5V DC 40A"]
 
     PSU -- "5V / GND" --> PI["Raspberry Pi 5"]
-    PSU -- "5V switched by DPDT pole 2" --> JDVCC["Relay bank JD-VCC<br/>(coil supply)"]
+    PSU -- "5V through selector contact 5–6<br/>(closed in Auto only)" --> JDVCC["Relay bank JD-VCC<br/>(coil supply)"]
 
     PI -- "USB-A to USB" --> ESP["ESP32 receiver"]
     PI -- "3.3V logic VCC + GND" --> RLOGIC["Relay bank VCC / GND<br/>(opto input side)"]
@@ -80,25 +80,38 @@ flowchart TD
 
 - The relay board is **active low**: the server drives a pin **LOW** to energize a relay, **HIGH** to release it (`RelayController`).
 - GPIO assignments are not hard-coded. `HeatingPin`, `CoolingPin`, `FanPin`, and `ControlPin` live in the `Gateway` record in the database and are applied at runtime, so record the actual BCM numbers used on the build.
-- Remove the **VCC–JD-VCC jumper** on the relay board so the opto-isolator input side is powered from the Pi while the coil side is powered from the PSU through the DPDT switch. This is what lets the "Legacy Override" position fully disable the relays.
+- Remove the **VCC–JD-VCC jumper** on the relay board so the opto-isolator input side is powered from the Pi while the coil side is powered from the PSU through the selector switch. This is what lets the Off and Legacy Override positions fully disable the relays.
 - The Pi's GND and the PSU GND must be common for the GPIO signals to be referenced correctly.
 
 ---
 
 ## 3. Gateway enclosure — 24V AC HVAC control path
 
-This is the tiered control system: DPDT manual override **in series with** the software-controlled Relay 4.
+This is the tiered control system: a manual selector switch **in series with** the software-controlled Relay 4.
+
+The switch is a 3-position (ON-OFF-ON) selector with **eight isolated SPST contacts**: terminal pairs 1–2, 5–6, 9–10 and 13–14 close in one outer position, 3–4, 7–8, 11–12 and 15–16 close in the other, and every contact is open in the centre. It is not a 4PDT; there is no shared common, so the incoming R is jumpered to one contact on each side. Which outer position is Auto and which is Legacy Override is a wiring choice; the assignment below is the one assumed in this document.
+
+| Contact            | Closed in       | Function                              |
+| :----------------- | :-------------- | :------------------------------------ |
+| 1–2                | Auto            | Fused furnace R → Relay 4 COM         |
+| 5–6                | Auto            | 5V from PSU → relay bank JD-VCC       |
+| 3–4                | Legacy Override | Fused furnace R → legacy thermostat R |
+| 7–8                | Legacy Override | Legacy thermostat Y → furnace Y       |
+| 11–12              | Legacy Override | Legacy thermostat G → furnace G       |
+| 9–10, 13–14, 15–16 | —               | Spare                                 |
+
+Kelvin's fused W / Y / G outputs land directly on the furnace terminals and do not pass through the switch; only the legacy thermostat's Y and G do.
 
 ```mermaid
 flowchart TD
     FR["Furnace R<br/>24V AC hot"] --> F1["3A fuse<br/>(incoming)"]
-    F1 --> DP["DPDT switch<br/>pole 1 common"]
+    F1 --> RIN["Selector switch<br/>R jumpered to contacts 1 and 3"]
 
-    DP -- "Legacy Override" --> WTR
-    DP -- "Auto" --> R4C["Relay 4 COM"]
+    RIN -- "1–2 closed in Auto" --> R4C["Relay 4 COM"]
+    RIN -- "3–4 closed in Legacy Override" --> WTR
 
-    DP2["DPDT pole 2<br/>(5V from PSU)"] -- "Legacy Override: open" --> X["JD-VCC disconnected<br/>relay bank disabled"]
-    DP2 -- "Auto: closed" --> JD["JD-VCC connected<br/>relay bank armed"]
+    PSU5["5V from PSU"] -- "5–6 closed in Auto" --> JD["Relay bank JD-VCC<br/>relay bank armed"]
+    PSU5 -. "Off / Legacy Override: open<br/>relay bank dead" .- JD
 
     R4C --> R4NC["Relay 4 NC<br/>(de-energized = default)"]
     R4C --> R4NO["Relay 4 NO<br/>(energized by .NET app)"]
@@ -114,8 +127,14 @@ flowchart TD
     R2 -- "NO" --> FW["3A fuse -> Furnace W"]
     R3 -- "NO" --> FG["3A fuse -> Furnace G"]
 
-    WTR --> WTOUT["Wall thermostat W / Y / G outputs"]
-    WTOUT --> FURN["Furnace control board"]
+    WTR --> WTW["Wall thermostat W"]
+    WTR --> WTY["Wall thermostat Y"]
+    WTR --> WTG["Wall thermostat G"]
+    WTW --> FURN["Furnace control board"]
+    WTY --> SY["Contact 7–8<br/>closed in Legacy Override only"]
+    WTG --> SG["Contact 11–12<br/>closed in Legacy Override only"]
+    SY --> FURN
+    SG --> FURN
     FY --> FURN
     FW --> FURN
     FG --> FURN
@@ -124,13 +143,18 @@ flowchart TD
 
 **Failsafe behavior**
 
-| Condition                                      | Result                                                                                                                                                  |
-| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| DPDT in **Legacy Override**                    | 24V AC routed straight to the wall thermostat; JD-VCC cut, relay bank completely dead.                                                                  |
-| DPDT in **Auto**, Relay 4 de-energized         | Kelvin's HVAC control disabled. Relay 4 NC hands 24V AC to the wall thermostat. This is the state after a Pi crash, unrecoverable error, or power loss. |
-| DPDT in **Auto**, Relay 4 energized (GPIO LOW) | Kelvin's HVAC control enabled. Relay 4 NO feeds the COM of Heat/Cool/Fan.                                                                               |
+| Condition                                        | Result                                                                                                                                                                                                                                                                                                 |
+| :----------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Switch in **Legacy Override**                    | 24V AC routed straight to the wall thermostat and its Y / G outputs reconnected; JD-VCC cut, relay bank completely dead.                                                                                                                                                                               |
+| Switch in **Off** (centre)                       | No R reaches either controller and JD-VCC is cut, so nothing can call for heat, cooling or fan. A service position only; the furnace will not heat while the switch is left here.                                                                                                                      |
+| Switch in **Auto**, Relay 4 de-energized         | Kelvin's HVAC control disabled. Relay 4 NC hands 24V AC to the wall thermostat, which can still call for **heat** (W). Its Y / G stay disconnected, so there is no cooling or fan until the switch is moved to Legacy Override. This is the state after a Pi crash, unrecoverable error, or power loss. |
+| Switch in **Auto**, Relay 4 energized (GPIO LOW) | Kelvin's HVAC control enabled. Relay 4 NO feeds the COM of Heat/Cool/Fan.                                                                                                                                                                                                                              |
 
-Relays 1–3 can only pass current when both the DPDT switch is in Auto **and** Relay 4 is energized, so there is no path for software to call for operation while the user has chosen manual override.
+Relays 1–3 can only pass current when both the switch is in Auto **and** Relay 4 is energized, so there is no path for software to call for operation while the user has chosen manual override.
+
+**Why the legacy Y and G are switched**
+
+Relay 4 only interrupts the legacy thermostat's **R**; its W / Y / G outputs would otherwise stay wired to the furnace in parallel with the Relay 1/2/3 NO contacts, so any connection inside the legacy thermostat becomes a path between Kelvin's outputs. Mechanical and many older electronic thermostats hard-link **G→Y** when set to Gas or Oil so a cooling call runs the blower. With that link in place, energizing Relay 3 (Fan) put 24V AC on Y through the legacy thermostat and started the compressor without `ControlService` ever calling for cooling, so none of the minimum on/off or mode-switch guards applied, and the red LED stayed off because R was never involved. Opening Y and G outside the Legacy Override position breaks that path in both directions. W is left connected so the legacy thermostat can still heat in the software failsafe state; a heat-only backfeed would require a W-to-something link inside the thermostat, which none of the common fan-switch arrangements have. Meter any replacement thermostat for W↔Y and W↔G continuity in every mode before connecting it.
 
 ---
 
@@ -148,14 +172,14 @@ flowchart LR
     C --> RED
 ```
 
-| LED    | Tap point                                                     | Lit when                                                      |
-| :----- | :------------------------------------------------------------ | :------------------------------------------------------------ |
-| Green  | Relay 4 **NO** terminal, referenced to C                      | DPDT in Auto **and** Kelvin's HVAC control is enabled         |
-| Red    | R wire where it enters the legacy thermostat, referenced to C | Either the DPDT switch or Kelvin's HVAC control is disabled   |
-| Orange | Parallel across W output to furnace and C                     | Relay 2 bridges R→W or the wall thermostat calls for heat.    |
-| Blue   | Parallel across Y output to furnace and C                     | Relay 1 bridges R→Y or the wall thermostat calls for cooling. |
+| LED    | Tap point                                                     | Lit when                                                             |
+| :----- | :------------------------------------------------------------ | :------------------------------------------------------------------- |
+| Green  | Relay 4 **NO** terminal, referenced to C                      | Switch in Auto **and** Kelvin's HVAC control is enabled              |
+| Red    | R wire where it enters the legacy thermostat, referenced to C | Switch in Legacy Override, or in Auto with Kelvin's control disabled |
+| Orange | Parallel across W output to furnace and C                     | Relay 2 bridges R→W or the wall thermostat calls for heat.           |
+| Blue   | Parallel across Y output to furnace and C                     | Relay 1 bridges R→Y or the wall thermostat calls for cooling.        |
 
-Green and Red are mutually exclusive — they are the two sides of the Relay 4 transfer contact.
+Green and Red are never lit together; both are dark with the switch in Off, since no R reaches either controller.
 
 ---
 
@@ -172,7 +196,7 @@ flowchart LR
         INT["Relay bank, PSU, Pi, ESP32"]
         subgraph DOOR["Door-mounted"]
             LEDS["4x indicator LEDs"]
-            SW["DPDT override switch"]
+            SW["3-position override selector"]
         end
     end
 
