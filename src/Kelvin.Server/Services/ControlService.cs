@@ -14,8 +14,9 @@ namespace Kelvin.Server.Services;
 /// <remarks>
 /// State is tracked by concern rather than as one combined state, so the minimum on/off duration guards in
 /// <see cref="EvaluateCall" /> only ever see the states they apply to: control ownership is a flag driven
-/// exclusively by <see cref="ControlState.Enable" /> and <see cref="ControlState.Disable" />, the fan is stateless
-/// and actuated directly, and only an <see cref="HvacCall" /> reaches the guards.
+/// exclusively by <see cref="ControlState.Enable" /> and <see cref="ControlState.Disable" />, the fan request is
+/// a flag that never reaches the guards, and only an <see cref="HvacCall" /> does. The fan relay itself is derived
+/// from the fan request and the active call together in <see cref="ApplyFanRelay" />.
 /// </remarks>
 public class ControlService(
   ILogger<ControlService> logger,
@@ -38,7 +39,9 @@ public class ControlService(
   // State tracking
   private bool _controlEnabled;
   private HvacCall _currentCall = HvacCall.Dwell;
+  // The requested fan state (user or a fan-owning service, via the thermostat); the relay may be on without it.
   private bool _fanOn;
+  private bool _fanRelayOn;
   private DateTimeOffset _lastCallChangeAt = DateTimeOffset.MinValue;
   private DateTimeOffset? _lastControlChangeAt;
   private DateTimeOffset? _lastFanChangeAt;
@@ -167,7 +170,7 @@ public class ControlService(
       return;
     }
 
-    // The fan can be toggled independently of the current call and doesn't need to be tracked.
+    // The fan request is independent of the current call and is not subject to the guards.
     if (requested is ControlState.FanOn or ControlState.FanOff)
     {
       ToggleFan(requested);
@@ -411,6 +414,9 @@ public class ControlService(
   /// </summary>
   private void RecordFanReleasedByControlRelay()
   {
+    // EnableControl/DisableControl released the fan relay directly, whichever reason it was on for.
+    _fanRelayOn = false;
+
     if (!_fanOn)
       return;
 
@@ -425,7 +431,26 @@ public class ControlService(
     if (requestedFanOn == _fanOn)
       return;
 
-    if (requestedFanOn)
+    _fanOn = requestedFanOn;
+    ApplyFanRelay();
+
+    RecordChange(ControlChangeKind.Fan, requested, requestedFanOn ? ControlState.FanOff : ControlState.FanOn, _lastFanChangeAt, null);
+    _lastFanChangeAt = time.GetUtcNow();
+  }
+
+  /// <summary>
+  /// Drives the fan relay from the fan request and the active call together. Like a conventional thermostat, a
+  /// cooling call energizes G alongside Y rather than trusting the furnace board to run the blower from Y alone;
+  /// without airflow the evaporator coil freezes. The fan timeline only tracks the request, so G riding along with
+  /// a call is not recorded as a fan change.
+  /// </summary>
+  private void ApplyFanRelay()
+  {
+    var shouldRun = _fanOn || _currentCall == HvacCall.Cooling;
+    if (shouldRun == _fanRelayOn)
+      return;
+
+    if (shouldRun)
     {
       logger.LogInformation("Activating Fan Relay (Fan - G).");
       relays.EnableFan();
@@ -436,9 +461,7 @@ public class ControlService(
       relays.DisableFan();
     }
 
-    _fanOn = requestedFanOn;
-    RecordChange(ControlChangeKind.Fan, requested, requestedFanOn ? ControlState.FanOff : ControlState.FanOn, _lastFanChangeAt, null);
-    _lastFanChangeAt = time.GetUtcNow();
+    _fanRelayOn = shouldRun;
   }
 
   private void ScheduleDwellTransition(TimeSpan delay)
@@ -487,6 +510,8 @@ public class ControlService(
         relays.EnableCooling();
         break;
     }
+
+    ApplyFanRelay();
 
     RecordChange(ControlChangeKind.Call, ToControlState(call), ToControlState(previousCall), previousSince, reason);
   }

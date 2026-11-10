@@ -643,6 +643,105 @@ public class ControlServiceTests
     }
 
     [Fact]
+    public async Task Cooling_EnergizesTheFanWithTheCompressorAndReleasesItWithTheCall()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Cooling));
+
+        // Like a thermostat, G is energized alongside Y rather than trusting the board to run the blower from Y.
+        A.CallTo(() => harness.Relays.EnableCooling()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => harness.Relays.EnableFan()).MustHaveHappenedOnceExactly();
+
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        A.CallTo(() => harness.Relays.EnableDwell()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => harness.Relays.DisableFan()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Heating_DoesNotEnergizeTheFan()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        // A gas furnace runs its own blower on a heat call; G stays with the fan request.
+        A.CallTo(() => harness.Relays.EnableFan()).MustNotHaveHappened();
+        A.CallTo(() => harness.Relays.DisableFan()).MustNotHaveHappened();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Cooling_LeavesARequestedFanRunningWhenTheCallEnds()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.FanOn));
+        await harness.PushAsync(new(ControlState.Cooling));
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        A.CallTo(() => harness.Relays.EnableFan()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => harness.Relays.DisableFan()).MustNotHaveHappened();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task FanOff_DuringCooling_KeepsTheFanRunningUntilTheCallEnds()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.FanOn));
+        await harness.PushAsync(new(ControlState.Cooling));
+        await harness.PushAsync(new(ControlState.FanOff));
+
+        // The request is withdrawn, but the cooling call still needs the blower.
+        A.CallTo(() => harness.Relays.DisableFan()).MustNotHaveHappened();
+
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        A.CallTo(() => harness.Relays.DisableFan()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task Cooling_DoesNotRecordAFanChange()
+    {
+        var harness = new ControlServiceHarness();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        harness.RecordedChanges.Clear();
+
+        await harness.PushAsync(new(ControlState.Cooling));
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        // The fan timeline tracks the request; G riding along with the call is part of the call.
+        harness.RecordedChanges.ShouldAllBe(change => change.Kind == ControlChangeKind.Call);
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
     public async Task Enable_RecordsAControlStateChange()
     {
         var harness = new ControlServiceHarness();
