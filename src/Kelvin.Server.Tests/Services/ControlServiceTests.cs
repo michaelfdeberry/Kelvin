@@ -642,6 +642,111 @@ public class ControlServiceTests
         await harness.StopAsync();
     }
 
+    [Theory]
+    [InlineData(FanMode.Manual, ControlState.Heating, false)]
+    [InlineData(FanMode.Manual, ControlState.Cooling, false)]
+    [InlineData(FanMode.CoolingOnly, ControlState.Heating, false)]
+    [InlineData(FanMode.CoolingOnly, ControlState.Cooling, true)]
+    [InlineData(FanMode.HeatingAndCooling, ControlState.Heating, true)]
+    [InlineData(FanMode.HeatingAndCooling, ControlState.Cooling, true)]
+    public async Task FanMode_DeterminesAutomaticFanOutput(
+        FanMode mode,
+        ControlState call,
+        bool expectedFanOn
+    )
+    {
+        var harness = new ControlServiceHarness();
+        var thermostat = ThermostatFixtures.CreateThermostat(RunMode.Automatic);
+        thermostat.FanMode = mode;
+        harness.SetThermostat(thermostat);
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(call));
+
+        A.CallTo(() => harness.Relays.EnableFan())
+            .MustHaveHappened(expectedFanOn ? 1 : 0, Times.Exactly);
+        A.CallTo(() => harness.Relays.DisableFan()).MustNotHaveHappened();
+
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        A.CallTo(() => harness.Relays.DisableFan())
+            .MustHaveHappened(expectedFanOn ? 1 : 0, Times.Exactly);
+        await harness.StopAsync();
+    }
+
+    [Theory]
+    [InlineData(FanMode.Manual)]
+    [InlineData(FanMode.CoolingOnly)]
+    [InlineData(FanMode.HeatingAndCooling)]
+    public async Task FanMode_DoesNotOverrideExplicitFanRequests(FanMode mode)
+    {
+        var harness = new ControlServiceHarness();
+        var thermostat = ThermostatFixtures.CreateThermostat(RunMode.Cooling);
+        thermostat.FanMode = mode;
+        harness.SetThermostat(thermostat);
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.FanOn));
+        await harness.PushAsync(new(ControlState.Cooling));
+        harness.Time.Advance(MinimumOn);
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        A.CallTo(() => harness.Relays.EnableFan()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => harness.Relays.DisableFan()).MustNotHaveHappened();
+
+        await harness.PushAsync(new(ControlState.FanOff));
+
+        A.CallTo(() => harness.Relays.DisableFan()).MustHaveHappenedOnceExactly();
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task FanModeChange_DuringAnActiveCall_ReconcilesFanWithoutRestartingTheCall()
+    {
+        var harness = new ControlServiceHarness();
+        var thermostat = ThermostatFixtures.CreateThermostat(RunMode.Heating);
+        harness.SetThermostat(thermostat);
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+
+        thermostat.FanMode = FanMode.HeatingAndCooling;
+        await harness.PushAsync(new(ControlState.Enable));
+        A.CallTo(() => harness.Relays.EnableFan()).MustHaveHappenedOnceExactly();
+
+        thermostat.FanMode = FanMode.Manual;
+        await harness.PushAsync(new(ControlState.Heating));
+        A.CallTo(() => harness.Relays.DisableFan()).MustHaveHappenedOnceExactly();
+        A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Fact]
+    public async Task HeatingFanMode_KeepsFanOnUntilScheduledDwellAndIgnoresFanOff()
+    {
+        var harness = new ControlServiceHarness();
+        var thermostat = ThermostatFixtures.CreateThermostat(RunMode.Heating);
+        thermostat.FanMode = FanMode.HeatingAndCooling;
+        harness.SetThermostat(thermostat);
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+        await harness.PushAsync(new(ControlState.FanOff));
+        await harness.PushAsync(new(ControlState.Dwell));
+
+        A.CallTo(() => harness.Relays.DisableFan()).MustNotHaveHappened();
+        await harness.AdvanceAsync(MinimumOn);
+
+        A.CallTo(() => harness.Relays.DisableFan()).MustHaveHappenedOnceExactly();
+        await harness.StopAsync();
+    }
+
     [Fact]
     public async Task Cooling_EnergizesTheFanWithTheCompressorAndReleasesItWithTheCall()
     {

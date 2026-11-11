@@ -1,5 +1,12 @@
 namespace Kelvin.Server.Models;
 
+public enum FanMode
+{
+  Manual,
+  CoolingOnly,
+  HeatingAndCooling,
+}
+
 public class Thermostat : Entity
 {
   /// <summary>
@@ -11,6 +18,8 @@ public class Thermostat : Entity
   ///   The current state of the fan. This can be one of the following values:
   /// </summary>
   public bool FanEnabled { get; set; }
+
+  public FanMode FanMode { get; set; } = FanMode.CoolingOnly;
 
   /// <summary>
   /// The temperature offset in degrees Celsius to apply to the hysteresis/dead-zone for the thermostat.

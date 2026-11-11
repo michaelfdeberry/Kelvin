@@ -28,7 +28,8 @@ public record GetThermostatResponseDto(
   bool HeatingAutoBalanceEnabled = false,
   float HeatingBalanceTriggerC = 0.0f,
   float HeatingBalanceSatisfiedC = 0.0f,
-  int HeatingAutoBalanceDurationMs = 0
+  int HeatingAutoBalanceDurationMs = 0,
+  FanMode FanMode = FanMode.CoolingOnly
 );
 
 public static class ThermostatCache
@@ -106,7 +107,8 @@ public class GetThermostatEndpoint : IEndpointMapper
               HeatingAutoBalanceEnabled: thermostat.HeatingAutoBalanceEnabled,
               HeatingBalanceTriggerC: thermostat.HeatingBalanceTriggerC,
               HeatingBalanceSatisfiedC: thermostat.HeatingBalanceSatisfiedC,
-              HeatingAutoBalanceDurationMs: thermostat.HeatingAutoBalanceDurationMs
+              HeatingAutoBalanceDurationMs: thermostat.HeatingAutoBalanceDurationMs,
+              FanMode: thermostat.FanMode
             )
           );
         }

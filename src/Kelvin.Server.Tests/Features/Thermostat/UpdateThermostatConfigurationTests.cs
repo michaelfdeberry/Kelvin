@@ -1,9 +1,14 @@
 using FakeItEasy;
 using Kelvin.Server.Application;
+using Kelvin.Server.Data;
 using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Caching.Memory;
 using Shouldly;
 using Xunit;
@@ -102,6 +107,75 @@ public class UpdateThermostatConfigurationTests
         thermostat.HeatingBalanceTriggerC.ShouldBe(4f);
         thermostat.HeatingBalanceSatisfiedC.ShouldBe(2f);
         thermostat.HeatingAutoBalanceDurationMs.ShouldBe(90000);
+        thermostat.FanMode.ShouldBe(FanMode.CoolingOnly);
+    }
+
+    [Theory]
+    [InlineData(FanMode.Manual)]
+    [InlineData(FanMode.CoolingOnly)]
+    [InlineData(FanMode.HeatingAndCooling)]
+    public async Task FanMode_IsPersisted(FanMode mode)
+    {
+        using var harness = new KelvinContextHarness();
+        await SeedThermostatAsync(harness);
+        await using var context = harness.CreateContext();
+
+        var result = await new UpdateThermostatConfigurationHandler(
+            context,
+            new MemoryCache(new MemoryCacheOptions()),
+            CreateDispatcher()
+        ).HandleAsync(ValidRequest() with { FanMode = mode });
+
+        result.IsSuccess.ShouldBeTrue();
+        await using var verifyContext = harness.CreateContext();
+        verifyContext.Thermostats.Single().FanMode.ShouldBe(mode);
+    }
+
+    [Fact]
+    public async Task FanModeMigration_DefaultsExistingThermostatsToCoolingOnly()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<KelvinContext>().UseSqlite(connection).Options;
+        await using var context = new KelvinContext(options);
+        await context.Database.MigrateAsync();
+        var thermostat = new Models.Thermostat { Mode = RunMode.Heating, FanMode = FanMode.Manual };
+        context.Thermostats.Add(thermostat);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var migrator = context.GetService<IMigrator>();
+        var previousMigration = context.Database.GetMigrations().SkipLast(1).Last();
+        await migrator.MigrateAsync(previousMigration);
+        await migrator.MigrateAsync();
+
+        var restored = context.Thermostats.Single();
+        restored.Id.ShouldBe(thermostat.Id);
+        restored.Mode.ShouldBe(RunMode.Heating);
+        restored.FanMode.ShouldBe(FanMode.CoolingOnly);
+    }
+
+    [Fact]
+    public async Task UndefinedFanMode_IsRejectedWithoutPersisting()
+    {
+        using var harness = new KelvinContextHarness();
+        await SeedThermostatAsync(harness);
+        await using var context = harness.CreateContext();
+        var dispatcher = CreateDispatcher();
+
+        var result = await new UpdateThermostatConfigurationHandler(
+            context,
+            new MemoryCache(new MemoryCacheOptions()),
+            dispatcher
+        ).HandleAsync(ValidRequest() with { FanMode = (FanMode)99 });
+
+        result.Error.ShouldBe(UpdateThermostatConfigurationErrors.InvalidFanMode);
+        await using var verifyContext = harness.CreateContext();
+        verifyContext.Thermostats.Single().FanMode.ShouldBe(FanMode.CoolingOnly);
+        A.CallTo(() =>
+                dispatcher.PublishAsync(A<ThermostatConfigChangedEvent>._, A<CancellationToken>._)
+            )
+            .MustNotHaveHappened();
     }
 
     [Theory]

@@ -1,3 +1,4 @@
+import '../../../shared/info-bubble/info-bubble.js';
 import '../../../shared/number-input/number-input.js';
 import '../../../shared/toggle/toggle.js';
 
@@ -12,7 +13,7 @@ import { thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
 import { RelayStates } from '../../../../models/gateway.js';
 import { Preferences } from '../../../../models/preferences.js';
-import { Thermostat, UpdateThermostatConfigurationRequest } from '../../../../models/thermostat.js';
+import { FanMode, Thermostat, UpdateThermostatConfigurationRequest } from '../../../../models/thermostat.js';
 import apiResources from '../../../../services/api-resources.js';
 import { apiGet, apiPut } from '../../../../services/api.js';
 import {
@@ -80,6 +81,7 @@ export class SettingsThermostat extends LitElement {
 
     // Each card saves on its own; everything outside the card keeps its saved value.
     const request: UpdateThermostatConfigurationRequest = {
+      fanMode: thermostat.fanMode,
       hysteresisC: thermostat.hysteresisC,
       cO2RecirculationEnabled: thermostat.cO2RecirculationEnabled,
       cO2RecirculationTriggerPpm: thermostat.cO2RecirculationTriggerPpm,
@@ -92,6 +94,7 @@ export class SettingsThermostat extends LitElement {
     };
 
     if (section === 'hysteresis') {
+      request.fanMode = data.get('fanMode') as FanMode;
       request.hysteresisC = deltaFromPreferredUnit(unit, value('hysteresis'));
     } else if (section === 'co2') {
       request.cO2RecirculationEnabled = this.co2Enabled;
@@ -198,15 +201,13 @@ export class SettingsThermostat extends LitElement {
         @reset=${() => this.clearDraft('hysteresis')}
       >
         <div class="form-group">
-          <p class="settings-thermostat__description">
-            How far the temperature may drift from the target before heating or cooling starts and stops.
-          </p>
-          <div class="form-control">
+          <div class="form-control settings-thermostat__help-field">
             <label class="form-control__label">
-              Hysteresis (${getPreferredUnit(unit)})
+              <span id="hysteresisLabel">Hysteresis (${getPreferredUnit(unit)})</span>
               <app-number-input
                 id="hysteresis"
                 name="hysteresis"
+                aria-labelledby="hysteresisLabel"
                 step="0.1"
                 class="form-control__input"
                 .min=${convertDeltaToPreferredUnit(unit, MIN_HYSTERESIS_C)}
@@ -214,6 +215,64 @@ export class SettingsThermostat extends LitElement {
                 .value=${convertDeltaToPreferredUnit(unit, this.thermostat.hysteresisC)}
               ></app-number-input>
             </label>
+            <app-info-bubble label="About hysteresis">
+              How far the temperature may drift from the target before heating or cooling starts and stops.
+            </app-info-bubble>
+          </div>
+          <div class="form-control">
+            <div class="settings-thermostat__field-label">
+              <label
+                class="form-control__label"
+                for="fanMode"
+                >Fan mode</label
+              >
+              <app-info-bubble label="About fan mode">
+                <p>How the fan operates in different modes.</p>
+                <b>Equipment Controlled</b>
+                <div>
+                  <p>
+                    Choose this option if your system will automatically control the fan based on the current mode and equipment settings. In this
+                    mode Kelvin will not enable the fan manually.
+                  </p>
+                </div>
+                <b>Fossil Fuel Systems</b>
+                <div>
+                  <p>Typically labeled "Gas or Oil" on standard thermostats. In this mode Kelvin will enable the fan when Cooling is active.</p>
+                </div>
+                <b>Electric</b>
+                <div>
+                  <p>
+                    Typically labeled "Electric" or "Heat Pump" on standard thermostats. In this mode Kelvin will enable the fan when Heating and
+                    Cooling are active.
+                  </p>
+                </div>
+                <p>Manual fan, recirculation, and balancing features can run the fan in any mode.</p>
+              </app-info-bubble>
+            </div>
+            <select
+              id="fanMode"
+              name="fanMode"
+              class="form-control__input select"
+            >
+              <option
+                value="Manual"
+                ?selected=${this.thermostat.fanMode === 'Manual'}
+              >
+                Off / Manual
+              </option>
+              <option
+                value="CoolingOnly"
+                ?selected=${this.thermostat.fanMode === 'CoolingOnly'}
+              >
+                On When Cooling Only
+              </option>
+              <option
+                value="HeatingAndCooling"
+                ?selected=${this.thermostat.fanMode === 'HeatingAndCooling'}
+              >
+                On for Heating and Cooling
+              </option>
+            </select>
           </div>
         </div>
         ${this.renderActions()}

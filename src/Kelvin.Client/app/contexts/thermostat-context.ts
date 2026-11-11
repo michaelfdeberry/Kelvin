@@ -7,6 +7,7 @@ export const thermostatContext = createContext<Thermostat>('thermostat');
 export const defaultThermostat: Thermostat = {
   mode: 'Disabled',
   fanEnabled: false,
+  fanMode: 'CoolingOnly',
   hysteresisC: 0.6,
   cO2RecirculationEnabled: false,
   cO2RecirculationTriggerPpm: 1000,

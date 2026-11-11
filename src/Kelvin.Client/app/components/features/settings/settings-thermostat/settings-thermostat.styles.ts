@@ -32,6 +32,34 @@ export default css`
     line-height: 1.45;
   }
 
+  .settings-thermostat__field-label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .settings-thermostat__help-field {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    align-items: center;
+    column-gap: 0.25rem;
+  }
+
+  .settings-thermostat__help-field > label {
+    display: contents;
+  }
+
+  .settings-thermostat__help-field app-number-input {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .settings-thermostat__help-field app-info-bubble {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
+  }
+
   .settings-thermostat__grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));

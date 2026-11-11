@@ -454,6 +454,11 @@ namespace Kelvin.Server.Data.Migrations
                     b.Property<bool>("FanEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("FanMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
+
                     b.Property<int>("HeatingAutoBalanceDurationMs")
                         .HasColumnType("INTEGER");
 

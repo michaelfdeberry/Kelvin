@@ -69,6 +69,12 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
 
     modelBuilder.Entity<Device>().HasDiscriminator<DeviceType>("Type").HasValue<HumidifierDevice>(DeviceType.Humidifier);
 
+    modelBuilder
+      .Entity<Thermostat>()
+      .Property(thermostat => thermostat.FanMode)
+      .HasDefaultValue(FanMode.CoolingOnly)
+      .HasSentinel(FanMode.CoolingOnly);
+
     // The history is always read as a timeline for one axis over a date range.
     modelBuilder.Entity<ControlStateChange>().HasIndex(change => new { change.Kind, change.CreatedAt });
 

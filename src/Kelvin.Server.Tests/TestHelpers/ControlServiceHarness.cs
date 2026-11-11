@@ -114,6 +114,7 @@ public sealed class ControlServiceHarness
                     )
             );
 
+        SetThermostat(ThermostatFixtures.CreateThermostat(RunMode.Heating));
         SetGateway(ControlFixtures.CreateGateway());
         _service = new ControlService(
             NullLogger<ControlService>.Instance,

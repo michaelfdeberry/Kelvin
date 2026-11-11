@@ -39,9 +39,11 @@ public class ControlService(
   // State tracking
   private bool _controlEnabled;
   private HvacCall _currentCall = HvacCall.Dwell;
+
   // The requested fan state (user or a fan-owning service, via the thermostat); the relay may be on without it.
   private bool _fanOn;
   private bool _fanRelayOn;
+  private FanMode _fanMode = FanMode.CoolingOnly;
   private DateTimeOffset _lastCallChangeAt = DateTimeOffset.MinValue;
   private DateTimeOffset? _lastControlChangeAt;
   private DateTimeOffset? _lastFanChangeAt;
@@ -103,10 +105,15 @@ public class ControlService(
 
         var gateway = gatewayResult.Value!;
 
+        var thermostatResult = await dispatcher.DispatchAsync<GetThermostatRequest, GetThermostatResponse>(new(), stoppingToken);
+        thermostatResult.EnsureSuccess();
+        _fanMode = thermostatResult.Value!.Thermostat.FanMode;
+
         relays.Configure(gateway);
 
         _currentContext = controlMessage;
         Handle(gateway, _currentContext.State);
+        ApplyFanRelay();
         await FlushChangesAsync(stoppingToken);
       }
       catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -438,15 +445,15 @@ public class ControlService(
     _lastFanChangeAt = time.GetUtcNow();
   }
 
-  /// <summary>
-  /// Drives the fan relay from the fan request and the active call together. Like a conventional thermostat, a
-  /// cooling call energizes G alongside Y rather than trusting the furnace board to run the blower from Y alone;
-  /// without airflow the evaporator coil freezes. The fan timeline only tracks the request, so G riding along with
-  /// a call is not recorded as a fan change.
-  /// </summary>
   private void ApplyFanRelay()
   {
-    var shouldRun = _fanOn || _currentCall == HvacCall.Cooling;
+    var callNeedsFan = _fanMode switch
+    {
+      FanMode.Manual => false,
+      FanMode.HeatingAndCooling => _currentCall is HvacCall.Heating or HvacCall.Cooling,
+      _ => _currentCall == HvacCall.Cooling,
+    };
+    var shouldRun = _controlEnabled && (_fanOn || callNeedsFan);
     if (shouldRun == _fanRelayOn)
       return;
 

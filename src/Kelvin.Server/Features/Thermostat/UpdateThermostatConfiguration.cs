@@ -16,11 +16,17 @@ public record UpdateThermostatConfigurationRequest(
   bool HeatingAutoBalanceEnabled,
   float HeatingBalanceTriggerC,
   float HeatingBalanceSatisfiedC,
-  int HeatingAutoBalanceDurationMs
+  int HeatingAutoBalanceDurationMs,
+  FanMode FanMode = FanMode.CoolingOnly
 ) : IRequest;
 
 public static class UpdateThermostatConfigurationErrors
 {
+  public static readonly Error InvalidFanMode = new(
+    "UpdateThermostatConfiguration.InvalidFanMode",
+    "The fan mode must be Manual, CoolingOnly, or HeatingAndCooling."
+  );
+
   public static readonly Error ThermostatNotFound = new(
     "UpdateThermostatConfiguration.ThermostatNotFound",
     "The thermostat with the specified ID was not found."
@@ -50,6 +56,9 @@ public class UpdateThermostatConfigurationHandler(KelvinContext context, IMemory
 
   public async Task<Result> HandleAsync(UpdateThermostatConfigurationRequest request, CancellationToken ct = default)
   {
+    if (!Enum.IsDefined(request.FanMode))
+      return Result.Failure(UpdateThermostatConfigurationErrors.InvalidFanMode);
+
     if (request.HysteresisC is < MinHysteresisC or > MaxHysteresisC)
     {
       return Result.Failure(UpdateThermostatConfigurationErrors.InvalidHysteresis);
@@ -102,6 +111,7 @@ public class UpdateThermostatConfigurationHandler(KelvinContext context, IMemory
       return safetyResult;
     }
 
+    thermostat.FanMode = request.FanMode;
     thermostat.HysteresisC = request.HysteresisC;
     thermostat.CO2RecirculationEnabled = request.CO2RecirculationEnabled;
     thermostat.CO2RecirculationTriggerPpm = request.CO2RecirculationTriggerPpm;
