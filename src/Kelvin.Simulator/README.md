@@ -41,6 +41,9 @@ Options taking values also accept an `=` form, e.g. `--port=COM5`.
 When running interactively, the simulator accepts these commands:
 
 - `base <temp>` changes the shared environment temperature.
+- `base humidity <percent>` sets the baseline humidity for all sensors and HMIs (0-100%).
+- `base co2 <ppm>` sets the baseline CO2 level for all sensors (0-65535 ppm, whole numbers).
+  These commands also apply to devices added later; readings fluctuate slightly around the baseline.
 - `add` adds one sensor.
 - `remove <index>` removes a sensor by index.
 - `enable <index>` marks one sensor online.

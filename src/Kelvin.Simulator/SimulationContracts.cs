@@ -25,6 +25,12 @@ internal abstract record SimulatorCommand;
 
 internal sealed record SetBaseTempCommand(float TemperatureC) : SimulatorCommand;
 
+internal sealed record SetBaseHumidityCommand(float HumidityPercentage) : SimulatorCommand;
+
+internal sealed record SetBaseCo2Command(ushort CO2LevelPpm) : SimulatorCommand;
+
+internal sealed record InvalidBaselineCommand : SimulatorCommand;
+
 internal sealed record AddSensorCommand : SimulatorCommand;
 
 internal sealed record RemoveSensorCommand(int Index) : SimulatorCommand;

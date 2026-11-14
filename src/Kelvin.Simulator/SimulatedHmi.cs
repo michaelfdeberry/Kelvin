@@ -51,13 +51,13 @@ internal sealed class SimulatedHmi
         };
     }
 
-    public void Step(float ambientTemperatureC)
+    public void Step(float ambientTemperatureC, float? baseHumidityPercentage = null)
     {
         TemperatureC = ambientTemperatureC + RoomOffsetC;
         HumidityPercentage = Math.Clamp(
-            HumidityPercentage + (float)(Random.NextDouble() * 0.3 - 0.15),
-            20.0f,
-            70.0f
+            (baseHumidityPercentage ?? HumidityPercentage) + (float)(Random.NextDouble() * 0.3 - 0.15),
+            baseHumidityPercentage.HasValue ? 0f : 20f,
+            baseHumidityPercentage.HasValue ? 100f : 70f
         );
         BatteryLevelPercentage = Math.Max(0.0f, BatteryLevelPercentage - 0.0001f);
     }

@@ -19,17 +19,39 @@ internal sealed class SensorFleet
 
     public IReadOnlyList<SimulatedSensor> Sensors => sensors;
 
+    public float? BaseHumidityPercentage { get; private set; }
+
+    public ushort? BaseCO2LevelPpm { get; private set; }
+
+    public void SetBaseHumidity(float humidityPercentage)
+    {
+        BaseHumidityPercentage = humidityPercentage;
+        foreach (var sensor in sensors)
+            sensor.HumidityPercentage = humidityPercentage;
+    }
+
+    public void SetBaseCO2(ushort co2LevelPpm)
+    {
+        BaseCO2LevelPpm = co2LevelPpm;
+        foreach (var sensor in sensors)
+            sensor.CO2LevelPpm = co2LevelPpm;
+    }
+
     public void StepAll(float ambientTemperatureC)
     {
         foreach (var sensor in sensors)
         {
-            sensor.Step(ambientTemperatureC);
+            sensor.Step(ambientTemperatureC, BaseHumidityPercentage, BaseCO2LevelPpm);
         }
     }
 
     public SimulatedSensor AddSensor(float baseTemperatureC)
     {
         var sensor = SimulatedSensor.Create(nextSensorNumber++, baseTemperatureC);
+        if (BaseHumidityPercentage is { } humidity)
+            sensor.HumidityPercentage = humidity;
+        if (BaseCO2LevelPpm is { } co2)
+            sensor.CO2LevelPpm = co2;
         sensors.Add(sensor);
         return sensor;
     }

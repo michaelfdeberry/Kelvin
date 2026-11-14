@@ -1,3 +1,4 @@
+using System.Globalization;
 using Shouldly;
 using Xunit;
 
@@ -141,6 +142,21 @@ public class GatewaySimulatorTests
         yield return ["unknown", new StatusCommand()];
         yield return ["base 24.5", new SetBaseTempCommand(24.5f)];
         yield return ["base invalid", new StatusCommand()];
+        yield return ["BASE HUMIDITY 82.5", new SetBaseHumidityCommand(82.5f)];
+        yield return ["base humidity 0", new SetBaseHumidityCommand(0f)];
+        yield return ["base humidity 100", new SetBaseHumidityCommand(100f)];
+        yield return ["base humidity", new InvalidBaselineCommand()];
+        yield return ["base humidity -1", new InvalidBaselineCommand()];
+        yield return ["base humidity 101", new InvalidBaselineCommand()];
+        yield return ["base humidity NaN", new InvalidBaselineCommand()];
+        yield return ["base humidity 45 extra", new InvalidBaselineCommand()];
+        yield return ["base co2 3500", new SetBaseCo2Command(3500)];
+        yield return ["base co2 0", new SetBaseCo2Command(0)];
+        yield return ["base co2 65535", new SetBaseCo2Command(65535)];
+        yield return ["base co2 -1", new InvalidBaselineCommand()];
+        yield return ["base co2 65536", new InvalidBaselineCommand()];
+        yield return ["base co2 500.5", new InvalidBaselineCommand()];
+        yield return ["base co2 500 extra", new InvalidBaselineCommand()];
         yield return ["add", new AddSensorCommand()];
         yield return ["remove 2", new RemoveSensorCommand(2)];
         yield return ["enable 1", new ToggleSensorCommand(1, true)];
@@ -203,6 +219,50 @@ public class GatewaySimulatorTests
     public void ParseCommand_PreservesCommandArguments(string input, object expected)
     {
         SimulatorCommandParser.Parse(input).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData(0f, 0)]
+    [InlineData(85f, 3500)]
+    [InlineData(100f, 65535)]
+    public void BaselineCommands_UpdateExistingAndNewDevicesAndPersistAcrossTicks(
+        float humidity,
+        int co2
+    )
+    {
+        var gateway = CreateGateway(TimeSpan.FromSeconds(30), out var sensors, out var hmis, out _);
+        var controller = new HmiController(hmis, _ => { }, _ => { }, (_, _) => { });
+        sensors.SetSensorEnabled(0, false, out var offlineSensor).ShouldBeTrue();
+        hmis.SetHmiEnabled(0, false, out var offlineHmi).ShouldBeTrue();
+
+        gateway.ExecuteCommand(
+            SimulatorCommandParser.Parse($"base humidity {humidity.ToString(CultureInfo.InvariantCulture)}"),
+            controller
+        );
+        gateway.ExecuteCommand(SimulatorCommandParser.Parse($"base co2 {co2}"), controller);
+        offlineSensor.ShouldNotBeNull().HumidityPercentage.ShouldBe(humidity);
+        offlineSensor.CO2LevelPpm.ShouldBe((ushort)co2);
+        offlineHmi.ShouldNotBeNull().HumidityPercentage.ShouldBe(humidity);
+
+        gateway.ExecuteCommand(new AddSensorCommand(), controller);
+        gateway.ExecuteCommand(new AddHmiCommand(), controller);
+        var addedSensor = sensors.Sensors[^1];
+        hmis.TryGet(hmis.Count - 1, out var addedHmi).ShouldBeTrue();
+        addedSensor.HumidityPercentage.ShouldBe(humidity);
+        addedSensor.CO2LevelPpm.ShouldBe((ushort)co2);
+        addedHmi.ShouldNotBeNull().HumidityPercentage.ShouldBe(humidity);
+
+        for (var i = 0; i < 30; i++)
+        {
+            gateway.ApplyScenario();
+            foreach (var sensor in sensors.Sensors)
+            {
+                sensor.HumidityPercentage.ShouldBeInRange(Math.Max(0f, humidity - 0.15f), Math.Min(100f, humidity + 0.15f));
+                ((int)sensor.CO2LevelPpm).ShouldBeInRange(Math.Max(0, co2 - 5), Math.Min(65535, co2 + 5));
+            }
+            offlineHmi.HumidityPercentage.ShouldBeInRange(Math.Max(0f, humidity - 0.15f), Math.Min(100f, humidity + 0.15f));
+            addedHmi.HumidityPercentage.ShouldBeInRange(Math.Max(0f, humidity - 0.15f), Math.Min(100f, humidity + 0.15f));
+        }
     }
 
     private static (string Trend, float Target) Resolve(

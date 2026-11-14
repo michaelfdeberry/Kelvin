@@ -17,6 +17,22 @@ internal static class SimulatorCommandParser
         {
             "base" when parts.Length > 1 && TryParseFloat(parts[1], out var temp) =>
                 new SetBaseTempCommand(temp),
+            "base"
+                when parts.Length == 3
+                    && parts[1].Equals("humidity", StringComparison.OrdinalIgnoreCase)
+                    && TryParseFloat(parts[2], out var humidity)
+                    && float.IsFinite(humidity)
+                    && humidity is >= 0f and <= 100f => new SetBaseHumidityCommand(humidity),
+            "base"
+                when parts.Length == 3
+                    && parts[1].Equals("co2", StringComparison.OrdinalIgnoreCase)
+                    && ushort.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var co2) =>
+                new SetBaseCo2Command(co2),
+            "base"
+                when parts.Length > 1
+                    && (parts[1].Equals("humidity", StringComparison.OrdinalIgnoreCase)
+                        || parts[1].Equals("co2", StringComparison.OrdinalIgnoreCase)) =>
+                new InvalidBaselineCommand(),
             "add" => new AddSensorCommand(),
             "remove" when parts.Length > 1 && int.TryParse(parts[1], out var removeIndex) =>
                 new RemoveSensorCommand(removeIndex),

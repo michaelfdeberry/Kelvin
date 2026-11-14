@@ -19,17 +19,28 @@ internal sealed class HmiFleet
 
     public IEnumerable<SimulatedHmi> ActiveHmis => hmis.Where(hmi => hmi.Enabled);
 
+    public float? BaseHumidityPercentage { get; private set; }
+
+    public void SetBaseHumidity(float humidityPercentage)
+    {
+        BaseHumidityPercentage = humidityPercentage;
+        foreach (var hmi in hmis)
+            hmi.HumidityPercentage = humidityPercentage;
+    }
+
     public void StepAll(float ambientTemperatureC)
     {
         foreach (var hmi in hmis)
         {
-            hmi.Step(ambientTemperatureC);
+            hmi.Step(ambientTemperatureC, BaseHumidityPercentage);
         }
     }
 
     public SimulatedHmi AddHmi(float baseTemperatureC)
     {
         var hmi = SimulatedHmi.Create(nextHmiNumber++, baseTemperatureC);
+        if (BaseHumidityPercentage is { } humidity)
+            hmi.HumidityPercentage = humidity;
         hmis.Add(hmi);
         return hmi;
     }

@@ -37,7 +37,7 @@ internal sealed class GatewaySimulator(
         Console.WriteLine($"Kelvin.Server target: {options.ServerUrl}");
         Console.WriteLine("Press Ctrl+C to stop.");
         Console.WriteLine(
-            "Commands: base <temp>, add, remove <index>, enable <index|all>, disable <index|all>, scenario <auto|idle|heating|cooling>, list, status, hmi (type 'hmi help'), humidifier <add|remove>"
+            "Commands: base <temp>, base humidity <percent>, base co2 <ppm>, add, remove <index>, enable <index|all>, disable <index|all>, scenario <auto|idle|heating|cooling>, list, status, hmi (type 'hmi help'), humidifier <add|remove>"
         );
 
         var commandTask = options.Interactive
@@ -111,115 +111,136 @@ internal sealed class GatewaySimulator(
             await gate.WaitAsync();
             try
             {
-                switch (command)
-                {
-                    case SetBaseTempCommand temperature:
-                        ambient.SetBaseTemperature(temperature.TemperatureC);
-                        Console.WriteLine(
-                            $"Base temperature set to {temperature.TemperatureC.ToString("F1", CultureInfo.InvariantCulture)}C."
-                        );
-                        break;
-                    case AddSensorCommand:
-                        var sensor = sensors.AddSensor(ambient.BaseTemperatureC);
-                        Console.WriteLine(
-                            $"Sensor added. Total sensors: {sensors.Count}. Added {sensor}."
-                        );
-                        break;
-                    case RemoveSensorCommand removeSensor:
-                        if (sensors.RemoveSensor(removeSensor.Index, out var removedSensor))
-                            Console.WriteLine(
-                                $"Sensor {removeSensor.Index} removed. Total sensors: {sensors.Count}. Removed {removedSensor}."
-                            );
-                        else
-                            Console.WriteLine("Invalid sensor index.");
-                        break;
-                    case ToggleSensorCommand toggleSensor:
-                        if (
-                            sensors.SetSensorEnabled(
-                                toggleSensor.Index,
-                                toggleSensor.Enabled,
-                                out var toggledSensor
-                            )
-                        )
-                            Console.WriteLine(
-                                $"Sensor {toggleSensor.Index} {(toggleSensor.Enabled ? "enabled" : "disabled")}. {toggledSensor}"
-                            );
-                        else
-                            Console.WriteLine("Invalid sensor index.");
-                        break;
-                    case ToggleAllSensorsCommand toggleSensors:
-                        var sensorCount = sensors.SetAllSensorsEnabled(toggleSensors.Enabled);
-                        Console.WriteLine(
-                            $"{sensorCount} sensor(s) {(toggleSensors.Enabled ? "enabled" : "disabled")}. "
-                        );
-                        break;
-                    case SetScenarioCommand setScenario:
-                        ambient.Scenario = setScenario.Scenario;
-                        Console.WriteLine($"Scenario set to {ambient.Scenario}.");
-                        break;
-                    case ListSensorsCommand:
-                        for (var index = 0; index < sensors.Count; index++)
-                            Console.WriteLine(sensors.Describe(index));
-                        break;
-                    case StatusCommand:
-                        PrintStatus();
-                        break;
-                    case AddHumidifierCommand:
-                        humidifier ??= new SimulatedHumidifier();
-                        Console.WriteLine("Humidifier added.");
-                        break;
-                    case RemoveHumidifierCommand:
-                        humidifier = null;
-                        Console.WriteLine("Humidifier removed.");
-                        break;
-                    case AddHmiCommand:
-                        var hmi = hmis.AddHmi(ambient.BaseTemperatureC);
-                        Console.WriteLine($"HMI added. Total HMIs: {hmis.Count}. Added {hmi}.");
-                        break;
-                    case RemoveHmiCommand removeHmi:
-                        if (hmis.RemoveHmi(removeHmi.Index, out var removedHmi))
-                            Console.WriteLine(
-                                $"HMI {removeHmi.Index} removed. Total HMIs: {hmis.Count}. Removed {removedHmi}."
-                            );
-                        else
-                            Console.WriteLine("Invalid HMI index.");
-                        break;
-                    case ToggleHmiCommand toggleHmi:
-                        if (
-                            hmis.SetHmiEnabled(
-                                toggleHmi.Index,
-                                toggleHmi.Enabled,
-                                out var toggledHmi
-                            )
-                        )
-                            Console.WriteLine(
-                                $"HMI {toggleHmi.Index} {(toggleHmi.Enabled ? "enabled" : "disabled")}. {toggledHmi}"
-                            );
-                        else
-                            Console.WriteLine("Invalid HMI index.");
-                        break;
-                    case ToggleAllHmisCommand toggleHmis:
-                        var hmiCount = hmis.SetAllHmisEnabled(toggleHmis.Enabled);
-                        Console.WriteLine(
-                            $"{hmiCount} HMI(s) {(toggleHmis.Enabled ? "enabled" : "disabled")}. "
-                        );
-                        break;
-                    case ListHmisCommand:
-                        for (var index = 0; index < hmis.Count; index++)
-                            Console.WriteLine(hmis.Describe(index));
-                        break;
-                    case HmiHelpCommand:
-                        controller.PrintHelp();
-                        break;
-                    case HmiDeviceCommand deviceCommand:
-                        controller.Execute(deviceCommand);
-                        break;
-                }
+                ExecuteCommand(command, controller);
             }
             finally
             {
                 gate.Release();
             }
+        }
+    }
+
+    internal void ExecuteCommand(SimulatorCommand command, HmiController controller)
+    {
+        switch (command)
+        {
+            case SetBaseTempCommand temperature:
+                ambient.SetBaseTemperature(temperature.TemperatureC);
+                Console.WriteLine(
+                    $"Base temperature set to {temperature.TemperatureC.ToString("F1", CultureInfo.InvariantCulture)}C."
+                );
+                break;
+            case SetBaseHumidityCommand humidity:
+                sensors.SetBaseHumidity(humidity.HumidityPercentage);
+                hmis.SetBaseHumidity(humidity.HumidityPercentage);
+                Console.WriteLine(
+                    $"Base humidity set to {humidity.HumidityPercentage.ToString("F1", CultureInfo.InvariantCulture)}%."
+                );
+                break;
+            case SetBaseCo2Command co2:
+                sensors.SetBaseCO2(co2.CO2LevelPpm);
+                Console.WriteLine($"Base CO2 set to {co2.CO2LevelPpm} ppm.");
+                break;
+            case InvalidBaselineCommand:
+                Console.WriteLine(
+                    "Invalid baseline. Use base humidity <0-100> or base co2 <0-65535> (whole ppm)."
+                );
+                break;
+            case AddSensorCommand:
+                var sensor = sensors.AddSensor(ambient.BaseTemperatureC);
+                Console.WriteLine(
+                    $"Sensor added. Total sensors: {sensors.Count}. Added {sensor}."
+                );
+                break;
+            case RemoveSensorCommand removeSensor:
+                if (sensors.RemoveSensor(removeSensor.Index, out var removedSensor))
+                    Console.WriteLine(
+                        $"Sensor {removeSensor.Index} removed. Total sensors: {sensors.Count}. Removed {removedSensor}."
+                    );
+                else
+                    Console.WriteLine("Invalid sensor index.");
+                break;
+            case ToggleSensorCommand toggleSensor:
+                if (
+                    sensors.SetSensorEnabled(
+                        toggleSensor.Index,
+                        toggleSensor.Enabled,
+                        out var toggledSensor
+                    )
+                )
+                    Console.WriteLine(
+                        $"Sensor {toggleSensor.Index} {(toggleSensor.Enabled ? "enabled" : "disabled")}. {toggledSensor}"
+                    );
+                else
+                    Console.WriteLine("Invalid sensor index.");
+                break;
+            case ToggleAllSensorsCommand toggleSensors:
+                var sensorCount = sensors.SetAllSensorsEnabled(toggleSensors.Enabled);
+                Console.WriteLine(
+                    $"{sensorCount} sensor(s) {(toggleSensors.Enabled ? "enabled" : "disabled")}. "
+                );
+                break;
+            case SetScenarioCommand setScenario:
+                ambient.Scenario = setScenario.Scenario;
+                Console.WriteLine($"Scenario set to {ambient.Scenario}.");
+                break;
+            case ListSensorsCommand:
+                for (var index = 0; index < sensors.Count; index++)
+                    Console.WriteLine(sensors.Describe(index));
+                break;
+            case StatusCommand:
+                PrintStatus();
+                break;
+            case AddHumidifierCommand:
+                humidifier ??= new SimulatedHumidifier();
+                Console.WriteLine("Humidifier added.");
+                break;
+            case RemoveHumidifierCommand:
+                humidifier = null;
+                Console.WriteLine("Humidifier removed.");
+                break;
+            case AddHmiCommand:
+                var hmi = hmis.AddHmi(ambient.BaseTemperatureC);
+                Console.WriteLine($"HMI added. Total HMIs: {hmis.Count}. Added {hmi}.");
+                break;
+            case RemoveHmiCommand removeHmi:
+                if (hmis.RemoveHmi(removeHmi.Index, out var removedHmi))
+                    Console.WriteLine(
+                        $"HMI {removeHmi.Index} removed. Total HMIs: {hmis.Count}. Removed {removedHmi}."
+                    );
+                else
+                    Console.WriteLine("Invalid HMI index.");
+                break;
+            case ToggleHmiCommand toggleHmi:
+                if (
+                    hmis.SetHmiEnabled(
+                        toggleHmi.Index,
+                        toggleHmi.Enabled,
+                        out var toggledHmi
+                    )
+                )
+                    Console.WriteLine(
+                        $"HMI {toggleHmi.Index} {(toggleHmi.Enabled ? "enabled" : "disabled")}. {toggledHmi}"
+                    );
+                else
+                    Console.WriteLine("Invalid HMI index.");
+                break;
+            case ToggleAllHmisCommand toggleHmis:
+                var hmiCount = hmis.SetAllHmisEnabled(toggleHmis.Enabled);
+                Console.WriteLine(
+                    $"{hmiCount} HMI(s) {(toggleHmis.Enabled ? "enabled" : "disabled")}. "
+                );
+                break;
+            case ListHmisCommand:
+                for (var index = 0; index < hmis.Count; index++)
+                    Console.WriteLine(hmis.Describe(index));
+                break;
+            case HmiHelpCommand:
+                controller.PrintHelp();
+                break;
+            case HmiDeviceCommand deviceCommand:
+                controller.Execute(deviceCommand);
+                break;
         }
     }
 
@@ -332,6 +353,12 @@ internal sealed class GatewaySimulator(
         );
         Console.WriteLine(
             $"Base temperature: {ambient.BaseTemperatureC.ToString("F1", CultureInfo.InvariantCulture)}C"
+        );
+        Console.WriteLine(
+            $"Base humidity: {sensors.BaseHumidityPercentage?.ToString("F1", CultureInfo.InvariantCulture) ?? "default"}%"
+        );
+        Console.WriteLine(
+            $"Base CO2: {sensors.BaseCO2LevelPpm?.ToString(CultureInfo.InvariantCulture) ?? "default"} ppm"
         );
         Console.WriteLine(
             $"Ambient temperature: {ambient.TemperatureC.ToString("F1", CultureInfo.InvariantCulture)}C"
