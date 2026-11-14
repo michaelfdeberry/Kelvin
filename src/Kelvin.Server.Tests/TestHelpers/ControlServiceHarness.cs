@@ -43,6 +43,10 @@ public sealed class ControlServiceHarness
     private TaskCompletionSource? _saveObserved;
     private GetLatestControlStateChangeResponse? _latestLifecycle;
     private GetLatestControlStateChangeResponse? _latestCall;
+    private DateTimeOffset? _lastCoolingEndedAt;
+    private DateTimeOffset? _lastHeatingEndedAt;
+    private bool _callHistoryFails;
+    private bool _callEndHistoryFails;
 
     public IRelayController Relays { get; } = A.Fake<IRelayController>();
 
@@ -109,9 +113,43 @@ public sealed class ControlServiceHarness
             )
             .ReturnsLazily(
                 (GetLatestControlStateChangeRequest request, CancellationToken _) =>
-                    Result<GetLatestControlStateChangeResponse?>.Success(
-                        request.Kind == ControlChangeKind.Lifecycle ? _latestLifecycle : _latestCall
-                    )
+                    request.Kind == ControlChangeKind.Call && _callHistoryFails
+                        ? Result<GetLatestControlStateChangeResponse?>.Failure(
+                            new Error("Test.HistoryFailed", "Call history is unavailable.")
+                        )
+                        : Result<GetLatestControlStateChangeResponse?>.Success(
+                            request.Kind == ControlChangeKind.Lifecycle ? _latestLifecycle : _latestCall
+                        )
+            );
+
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
+                    A<GetControlStateEndTimeRequest>._,
+                    A<CancellationToken>._
+                )
+            )
+            .ReturnsLazily(
+                (GetControlStateEndTimeRequest request, CancellationToken _) =>
+                    _callEndHistoryFails
+                        ? Result<GetControlStateEndTimeResponse>.Failure(
+                            new Error("Test.EndHistoryFailed", "Call end history is unavailable.")
+                        )
+                        : Result<GetControlStateEndTimeResponse>.Success(
+                            new GetControlStateEndTimeResponse(
+                                request.State == ControlState.Cooling ? _lastCoolingEndedAt : _lastHeatingEndedAt
+                            )
+                        )
+            );
+
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync<RestoreCallClockRequest, RestoreCallClockResponse?>(
+                    A<RestoreCallClockRequest>._,
+                    A<CancellationToken>._
+                )
+            )
+            .ReturnsLazily(
+                (RestoreCallClockRequest request, CancellationToken cancellationToken) =>
+                    new RestoreCallClockHandler(_dispatcher, Time).HandleAsync(request, cancellationToken)
             );
 
         SetThermostat(ThermostatFixtures.CreateThermostat(RunMode.Heating));
@@ -141,6 +179,16 @@ public sealed class ControlServiceHarness
     /// <summary>The persisted Call change the service restores its minimum off-time clock from at startup.</summary>
     public void SetLatestCallState(GetLatestControlStateChangeResponse? latestCall) =>
         _latestCall = latestCall;
+
+    public void SetCallEndTimes(DateTimeOffset? coolingEndedAt, DateTimeOffset? heatingEndedAt)
+    {
+        _lastCoolingEndedAt = coolingEndedAt;
+        _lastHeatingEndedAt = heatingEndedAt;
+    }
+
+    public void FailCallHistory() => _callHistoryFails = true;
+
+    public void FailCallEndHistory() => _callEndHistoryFails = true;
 
     /// <summary>
     /// Captures every state change the service dispatches for recording, and controls what the save reports back.

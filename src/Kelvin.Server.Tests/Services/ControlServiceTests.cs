@@ -186,6 +186,99 @@ public class ControlServiceTests
         await harness.StopAsync();
     }
 
+    [Theory]
+    [InlineData(ControlState.Heating, ControlState.Cooling)]
+    [InlineData(ControlState.Cooling, ControlState.Heating)]
+    public async Task Restart_AfterDwell_RestoresOppositeModeSwitchClock(
+        ControlState previous,
+        ControlState requested
+    )
+    {
+        var harness = new ControlServiceHarness();
+        var endedAt = harness.Time.GetUtcNow().AddMinutes(-7);
+        harness.SetLatestCallState(
+            new GetLatestControlStateChangeResponse(ControlState.Dwell, endedAt)
+        );
+        harness.SetCallEndTimes(
+            previous == ControlState.Cooling ? endedAt : null,
+            previous == ControlState.Heating ? endedAt : null
+        );
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(requested));
+        A.CallTo(() => harness.Relays.EnableHeating()).MustNotHaveHappened();
+        A.CallTo(() => harness.Relays.EnableCooling()).MustNotHaveHappened();
+
+        harness.Time.Advance(MinimumModeSwitch - TimeSpan.FromMinutes(7));
+        await harness.PushAsync(new(requested));
+        if (requested == ControlState.Heating)
+            A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
+        else
+            A.CallTo(() => harness.Relays.EnableCooling()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Theory]
+    [InlineData(ControlState.Heating, ControlState.Cooling)]
+    [InlineData(ControlState.Cooling, ControlState.Heating)]
+    public async Task Restart_DuringCall_MeasuresModeSwitchFromStartup(
+        ControlState previous,
+        ControlState requested
+    )
+    {
+        var harness = new ControlServiceHarness();
+        harness.SetLatestCallState(
+            new GetLatestControlStateChangeResponse(previous, harness.Time.GetUtcNow().AddMinutes(-20))
+        );
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        harness.Time.Advance(MinimumOff);
+        await harness.PushAsync(new(requested));
+        A.CallTo(() => harness.Relays.EnableHeating()).MustNotHaveHappened();
+        A.CallTo(() => harness.Relays.EnableCooling()).MustNotHaveHappened();
+
+        harness.Time.Advance(MinimumModeSwitch - MinimumOff);
+        await harness.PushAsync(new(requested));
+        if (requested == ControlState.Heating)
+            A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
+        else
+            A.CallTo(() => harness.Relays.EnableCooling()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Restart_WhenHistoryRecoveryFails_EnforcesMinimumOffTime(bool endHistoryFails)
+    {
+        var harness = new ControlServiceHarness();
+        harness.SetLatestCallState(
+            new GetLatestControlStateChangeResponse(
+                ControlState.Dwell,
+                harness.Time.GetUtcNow().AddMinutes(-20)
+            )
+        );
+        if (endHistoryFails)
+            harness.FailCallEndHistory();
+        else
+            harness.FailCallHistory();
+
+        await harness.StartAsync();
+        await harness.PushAsync(new(ControlState.Enable));
+        await harness.PushAsync(new(ControlState.Heating));
+        A.CallTo(() => harness.Relays.EnableHeating()).MustNotHaveHappened();
+
+        harness.Time.Advance(MinimumOff);
+        await harness.PushAsync(new(ControlState.Heating));
+        A.CallTo(() => harness.Relays.EnableHeating()).MustHaveHappenedOnceExactly();
+
+        await harness.StopAsync();
+    }
+
     [Fact]
     public async Task EachMessage_AppliesTheCurrentPinConfiguration()
     {
