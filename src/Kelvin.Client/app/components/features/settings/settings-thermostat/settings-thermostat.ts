@@ -224,29 +224,29 @@ export class SettingsThermostat extends LitElement {
               <label
                 class="form-control__label"
                 for="fanMode"
-                >Fan mode</label
+                >System Type</label
               >
-              <app-info-bubble label="About fan mode">
-                <p>How the fan operates in different modes.</p>
+              <app-info-bubble label="About system type">
+                <p>The system type determines how the fan operates in different modes.</p>
                 <b>Equipment Controlled</b>
                 <div>
                   <p>
-                    Choose this option if your system will automatically control the fan based on the current mode and equipment settings. In this
-                    mode Kelvin will not enable the fan manually.
+                    Choose this option if your system automatically controls the fan based on the current mode and equipment settings. In this mode,
+                    Kelvin will not turn on the fan when there is a call for heating or cooling. This is an atypical setup.
                   </p>
                 </div>
-                <b>Fossil Fuel Systems</b>
-                <div>
-                  <p>Typically labeled "Gas or Oil" on standard thermostats. In this mode Kelvin will enable the fan when Cooling is active.</p>
-                </div>
-                <b>Electric</b>
+                <b>Fossil Fuel System</b>
                 <div>
                   <p>
-                    Typically labeled "Electric" or "Heat Pump" on standard thermostats. In this mode Kelvin will enable the fan when Heating and
-                    Cooling are active.
+                    This is typical for gas or oil fired systems. In this mode, the control board manages the fan during heating, and Kelvin turns on
+                    the fan during cooling.
                   </p>
                 </div>
-                <p>Manual fan, recirculation, and balancing features can run the fan in any mode.</p>
+                <b>Electric System</b>
+                <div>
+                  <p>This is typical for electric or heat pump systems. In this mode, Kelvin turns on the fan during both heating and cooling.</p>
+                </div>
+                <p>Manual fan, Recirculation, and Balancing features can run the fan in any mode.</p>
               </app-info-bubble>
             </div>
             <select
@@ -258,19 +258,19 @@ export class SettingsThermostat extends LitElement {
                 value="Manual"
                 ?selected=${this.thermostat.fanMode === 'Manual'}
               >
-                Off / Manual
+                Equipment Controlled
               </option>
               <option
                 value="CoolingOnly"
                 ?selected=${this.thermostat.fanMode === 'CoolingOnly'}
               >
-                On When Cooling Only
+                Fossil Fuel System
               </option>
               <option
                 value="HeatingAndCooling"
                 ?selected=${this.thermostat.fanMode === 'HeatingAndCooling'}
               >
-                On for Heating and Cooling
+                Electric System
               </option>
             </select>
           </div>
