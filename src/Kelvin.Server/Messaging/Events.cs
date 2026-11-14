@@ -14,6 +14,12 @@ public record ThermostatConfigChangedEvent();
 /// <summary>Raised whenever a sensor is created, updated, enabled, disabled or deleted.</summary>
 public record SensorsChangedEvent();
 
+/// <summary>Raised whenever a device is updated, enabled, disabled, removed or restored, or its configuration changes.</summary>
+public record DevicesChangedEvent();
+
+/// <summary>Raised whenever a device's reported state changes; carries the latest state of every device type by name.</summary>
+public record DeviceStateChangedEvent(IReadOnlyDictionary<string, object> States);
+
 /// <summary>Raised to surface a user-facing notification (toast or banner).</summary>
 public record SendNotificationEvent(Notification Notification);
 

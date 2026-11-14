@@ -1,3 +1,4 @@
+using Kelvin.Protocol;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Hmi;
 using Kelvin.Server.Features.Preferences;
@@ -19,7 +20,7 @@ public class SendHmiStateTests
         using var harness = new KelvinContextHarness();
         await using var context = harness.CreateContext();
         using var cache = new MemoryCache(new MemoryCacheOptions());
-        var outbound = new HmiOutboundChannel();
+        var outbound = new DeviceOutboundChannel();
         var handler = new SendHmiStateHandler(
             context,
             outbound,
@@ -43,7 +44,7 @@ public class SendHmiStateTests
                 }
             );
         Convert
-            .ToHexString(frames[0][HmiEnvelope.HeaderSize..])
+            .ToHexString(frames[0][DeviceEnvelope.HeaderSize..])
             .ShouldBe("A60001010202F603F604F605F6");
         context.Thermostats.Count().ShouldBe(1);
         context.Preferences.Count().ShouldBe(1);
@@ -79,7 +80,7 @@ public class SendHmiStateTests
         context.ControlStateChanges.Remove(deletedCall);
         await context.SaveChangesAsync();
         using var cache = new MemoryCache(new MemoryCacheOptions());
-        var outbound = new HmiOutboundChannel();
+        var outbound = new DeviceOutboundChannel();
         var handler = new SendHmiStateHandler(
             context,
             outbound,
@@ -92,14 +93,14 @@ public class SendHmiStateTests
 
         var frames = Drain(outbound);
         frames[0][0].ShouldBe((byte)HmiMessageType.ControlStateChanged);
-        frames[0][HmiEnvelope.HeaderSize..].ShouldBe(HmiControlStateEncoder.Encode(call));
+        frames[0][DeviceEnvelope.HeaderSize..].ShouldBe(HmiControlStateEncoder.Encode(call));
         frames
             .Where(frame => frame[0] == (byte)HmiMessageType.ThermostatStateChunk)
-            .SelectMany(frame => frame.Skip(HmiEnvelope.HeaderSize))
+            .SelectMany(frame => frame.Skip(DeviceEnvelope.HeaderSize))
             .ShouldBe(HmiThermostatStateEncoder.Encode(thermostat));
     }
 
-    private static List<byte[]> Drain(HmiOutboundChannel outbound)
+    private static List<byte[]> Drain(DeviceOutboundChannel outbound)
     {
         var frames = new List<byte[]>();
         while (outbound.TryRead(out var message))

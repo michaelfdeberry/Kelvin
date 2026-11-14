@@ -231,7 +231,7 @@ public class SensingService(
         await dispatcher.DispatchAsync(new DisableSensorRequest(sensorId), stoppingToken);
 
         var sensor = sensors.FirstOrDefault(s => s.Id == sensorId);
-        await dispatcher.DispatchAsync(
+        await dispatcher.DispatchAsync<SendNotificationRequest, SendNotificationResponse>(
           new SendNotificationRequest(
             $"Sensor '{sensor?.Name ?? sensorId.ToString()}' has been disabled due to inactivity.",
             NotificationType.Warning

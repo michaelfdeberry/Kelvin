@@ -1,6 +1,8 @@
 export const events = {
   preferencesSaved: 'preferences-saved',
   sensorsUpdated: 'sensors-updated',
+  devicesUpdated: 'devices-updated',
+  deviceStateChanged: 'device-state-changed',
   routeChanged: 'route-changed',
   alertDismissed: 'alert-dismissed',
   toast: 'toast',
@@ -11,7 +13,6 @@ export const events = {
 export const signalrEvents = {
   controlHub: {
     controlStateChanged: 'signalr:control-hub:control-state-changed',
-    thermostatStateChanged: 'signalr:control-hub:thermostat-state-changed',
     callStateChanged: 'signalr:control-hub:call-state-changed',
   },
   readingsHub: {

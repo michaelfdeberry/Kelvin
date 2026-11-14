@@ -26,7 +26,7 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
 
       if (request.DeviceType == DeviceType.Hmi)
       {
-        await LinkHmiAsync(sensor, ct);
+        await UpdateHmiAsync(sensor, ct);
       }
     }
 
@@ -35,6 +35,11 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     {
       sensor.Enabled = false;
       sensor.DeletedAt = null;
+
+      if (request.DeviceType == DeviceType.Hmi)
+      {
+        await UpdateHmiAsync(sensor, ct);
+      }
     }
 
     sensorPacket.SensorId = sensor.Id;
@@ -84,23 +89,17 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     }
   }
 
-  private async Task LinkHmiAsync(Sensor sensor, CancellationToken ct)
+  private async Task UpdateHmiAsync(Sensor sensor, CancellationToken ct)
   {
     var hmi = await context.Hmis.FirstOrDefaultAsync(h => h.MacAddress == sensor.MacAddress, ct);
     if (hmi is null)
     {
-      context.Hmis.Add(
-        new Models.Hmi
-        {
-          MacAddress = sensor.MacAddress,
-          Enabled = true,
-          SensorId = sensor.Id,
-        }
-      );
+      context.Hmis.Add(new Models.Hmi { MacAddress = sensor.MacAddress, SensorId = sensor.Id });
     }
     else
     {
       hmi.SensorId = sensor.Id;
+      hmi.DeletedAt = null; // restore if previously deleted
     }
   }
 }

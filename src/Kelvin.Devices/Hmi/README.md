@@ -192,7 +192,7 @@ current on the real board to confirm power savings; light sleep does not power d
   touch-reset).
 - `src/battery/` - CRC-checked battery voltage/percentage reads via the external Adafruit LC709203F.
 - `src/protocol/` - `HmiCommandEncoder` (builds outgoing command bytes), `HmiFrameReassembler` (reassembles
-  any chunked downlink message via the shared HmiEnvelope header, including the thermostat state pushes),
+  any chunked downlink message via the shared DeviceEnvelope header, including the thermostat state pushes),
   `ThermostatStateParser` (decodes a reassembled state
   blob into a `ThermostatState` struct), `ControlStateParser` (decodes the small, unchunked
   `ControlStateChanged` push into a `ControlCallState` struct) and `EnvironmentReadingParser` (decodes the

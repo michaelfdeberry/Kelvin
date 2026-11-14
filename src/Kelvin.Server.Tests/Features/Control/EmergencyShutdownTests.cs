@@ -49,7 +49,7 @@ public class EmergencyShutdownTests
             )
             .MustHaveHappenedOnceExactly();
         A.CallTo(() =>
-                dispatcher.DispatchAsync(
+                dispatcher.DispatchAsync<SendNotificationRequest, SendNotificationResponse>(
                     A<SendNotificationRequest>.That.Matches(e =>
                         e.Heading == "Emergency Shutdown" && e.Message == "sensor failure"
                     ),

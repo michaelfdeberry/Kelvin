@@ -2,6 +2,10 @@ import { css } from 'lit';
 
 export default css`
   :host {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
     padding: 1rem;
   }
 

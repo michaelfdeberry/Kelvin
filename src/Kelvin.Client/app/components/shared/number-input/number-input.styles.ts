@@ -4,11 +4,11 @@ export default css`
   .number-input {
     min-width: 0;
     max-width: 100%;
-    border: 1px solid var(--accent-idle);
+    border: 1px solid var(--control-border-color);
     border-radius: var(--border-radius);
     color: var(--text-main);
     font: inherit;
-    height: 2.5rem;
+    height: var(--control-height);
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -17,20 +17,18 @@ export default css`
 
     transition:
       border-color 140ms ease,
-      box-shadow 140ms ease,
-      background-color 140ms ease;
+      box-shadow 140ms ease;
 
     .number-input__button {
       height: 100%;
       width: 2.5rem;
       border: none;
-      color: var(--button-text-color);
+      color: var(--text-main);
       background-color: var(--bg-dark);
       cursor: pointer;
       font-size: 24px;
 
       &:disabled {
-        background-color: var(--surface-overlay-panel);
         cursor: not-allowed;
       }
     }
@@ -48,14 +46,12 @@ export default css`
       background: var(--bg-dark);
       color: var(--text-main);
 
-      &:disabled {
-        border-color: var(--accent-idle);
-        background-color: var(--surface-overlay-panel);
+      &::placeholder {
+        color: var(--text-muted);
       }
 
-      &:hover:not(:disabled) {
-        border-color: var(--accent-idle);
-        background-color: var(--surface-overlay-panel);
+      &:disabled {
+        cursor: not-allowed;
       }
 
       &:focus {
@@ -69,8 +65,17 @@ export default css`
       }
     }
 
+    &:hover:not(:has(:disabled)) {
+      border-color: var(--control-border-color-hover);
+    }
+
+    &:has(:disabled) {
+      opacity: var(--control-disabled-opacity);
+    }
+
     &:focus-within {
-      box-shadow: 0 0 0 2px rgb(147 197 253 / 22%);
+      border-color: var(--control-border-color-focus);
+      box-shadow: var(--control-focus-ring);
     }
   }
 `;

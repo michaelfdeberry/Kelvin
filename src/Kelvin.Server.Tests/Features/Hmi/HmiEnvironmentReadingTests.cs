@@ -59,12 +59,12 @@ public class HmiEnvironmentReadingTests
         var payload = HmiEnvironmentReadingEncoder.Encode(
             new EnvironmentReading { TemperatureC = -10.25f }
         );
-        var channel = new Server.Channels.HmiOutboundChannel();
-        channel.Write("AA:BB:CC:DD:EE:FF", HmiMessageType.EnvironmentReadingChanged, payload);
+        var channel = new Server.Channels.DeviceOutboundChannel();
+        channel.WriteHmi("AA:BB:CC:DD:EE:FF", HmiMessageType.EnvironmentReadingChanged, payload);
 
         channel.TryRead(out var message).ShouldBeTrue();
-        HmiEnvelope
-            .TryDecode(
+        Kelvin
+            .Protocol.DeviceEnvelope.TryDecode(
                 message.Payload[FrameTags.Size..],
                 out var type,
                 out _,
@@ -74,7 +74,7 @@ public class HmiEnvironmentReadingTests
             )
             .ShouldBeTrue();
 
-        type.ShouldBe(HmiMessageType.EnvironmentReadingChanged);
+        type.ShouldBe((byte)HmiMessageType.EnvironmentReadingChanged);
         count.ShouldBe((byte)1);
         body.ToArray().ShouldBe(payload);
         channel.TryRead(out _).ShouldBeFalse();

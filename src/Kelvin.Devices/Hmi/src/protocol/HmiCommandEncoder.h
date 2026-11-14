@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <HmiProtocol.h>
 
-// Builds the wire frame (HmiEnvelope header + body) for each Hmi -> Server message, matching
+// Builds the wire frame (DeviceEnvelope header + body) for each Hmi -> Server message, matching
 // Kelvin.Server's ReceiveHmiCommand.cs decode logic exactly (see HmiProtocol.h for the documented layout
 // of each message's body). Every function returns the number of bytes written into `buffer`, or 0 if
 // `bufferSize` was too small for that message.

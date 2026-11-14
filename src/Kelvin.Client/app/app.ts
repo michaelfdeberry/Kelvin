@@ -12,6 +12,7 @@ import { when } from 'lit/directives/when.js';
 import appShellStyles from './app.styles.js';
 import { bannerContext } from './contexts/banner-context.js';
 import './components/layout/app-sidebar/app-sidebar.js';
+import { defaultDevices, defaultDeviceStates, devicesContext, deviceStatesContext } from './contexts/devices-context.js';
 import { defaultPreferences, preferencesContext } from './contexts/preferences-context.js';
 import { defaultSensors, sensorsContext } from './contexts/sensors-context.js';
 import {
@@ -23,6 +24,7 @@ import {
   schedulesContext,
 } from './contexts/thermostat-context.js';
 import { events } from './events.js';
+import { Devices as DevicesResponse, DeviceStates } from './models/devices.js';
 import { Sensors as SensorsResponse } from './models/sensors.js';
 import './router.js';
 import { SchedulesResponse, SetPointsResponse, Thermostat } from './models/thermostat.js';
@@ -47,6 +49,16 @@ export class KelvinApp extends LitElement {
   private sensorsProvider = new ContextProvider(this, {
     context: sensorsContext,
     initialValue: defaultSensors,
+  });
+
+  private devicesProvider = new ContextProvider(this, {
+    context: devicesContext,
+    initialValue: defaultDevices,
+  });
+
+  private deviceStatesProvider = new ContextProvider(this, {
+    context: deviceStatesContext,
+    initialValue: defaultDeviceStates,
   });
 
   private thermostatProvider = new ContextProvider(this, {
@@ -75,14 +87,20 @@ export class KelvinApp extends LitElement {
 
     this.loadThermostat();
     this.loadSensors();
+    this.loadDevices();
+    this.loadDeviceStates();
     this.loadPreferences();
 
     this.handlePreferencesSaved = this.handlePreferencesSaved.bind(this);
     this.handleSensorsUpdated = this.handleSensorsUpdated.bind(this);
+    this.handleDevicesUpdated = this.handleDevicesUpdated.bind(this);
+    this.handleDeviceStateChanged = this.handleDeviceStateChanged.bind(this);
     this.handleThermostatUpdated = this.handleThermostatUpdated.bind(this);
 
     this.addEventListener(events.preferencesSaved, this.handlePreferencesSaved);
     this.addEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
+    this.addEventListener(events.devicesUpdated, this.handleDevicesUpdated);
+    this.addEventListener(events.deviceStateChanged, this.handleDeviceStateChanged);
     this.addEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
   }
 
@@ -91,6 +109,8 @@ export class KelvinApp extends LitElement {
 
     this.removeEventListener(events.preferencesSaved, this.handlePreferencesSaved);
     this.removeEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
+    this.removeEventListener(events.devicesUpdated, this.handleDevicesUpdated);
+    this.removeEventListener(events.deviceStateChanged, this.handleDeviceStateChanged);
     this.removeEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
   }
 
@@ -111,6 +131,24 @@ export class KelvinApp extends LitElement {
     this.loadThermostat();
   }
 
+  handleDevicesUpdated(event: Event): void {
+    event.stopPropagation();
+    this.loadDevices();
+  }
+
+  handleDeviceStateChanged(event: Event): void {
+    event.stopPropagation();
+    this.deviceStatesProvider.setValue((event as CustomEvent<DeviceStates>).detail);
+  }
+
+  private async loadDeviceStates(): Promise<void> {
+    try {
+      this.deviceStatesProvider.setValue(await apiGet<DeviceStates>(resources.devices.getDeviceStates));
+    } catch (err) {
+      console.error('Failed to load device states:', err);
+    }
+  }
+
   private async loadPreferences(): Promise<void> {
     try {
       const preferences = await apiGet<Preferences>(resources.preferences.getPreferences);
@@ -128,6 +166,16 @@ export class KelvinApp extends LitElement {
     } catch (err) {
       dispatchToast(this, 'Error', 'Failed to load sensors.');
       console.error('Failed to load sensors:', err);
+    }
+  }
+
+  private async loadDevices(): Promise<void> {
+    try {
+      const response = await apiGet<DevicesResponse>(resources.devices.getDevices);
+      this.devicesProvider.setValue(response.devices);
+    } catch (err) {
+      dispatchToast(this, 'Error', 'Failed to load devices.');
+      console.error('Failed to load devices:', err);
     }
   }
 

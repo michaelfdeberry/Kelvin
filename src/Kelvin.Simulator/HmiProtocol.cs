@@ -104,32 +104,19 @@ internal sealed record HmiNotification(
 internal sealed record HmiNotificationDismissal(Guid Id);
 
 /// <summary>
-/// Hand-mirrored copy of the Hmi wire protocol (Kelvin.Server's Features/Hmi/HmiEnvelope.cs, the Hmi
-/// encoders, and ReceiveHmiCommandHandler). Envelope integers are little-endian; bodies are CBOR.
+/// Hand-mirrored copy of the Hmi wire protocol (the Hmi encoders and ReceiveHmiCommandHandler); the envelope
+/// itself is the shared <see cref="DeviceEnvelope" />. Envelope integers are little-endian; bodies are CBOR.
 /// </summary>
 internal static class HmiProtocol
 {
-    public const int EnvelopeHeaderSize = 9;
-    private static int nextMessageId = Random.Shared.Next();
+    public const int EnvelopeHeaderSize = DeviceEnvelope.HeaderSize;
 
     // Mirrors Kelvin.Server's Models/FrameTags.Hmi.
     public static readonly byte[] FrameTag = [0x4B, 0x48, 0x4D, 0x49]; // "KHMI"
 
     // Uplink messages are always small enough for a single chunk.
-    public static byte[] Envelope(HmiMessageType type, byte[] body)
-    {
-        var frame = new byte[EnvelopeHeaderSize + body.Length];
-        frame[0] = (byte)type;
-        frame[1] = 0;
-        frame[2] = 1;
-        BitConverter.TryWriteBytes(frame.AsSpan(3, 2), (ushort)body.Length);
-        BitConverter.TryWriteBytes(
-            frame.AsSpan(5, 4),
-            unchecked((uint)Interlocked.Increment(ref nextMessageId))
-        );
-        body.CopyTo(frame, EnvelopeHeaderSize);
-        return frame;
-    }
+    public static byte[] Envelope(HmiMessageType type, byte[] body) =>
+        DeviceEnvelope.Encode((byte)type, body).Single();
 
     public static bool TryReadEnvelope(
         ReadOnlySpan<byte> frame,
@@ -140,29 +127,17 @@ internal static class HmiProtocol
         out byte[] body
     )
     {
-        type = default;
-        chunkIndex = 0;
-        chunkCount = 0;
-        messageId = 0;
-        body = [];
-
-        if (frame.Length < EnvelopeHeaderSize)
-        {
-            return false;
-        }
-
-        var length = BitConverter.ToUInt16(frame[3..5]);
-        if (frame[2] == 0 || frame[1] >= frame[2] || frame.Length != EnvelopeHeaderSize + length)
-        {
-            return false;
-        }
-
-        type = (HmiMessageType)frame[0];
-        chunkIndex = frame[1];
-        chunkCount = frame[2];
-        messageId = BitConverter.ToUInt32(frame[5..9]);
-        body = frame.Slice(EnvelopeHeaderSize, length).ToArray();
-        return true;
+        var valid = DeviceEnvelope.TryDecode(
+            frame,
+            out var rawType,
+            out chunkIndex,
+            out chunkCount,
+            out messageId,
+            out var payload
+        );
+        type = (HmiMessageType)rawType;
+        body = payload.ToArray();
+        return valid;
     }
 
     public static byte[] EncodeSensorReading(

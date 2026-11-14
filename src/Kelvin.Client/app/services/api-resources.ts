@@ -4,10 +4,23 @@ const apiResources = {
     getControlState: '/api/control/state',
     getControlStats: '/api/control/stats',
   },
+  devices: {
+    deleteDevice: '/api/devices/{id}',
+    disableDevice: '/api/devices/{deviceId}/disable',
+    enableDevice: '/api/devices/{deviceId}/enable',
+    getDevices: '/api/devices',
+    getDeviceStates: '/api/devices/state',
+    restoreDevice: '/api/devices/{id}',
+    updateDevice: '/api/devices/{id}',
+  },
   gateways: {
     getGateway: '/api/gateway',
     updateGateway: '/api/gateway',
     getRelayStates: '/api/gateway/relays/states',
+  },
+  humidifiers: {
+    getHumidifiers: '/api/humidifiers',
+    updateHumidifierConfiguration: '/api/humidifiers/{id}/configuration',
   },
   locations: {
     getCurrentLocation: '/api/locations/current',
@@ -35,6 +48,7 @@ const apiResources = {
     getSetPoints: '/api/thermostat/set-points',
     getThermostat: '/api/thermostat',
     updateThermostat: '/api/thermostat',
+    updateThermostatConfiguration: '/api/thermostat/configuration',
     updateThermostatSettings: '/api/thermostat/settings',
   },
   weather: {

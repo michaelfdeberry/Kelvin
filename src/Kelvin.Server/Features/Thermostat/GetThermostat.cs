@@ -20,7 +20,16 @@ public record GetThermostatResponseDto(
   float HeatingTriggerC = 0.0f,
   float HeatingSatisfiedC = 0.0f,
   float CoolingTriggerC = 0.0f,
-  float CoolingSatisfiedC = 0.0f
+  float CoolingSatisfiedC = 0.0f,
+  bool CO2RecirculationEnabled = false,
+  ushort CO2RecirculationTriggerPpm = 0,
+  ushort CO2RecirculationSatisfiedPpm = 0,
+  int CO2RecirculationDurationMs = 0,
+  bool HeatingAutoBalanceEnabled = false,
+  float HeatingBalanceTriggerC = 0.0f,
+  float HeatingBalanceSatisfiedC = 0.0f,
+  int HeatingAutoBalanceDurationMs = 0,
+  FanMode FanMode = FanMode.CoolingOnly
 );
 
 public static class ThermostatCache
@@ -90,7 +99,16 @@ public class GetThermostatEndpoint : IEndpointMapper
               thermostat.FanEnabled,
               thermostat.HysteresisC,
               thermostat.HeatingLockoutC,
-              thermostat.CoolingLockoutC
+              thermostat.CoolingLockoutC,
+              CO2RecirculationEnabled: thermostat.CO2RecirculationEnabled,
+              CO2RecirculationTriggerPpm: thermostat.CO2RecirculationTriggerPpm,
+              CO2RecirculationSatisfiedPpm: thermostat.CO2RecirculationSatisfiedPpm,
+              CO2RecirculationDurationMs: thermostat.CO2RecirculationDurationMs,
+              HeatingAutoBalanceEnabled: thermostat.HeatingAutoBalanceEnabled,
+              HeatingBalanceTriggerC: thermostat.HeatingBalanceTriggerC,
+              HeatingBalanceSatisfiedC: thermostat.HeatingBalanceSatisfiedC,
+              HeatingAutoBalanceDurationMs: thermostat.HeatingAutoBalanceDurationMs,
+              FanMode: thermostat.FanMode
             )
           );
         }

@@ -8,7 +8,7 @@ export default css`
   }
 
   :host([disabled]) {
-    opacity: 0.6;
+    opacity: var(--control-disabled-opacity);
     cursor: not-allowed;
   }
 
@@ -86,8 +86,8 @@ export default css`
 
   .slider__thumb:focus-visible {
     outline: none;
-    border-color: var(--accent-info);
-    box-shadow: 0 0 0 3px rgb(147 197 253 / 24%);
+    border-color: var(--control-border-color-focus);
+    box-shadow: var(--control-focus-ring);
   }
 
   .slider__thumb--active {

@@ -15,7 +15,7 @@ namespace Kelvin.Server.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("Kelvin.Server.Models.ControlStateChange", b =>
                 {
@@ -81,6 +81,51 @@ namespace Kelvin.Server.Data.Migrations
                     b.ToTable("ControlStateChanges");
                 });
 
+            modelBuilder.Entity("Kelvin.Server.Models.Device", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ConfigurationJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("Configuration");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastSeenAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MacAddress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Devices");
+
+                    b.HasDiscriminator<int>("Type");
+
+                    b.UseTphMappingStrategy();
+                });
+
             modelBuilder.Entity("Kelvin.Server.Models.Gateway", b =>
                 {
                     b.Property<Guid>("Id")
@@ -134,13 +179,7 @@ namespace Kelvin.Server.Data.Migrations
                     b.Property<long?>("DeletedAt")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("MacAddress")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("SensorId")
@@ -391,6 +430,18 @@ namespace Kelvin.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("CO2RecirculationDurationMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CO2RecirculationEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<ushort>("CO2RecirculationSatisfiedPpm")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<ushort>("CO2RecirculationTriggerPpm")
+                        .HasColumnType("INTEGER");
+
                     b.Property<float?>("CoolingLockoutC")
                         .HasColumnType("REAL");
 
@@ -402,6 +453,23 @@ namespace Kelvin.Server.Data.Migrations
 
                     b.Property<bool>("FanEnabled")
                         .HasColumnType("INTEGER");
+
+                    b.Property<int>("FanMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
+
+                    b.Property<int>("HeatingAutoBalanceDurationMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HeatingAutoBalanceEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<float>("HeatingBalanceSatisfiedC")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("HeatingBalanceTriggerC")
+                        .HasColumnType("REAL");
 
                     b.Property<float?>("HeatingLockoutC")
                         .HasColumnType("REAL");
@@ -418,6 +486,13 @@ namespace Kelvin.Server.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Thermostats");
+                });
+
+            modelBuilder.Entity("Kelvin.Server.Models.HumidifierDevice", b =>
+                {
+                    b.HasBaseType("Kelvin.Server.Models.Device");
+
+                    b.HasDiscriminator().HasValue(3);
                 });
 
             modelBuilder.Entity("Kelvin.Server.Models.Hmi", b =>

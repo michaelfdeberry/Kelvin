@@ -10,4 +10,5 @@ public enum DeviceType
   Node,
   Hmi,
   Kiosk,
+  Humidifier,
 }

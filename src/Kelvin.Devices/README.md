@@ -8,6 +8,7 @@ Firmware and supporting software for the physical Kelvin devices, including sens
 - `Gateway/` ESP32 gateway firmware that relays ESP-NOW frames to/from Kelvin.Server over serial, generically by tag - it never needs to change when a new device type is added.
 - `Node/` ESP32S3 Power Feather sensor node firmware that samples environment data and transmits updates through the gateway; see the [Node README](Node/README.md) for details.
 - `Hmi/` ESP32-S3 touch panel firmware (wall-mounted thermostat control);see the [Hmi README](Hmi/README.md).
+- `Humidifier/` ESP32 humidifier controller that opens the humidifier solenoid when the server says to; see the [Humidifier README](Humidifier/README.md).
 - `Kiosk/` Raspberry Pi python kiosk application; see the [Kiosk README](Kiosk/README.md) for details.
 
 ## Notes

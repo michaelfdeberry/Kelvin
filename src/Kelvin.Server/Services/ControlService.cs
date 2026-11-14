@@ -2,7 +2,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Gateways;
-using Kelvin.Server.Messaging;
+using Kelvin.Server.Features.Thermostat;
 using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Services;
@@ -13,8 +13,9 @@ namespace Kelvin.Server.Services;
 /// <remarks>
 /// State is tracked by concern rather than as one combined state, so the minimum on/off duration guards in
 /// <see cref="EvaluateCall" /> only ever see the states they apply to: control ownership is a flag driven
-/// exclusively by <see cref="ControlState.Enable" /> and <see cref="ControlState.Disable" />, the fan is stateless
-/// and actuated directly, and only an <see cref="HvacCall" /> reaches the guards.
+/// exclusively by <see cref="ControlState.Enable" /> and <see cref="ControlState.Disable" />, the fan request is
+/// a flag that never reaches the guards, and only an <see cref="HvacCall" /> does. The fan relay itself is derived
+/// from the fan request and the active call together in <see cref="ApplyFanRelay" />.
 /// </remarks>
 public class ControlService(
   ILogger<ControlService> logger,
@@ -37,7 +38,11 @@ public class ControlService(
   // State tracking
   private bool _controlEnabled;
   private HvacCall _currentCall = HvacCall.Dwell;
+
+  // The requested fan state (user or a fan-owning service, via the thermostat); the relay may be on without it.
   private bool _fanOn;
+  private bool _fanRelayOn;
+  private FanMode _fanMode = FanMode.CoolingOnly;
   private DateTimeOffset _lastCallChangeAt = DateTimeOffset.MinValue;
   private DateTimeOffset? _lastControlChangeAt;
   private DateTimeOffset? _lastFanChangeAt;
@@ -46,9 +51,8 @@ public class ControlService(
   private DateTimeOffset _lastCoolingEndedAt = DateTimeOffset.MinValue;
   private DateTimeOffset _lastHeatingEndedAt = DateTimeOffset.MinValue;
 
-  // Change recording. Records are queued by the state machine and broadcast/persisted only after the actuation is
-  // complete, so a slow or failing hub or database can never delay a relay or take the control loop down with it.
-  private readonly List<ControlStateChange> _pendingChanges = [];
+  // Records are flushed after actuation, so reporting cannot prevent a relay transition.
+  private readonly ControlChangeRecorder _recorder = new(logger, dispatcher, time);
   private ControlMessage? _currentContext;
 
   public override async Task StartAsync(CancellationToken cancellationToken)
@@ -56,7 +60,8 @@ public class ControlService(
     relays.Initialize();
 
     await RestoreCallClockAsync(cancellationToken);
-    await RecordStartupEventAsync(cancellationToken);
+    await ResetFanAsync(cancellationToken);
+    await _recorder.RecordStartupEventAsync(_currentContext, cancellationToken);
     await base.StartAsync(cancellationToken);
   }
 
@@ -80,7 +85,7 @@ public class ControlService(
           // The transition is driven by the clock rather than by a message, so there is no producer context.
           _currentContext = null;
           TransitionToCall(HvacCall.Dwell, "the minimum on-time elapsed");
-          await FlushChangesAsync(stoppingToken);
+          await _recorder.FlushChangesAsync(stoppingToken);
           continue;
         }
 
@@ -98,11 +103,16 @@ public class ControlService(
 
         var gateway = gatewayResult.Value!;
 
+        var thermostatResult = await dispatcher.DispatchAsync<GetThermostatRequest, GetThermostatResponse>(new(), stoppingToken);
+        thermostatResult.EnsureSuccess();
+        _fanMode = thermostatResult.Value!.Thermostat.FanMode;
+
         relays.Configure(gateway);
 
         _currentContext = controlMessage;
         Handle(gateway, _currentContext.State);
-        await FlushChangesAsync(stoppingToken);
+        ApplyFanRelay();
+        await _recorder.FlushChangesAsync(stoppingToken);
       }
       catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
       {
@@ -111,7 +121,7 @@ public class ControlService(
       }
       catch (GpioUnavailableException ex)
       {
-        await RecordFaultEventAsync("GPIO became unusable", stoppingToken);
+        await _recorder.RecordFaultEventAsync("GPIO became unusable", _currentContext, stoppingToken);
         // never continue the state machine on unusable hardware; fail loudly instead of pretending to actuate
         logger.LogCritical(ex, "GPIO became unusable. Stopping the application so the failure is not silently ignored.");
         lifetime.StopApplication();
@@ -165,7 +175,7 @@ public class ControlService(
       return;
     }
 
-    // The fan can be toggled independently of the current call and doesn't need to be tracked.
+    // The fan request is independent of the current call and is not subject to the guards.
     if (requested is ControlState.FanOn or ControlState.FanOff)
     {
       ToggleFan(requested);
@@ -232,26 +242,20 @@ public class ControlService(
     {
       var now = time.GetUtcNow();
 
-      // if leaving dwell the min off time might need to be adjusted if the last active call was the opposite mode.
-      if (call == HvacCall.Heating && _lastCoolingEndedAt != DateTimeOffset.MinValue && now - _lastCoolingEndedAt < minTransitionDuration)
+      var (oppositeCall, oppositeEndedAt) = call switch
+      {
+        HvacCall.Heating => (HvacCall.Cooling, _lastCoolingEndedAt),
+        HvacCall.Cooling => (HvacCall.Heating, _lastHeatingEndedAt),
+        _ => (HvacCall.Dwell, DateTimeOffset.MinValue),
+      };
+
+      if (oppositeEndedAt != DateTimeOffset.MinValue && now - oppositeEndedAt < minTransitionDuration)
       {
         logger.LogInformation(
-          "Requested {RequestedCall}, but the last Cooling call ended {ElapsedSeconds}s ago, which is less than the Minimum Mode Switch Duration ({RequiredMinutes}m).",
+          "Requested {RequestedCall}, but the last {PreviousCall} call ended {ElapsedSeconds}s ago, which is less than the Minimum Mode Switch Duration ({RequiredMinutes}m).",
           call,
-          (now - _lastCoolingEndedAt).TotalSeconds,
-          minTransitionDuration.TotalMinutes
-        );
-
-        // block activation
-        return;
-      }
-
-      if (call == HvacCall.Cooling && _lastHeatingEndedAt != DateTimeOffset.MinValue && now - _lastHeatingEndedAt < minTransitionDuration)
-      {
-        logger.LogInformation(
-          "Requested {RequestedCall}, but the last Heating call ended {ElapsedSeconds}s ago, which is less than the Minimum Mode Switch Duration ({RequiredMinutes}m).",
-          call,
-          (now - _lastHeatingEndedAt).TotalSeconds,
+          oppositeCall,
+          (now - oppositeEndedAt).TotalSeconds,
           minTransitionDuration.TotalMinutes
         );
 
@@ -286,39 +290,11 @@ public class ControlService(
     {
       // Heating and Cooling are the only two active calls reachable here, so this guards against a direct
       // Heating<->Cooling switch.
-      // Maybe there is some concern for this in the automatic mode, but it probably wouldn't make sense to configure it that tightly anyway.
-      // There will need to be some validation against this being allowed to be configured in this way.
-      //
-      // This was initially being treated as a critical error because it shouldn't be possible to reach this point without a bug in the code.
-      // It previously reverted control because going from heating to cooling may crack the heat exchanger and going from cooling to heating may
-      // damage the evaporator coil.
-      //
-      // My assumptions are that normal thermostats are dumb and the furnace control board is designed to handle this,
-      // I wouldn't bet my furnace on it though.
-      //
-      // Update - I looked into this more, it's a true concern and from what I've found it's not handled by the control board at all.
-      // The biggest concern is stressing the heat exchanger and causing it to crack, from what I can find the evaporator coil would have no issues
-      // with temperature swings.
-
-      // It seems the recommended approach is to have a minimum off time, which is already implemented. However, that's the typical
-      // 5 minutes between states. That might be fine, but it's at the low end of the recommended time. From what I can find, the recommendation is between
-      // 5 and 15 minutes. I'd prefer to be on the high end of that.
-      //
-      // I'd rather not support a direct switch at all. However, with the initial implementation the min off time will be at the low end of the suggested
-      // dwell time, and this could still be an indirect issue by going heating->dwell->cooling or cooling->dwell->heating.
-      // Which means it needed to be accounted for anyway, so there is no point in relinquishing control and letting the legacy thermostat handle it.
 
       // Just having this transition to Dwell should be enough. Because, if it's in heating and then there is a call for cooling
       // changing to dwell would force the min off time. Since that code was updated to account for the last active call, and not just the dwell time,
       // it is safe to go heating->dwell->cooling. If cooling is really needed another call will likely come in before
       // the min off time elapses.
-
-      // That eliminates the safety concern, the only other concern would looping through states:
-      // heating->dwell->cooling->dwell->heating->dwell->cooling...
-      // However, it's unlikely someone would manually cycle their system in such a way, and the automatic mode doesn't allow
-      // for configuring the thermostat where a switch like that would be realistically possible with the forecast lockouts and the
-      // required 2x hysteresis gap.
-      // Leaving all these notes since this might be the most critical safety concern in the system.
       _currentContext = (_currentContext ?? new(ControlState.Dwell)) with
       {
         State = ControlState.Dwell,
@@ -409,6 +385,9 @@ public class ControlService(
   /// </summary>
   private void RecordFanReleasedByControlRelay()
   {
+    // EnableControl/DisableControl released the fan relay directly, whichever reason it was on for.
+    _fanRelayOn = false;
+
     if (!_fanOn)
       return;
 
@@ -423,7 +402,26 @@ public class ControlService(
     if (requestedFanOn == _fanOn)
       return;
 
-    if (requestedFanOn)
+    _fanOn = requestedFanOn;
+    ApplyFanRelay();
+
+    RecordChange(ControlChangeKind.Fan, requested, requestedFanOn ? ControlState.FanOff : ControlState.FanOn, _lastFanChangeAt, null);
+    _lastFanChangeAt = time.GetUtcNow();
+  }
+
+  private void ApplyFanRelay()
+  {
+    var callNeedsFan = _fanMode switch
+    {
+      FanMode.Manual => false,
+      FanMode.HeatingAndCooling => _currentCall is HvacCall.Heating or HvacCall.Cooling,
+      _ => _currentCall == HvacCall.Cooling,
+    };
+    var shouldRun = _controlEnabled && (_fanOn || callNeedsFan);
+    if (shouldRun == _fanRelayOn)
+      return;
+
+    if (shouldRun)
     {
       logger.LogInformation("Activating Fan Relay (Fan - G).");
       relays.EnableFan();
@@ -434,9 +432,7 @@ public class ControlService(
       relays.DisableFan();
     }
 
-    _fanOn = requestedFanOn;
-    RecordChange(ControlChangeKind.Fan, requested, requestedFanOn ? ControlState.FanOff : ControlState.FanOn, _lastFanChangeAt, null);
-    _lastFanChangeAt = time.GetUtcNow();
+    _fanRelayOn = shouldRun;
   }
 
   private void ScheduleDwellTransition(TimeSpan delay)
@@ -486,67 +482,13 @@ public class ControlService(
         break;
     }
 
+    ApplyFanRelay();
+
     RecordChange(ControlChangeKind.Call, ToControlState(call), ToControlState(previousCall), previousSince, reason);
   }
 
-  /// <summary>
-  /// Queues a record of a relay actuation. Called after the relay has moved, so hardware that failed to actuate
-  /// leaves no trace of a change that never happened.
-  /// </summary>
-  private void RecordChange(ControlChangeKind kind, ControlState state, ControlState? previousState, DateTimeOffset? previousSince, string? reason)
-  {
-    // CreatedAt is deliberately left alone; the persistence layer stamps it from the same clock. The duration is
-    // measured here instead of being derived from the stored timeline so it stays accurate if a save is delayed.
-    var change = new ControlStateChange
-    {
-      Kind = kind,
-      State = state,
-      PreviousState = previousState,
-      PreviousStateDurationSeconds = previousSince is null ? null : (time.GetUtcNow() - previousSince.Value).TotalSeconds,
-      Reason = reason ?? _currentContext?.Reason,
-      EnvironmentTemperatureC = _currentContext?.EnvironmentTemperatureC,
-      HumidityPercentage = _currentContext?.HumidityPercentage,
-      TargetTemperatureC = _currentContext?.TargetTemperatureC,
-      CO2LevelPpm = _currentContext?.CO2LevelPpm,
-      HysteresisC = _currentContext?.HysteresisC,
-      ForecastTemperatureC = _currentContext?.ForecastTemperatureC,
-      Mode = _currentContext?.Mode,
-      ScheduleId = _currentContext?.ScheduleId,
-      SetPointId = _currentContext?.SetPointId,
-    };
-    _pendingChanges.Add(change);
-  }
-
-  /// <summary>
-  /// Broadcasts and persists everything the last actuation queued up. Failures are logged and swallowed: both are
-  /// reporting concerns and must never stop the equipment from being controlled.
-  /// </summary>
-  private async Task FlushChangesAsync(CancellationToken cancellationToken)
-  {
-    if (_pendingChanges.Count == 0)
-      return;
-
-    try
-    {
-      foreach (var change in _pendingChanges)
-      {
-        var result = await dispatcher.DispatchAsync(new SaveControlStateChangeRequest(change), cancellationToken);
-
-        if (result.IsFailure)
-          logger.LogError("Failed to record the {Kind} state change to {State}: {Error}", change.Kind, change.State, result.Error.Message);
-
-        await dispatcher.PublishAsync(new ControlStateChangedEvent(change), cancellationToken);
-      }
-    }
-    catch (Exception ex)
-    {
-      logger.LogError(ex, "An error occurred while recording control state changes.");
-    }
-    finally
-    {
-      _pendingChanges.Clear();
-    }
-  }
+  private void RecordChange(ControlChangeKind kind, ControlState state, ControlState? previousState, DateTimeOffset? previousSince, string? reason) =>
+    _recorder.RecordChange(kind, state, previousState, previousSince, reason, _currentContext);
 
   private static ControlState ToControlState(HvacCall call) =>
     call switch
@@ -583,47 +525,25 @@ public class ControlService(
   {
     try
     {
-      var latest = await GetLatestChangeAsync(ControlChangeKind.Call, cancellationToken);
-      if (latest is null)
+      var result = await dispatcher.DispatchAsync<RestoreCallClockRequest, RestoreCallClockResponse?>(new(), cancellationToken);
+      result.EnsureSuccess();
+      var restored = result.Value;
+      if (restored is null)
         return;
 
-      var lastCoolingEndedAtResult = await dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
-        new(ControlState.Cooling),
-        cancellationToken
-      );
+      _lastCallChangeAt = restored.LastCallChangeAt;
+      _lastCoolingEndedAt = restored.LastCoolingEndedAt;
+      _lastHeatingEndedAt = restored.LastHeatingEndedAt;
 
-      var lastHeatingEndedAtResult = await dispatcher.DispatchAsync<GetControlStateEndTimeRequest, GetControlStateEndTimeResponse>(
-        new(ControlState.Heating),
-        cancellationToken
-      );
-
-      _lastCoolingEndedAt = lastCoolingEndedAtResult.Value?.ChangedAt ?? DateTimeOffset.MinValue;
-      _lastHeatingEndedAt = lastHeatingEndedAtResult.Value?.ChangedAt ?? DateTimeOffset.MinValue;
-
-      if (latest.State == ControlState.Dwell)
-      {
-        _lastCallChangeAt = latest.ChangedAt;
+      var interrupted = restored.InterruptedCall;
+      if (interrupted is null)
         return;
-      }
 
-      if (latest.State == ControlState.Heating)
-      {
-        // last call was heating, so it ends now.
-        _lastHeatingEndedAt = time.GetUtcNow();
-      }
-      else if (latest.State == ControlState.Cooling)
-      {
-        // last call was cooling, so it ends now.
-        _lastCoolingEndedAt = time.GetUtcNow();
-      }
-
-      // The service went down mid-call and Initialize released the relays, so the call effectively ended just now.
-      _lastCallChangeAt = time.GetUtcNow();
-      logger.LogWarning("The service restarted while a {Call} call was active. Measuring the minimum off-time from startup.", latest.State);
+      logger.LogWarning("The service restarted while a {Call} call was active. Measuring the minimum off-time from startup.", interrupted.State);
 
       // The restart released the relays with it, so the call timeline must not show the call still running.
-      RecordChange(ControlChangeKind.Call, ControlState.Dwell, latest.State, latest.ChangedAt, "the restart released the call");
-      await FlushChangesAsync(cancellationToken);
+      RecordChange(ControlChangeKind.Call, ControlState.Dwell, interrupted.State, interrupted.ChangedAt, "the restart released the call");
+      await _recorder.FlushChangesAsync(cancellationToken);
     }
     catch (Exception ex)
     {
@@ -633,51 +553,31 @@ public class ControlService(
     }
   }
 
-  private async Task RecordStartupEventAsync(CancellationToken cancellationToken)
+  /// <summary>
+  /// Initialize released the fan relay, so a fan setting persisted as on would claim a fan that is not running and
+  /// that no service remembers owning.
+  /// </summary>
+  private async Task ResetFanAsync(CancellationToken cancellationToken)
   {
     try
     {
-      var previous = await GetLatestLifecycleStateAsync(cancellationToken);
-      ControlState? previousState = previous?.State == ControlState.Fault ? ControlState.Fault : null;
-      var previousSince = previousState is null ? null : previous?.ChangedAt;
+      var thermostatResult = await dispatcher.DispatchAsync<GetThermostatRequest, GetThermostatResponse>(
+        new GetThermostatRequest(),
+        cancellationToken
+      );
+      var thermostat = thermostatResult?.Value?.Thermostat;
+      if (thermostat is null || !thermostat.FanEnabled)
+        return;
 
-      RecordChange(ControlChangeKind.Lifecycle, ControlState.Startup, previousState, previousSince, "control service started");
-      await FlushChangesAsync(cancellationToken);
+      logger.LogWarning("The fan was left enabled by the previous run. Turning it off.");
+
+      var update = await dispatcher.DispatchAsync(new UpdateThermostatRequest(thermostat.Mode, FanEnabled: false), cancellationToken);
+      if (update.IsFailure)
+        logger.LogError("Failed to turn the fan off at startup: {Error}", update.Error.Message);
     }
     catch (Exception ex)
     {
-      logger.LogError(ex, "An error occurred while recording the control service startup event.");
+      logger.LogError(ex, "Failed to reset the fan at startup.");
     }
-  }
-
-  private async Task RecordFaultEventAsync(string reason, CancellationToken cancellationToken)
-  {
-    try
-    {
-      var previous = await GetLatestLifecycleStateAsync(cancellationToken);
-      ControlState? previousState = previous?.State is ControlState.Startup or ControlState.Fault ? previous.State : null;
-      var previousSince = previousState is null ? null : previous?.ChangedAt;
-
-      RecordChange(ControlChangeKind.Lifecycle, ControlState.Fault, previousState, previousSince, reason);
-      await FlushChangesAsync(cancellationToken);
-    }
-    catch (Exception ex)
-    {
-      logger.LogError(ex, "An error occurred while recording the control service fault event.");
-    }
-  }
-
-  private Task<GetLatestControlStateChangeResponse?> GetLatestLifecycleStateAsync(CancellationToken cancellationToken) =>
-    GetLatestChangeAsync(ControlChangeKind.Lifecycle, cancellationToken);
-
-  private async Task<GetLatestControlStateChangeResponse?> GetLatestChangeAsync(ControlChangeKind kind, CancellationToken cancellationToken)
-  {
-    var result = await dispatcher.DispatchAsync<GetLatestControlStateChangeRequest, GetLatestControlStateChangeResponse?>(
-      new(kind),
-      cancellationToken
-    );
-
-    result.EnsureSuccess();
-    return result.Value;
   }
 }

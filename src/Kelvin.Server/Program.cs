@@ -3,6 +3,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Data;
 using Kelvin.Server.Integration.GeoCoding;
 using Kelvin.Server.Integration.Weather;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Services;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +52,17 @@ builder.Services.AddHostedService<ControlService>();
 builder.Services.AddHostedService<GatewayService>();
 builder.Services.AddHostedService<SensingService>();
 builder.Services.AddHostedService<ThermostatService>();
+builder.Services.AddSingleton<IFanArbiter, FanArbiter>();
+builder.Services.AddSingleton<RecirculationService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RecirculationService>());
+builder.Services.AddScoped<IEventHandler<ControlStateChangedEvent>>(sp => sp.GetRequiredService<RecirculationService>());
+builder.Services.AddSingleton<BalancingService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<BalancingService>());
+builder.Services.AddScoped<IEventHandler<ControlStateChangedEvent>>(sp => sp.GetRequiredService<BalancingService>());
+builder.Services.AddSingleton<DeviceIntegrationService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceIntegrationService>());
+builder.Services.AddScoped<IEventHandler<ControlStateChangedEvent>>(sp => sp.GetRequiredService<DeviceIntegrationService>());
+builder.Services.AddScoped<IEventHandler<DevicesChangedEvent>>(sp => sp.GetRequiredService<DeviceIntegrationService>());
 builder
   .Services.AddSignalR()
   .AddJsonProtocol(options =>

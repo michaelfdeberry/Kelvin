@@ -12,16 +12,18 @@ public record SendNotificationRequest(
   string? Heading = null,
   bool? Banner = false,
   int? Duration = null
-) : IRequest;
+) : IRequest<SendNotificationResponse>;
+
+public record SendNotificationResponse(Guid NotificationId);
 
 public static class SendNotificationErrors
 {
   public static readonly Error DefaultError = new("SendNotification.Failed", "An error occurred processing the request.");
 }
 
-public class SendNotificationHandler(KelvinContext context, IDispatcher dispatcher) : IHandler<SendNotificationRequest>
+public class SendNotificationHandler(KelvinContext context, IDispatcher dispatcher) : IHandler<SendNotificationRequest, SendNotificationResponse>
 {
-  public async Task<Result> HandleAsync(SendNotificationRequest request, CancellationToken ct = default)
+  public async Task<Result<SendNotificationResponse>> HandleAsync(SendNotificationRequest request, CancellationToken ct = default)
   {
     var notification = new Notification()
     {
@@ -37,7 +39,7 @@ public class SendNotificationHandler(KelvinContext context, IDispatcher dispatch
     await context.SaveChangesAsync(ct);
     await dispatcher.PublishAsync(new SendNotificationEvent(notification), ct);
 
-    return Result.Success();
+    return Result<SendNotificationResponse>.Success(new SendNotificationResponse(notification.Id));
   }
 }
 
@@ -45,6 +47,6 @@ public class SendNotificationRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {
-    services.AddScoped<IHandler<SendNotificationRequest>, SendNotificationHandler>();
+    services.AddScoped<IHandler<SendNotificationRequest, SendNotificationResponse>, SendNotificationHandler>();
   }
 }
