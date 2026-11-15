@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "DeviceEnvelope.h"
 
 // Mirrors Kelvin.Server's Models/FrameTags.cs (FrameTags.Hmi) - keep the byte values in sync. Every ESP-NOW
 // frame the panel sends or receives (readings AND commands alike) is tagged with this - the Gateway relays
@@ -9,7 +10,7 @@
 static const uint8_t hmiFrameTag[4] = {0x4B, 0x48, 0x4D, 0x49}; // "KHMI"
 
 // Mirrors Kelvin.Server's Models/HmiMessageType.cs - keep in sync. Identifies how to decode an Hmi
-// message's body (the content of the HmiEnvelope below, both directions). Every body is a versioned
+// message's body (the content of the DeviceEnvelope, both directions). Every body is a versioned
 // CBOR map; field definitions live in docs/hmi-payloads.cddl and docs/HMI Protocol.md.
 enum class HmiMessageType : uint8_t
 {
@@ -58,44 +59,6 @@ enum class HmiMessageType : uint8_t
   // Hmi -> Server. Requests the last call state and preferences, replied to this panel only.
   RequestState = 0x16,
 };
-
-// Mirrors Kelvin.Server's Features/Hmi/HmiEnvelope.cs - keep in sync. Every Hmi message, both directions,
-// is framed with this 9-byte header: type(1), index(1), count(1), body length(2 LE), message ID(4 LE).
-// All chunks of one message share an ID. Uplink commands are single-chunk messages with distinct IDs.
-namespace HmiEnvelope
-{
-  static const size_t HEADER_SIZE = 9;
-
-  inline void writeHeader(uint8_t *buffer, HmiMessageType type, uint8_t chunkIndex, uint8_t chunkCount, uint16_t bodyLength, uint32_t messageId)
-  {
-    buffer[0] = (uint8_t)type;
-    buffer[1] = chunkIndex;
-    buffer[2] = chunkCount;
-    buffer[3] = (uint8_t)(bodyLength & 0xFF);
-    buffer[4] = (uint8_t)((bodyLength >> 8) & 0xFF);
-    buffer[5] = (uint8_t)(messageId & 0xFF);
-    buffer[6] = (uint8_t)((messageId >> 8) & 0xFF);
-    buffer[7] = (uint8_t)((messageId >> 16) & 0xFF);
-    buffer[8] = (uint8_t)((messageId >> 24) & 0xFF);
-  }
-
-  // Validates chunk metadata and requires the physical frame to match its declared body length exactly.
-  inline bool readHeader(const uint8_t *frame, size_t frameLength, HmiMessageType &type, uint8_t &chunkIndex, uint8_t &chunkCount, uint16_t &bodyLength, uint32_t &messageId)
-  {
-    if (frameLength < HEADER_SIZE)
-    {
-      return false;
-    }
-
-    type = (HmiMessageType)frame[0];
-    chunkIndex = frame[1];
-    chunkCount = frame[2];
-    bodyLength = (uint16_t)(frame[3] | (frame[4] << 8));
-    messageId = (uint32_t)frame[5] | ((uint32_t)frame[6] << 8) |
-                ((uint32_t)frame[7] << 16) | ((uint32_t)frame[8] << 24);
-    return chunkCount > 0 && chunkIndex < chunkCount && frameLength == HEADER_SIZE + bodyLength;
-  }
-}
 
 // Mirrors Kelvin.Server's Models/RunMode.cs ordinal values - keep in sync.
 enum class RunMode : uint8_t

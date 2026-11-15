@@ -12,4 +12,6 @@ public static class FrameTags
   public static readonly byte[] Node = [0x4B, 0x4E, 0x4F, 0x44]; // "KNOD"
 
   public static readonly byte[] Hmi = [0x4B, 0x48, 0x4D, 0x49]; // "KHMI"
+
+  public static readonly byte[] Humidifier = [0x4B, 0x48, 0x55, 0x4D]; // "KHUM"
 }

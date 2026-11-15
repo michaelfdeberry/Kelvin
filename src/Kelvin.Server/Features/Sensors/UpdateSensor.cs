@@ -32,13 +32,6 @@ public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IDis
     sensor.HumidityPercentageOffset = request.Update.HumidityPercentageOffset;
     sensor.CO2LevelPpmOffset = request.Update.CO2LevelPpmOffset;
 
-    // The Hmi's name isn't independently editable - it's managed through its linked Sensor.
-    var hmi = await context.Hmis.FirstOrDefaultAsync(h => h.SensorId == sensor.Id, ct);
-    if (hmi is not null)
-    {
-      hmi.Name = sensor.Name;
-    }
-
     await context.SaveChangesAsync(ct);
     await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
     cache.Remove(SensorsCache.Key);

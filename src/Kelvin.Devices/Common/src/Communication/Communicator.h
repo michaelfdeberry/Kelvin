@@ -12,12 +12,13 @@ class Communicator
 public:
   static const size_t MAX_FRAME_CONTENT = 240;
 
-  void begin(const uint8_t gatewayMac[6], const uint8_t frameTag[4]);
+  // Returns false if ESP-NOW couldn't be started; safe to call again to retry.
+  bool begin(const uint8_t gatewayMac[6], const uint8_t frameTag[4]);
   void end();
   bool send(const void *payload, size_t payloadLength);
 
   // Copies the oldest queued inbound frame (tag already stripped, already verified to match this
-  // Communicator's frameTag) into `buffer`. Returns false if none is waiting.
+  // Communicator's frameTag and to come from the gateway) into `buffer`. Returns false if none is waiting.
   bool tryReceive(uint8_t *buffer, size_t bufferSize, size_t &outLength);
 
 private:

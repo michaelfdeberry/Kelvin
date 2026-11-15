@@ -123,6 +123,10 @@ const thermostatControlStyles = css`
     }
   }
 
+  .thermostat__air-quality-item--humidifying .thermostat__air-quality-value {
+    color: var(--accent-cool);
+  }
+
   .thermostat__controls {
     display: flex;
     gap: 0.5rem;

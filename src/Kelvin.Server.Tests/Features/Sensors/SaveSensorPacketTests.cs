@@ -178,7 +178,7 @@ public class SaveSensorPacketTests
         await using (var seedContext = harness.CreateContext())
         {
             // Registered earlier via its command channel, before its first reading ever arrived.
-            seedContext.Hmis.Add(new Hmi { MacAddress = "aa:bb:cc:dd:ee:ff", Enabled = true });
+            seedContext.Hmis.Add(new Hmi { MacAddress = "aa:bb:cc:dd:ee:ff" });
             await seedContext.SaveChangesAsync();
         }
 

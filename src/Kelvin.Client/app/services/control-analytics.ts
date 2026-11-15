@@ -1,5 +1,7 @@
 import resources from './api-resources.js';
+import apiResources from './api-resources.js';
 import { apiGet } from './api.js';
+import { RelayStates } from '../models/gateway.js';
 
 import type { ControlStateChange } from '../models/control-state-change.js';
 import type { ControlStateResponse } from '../models/control-state.js';
@@ -26,17 +28,20 @@ export type ControlAnalyticsData = {
   latestLifecycleChange?: ControlStateChange;
   setPoints: SetPoint[];
   schedules: Schedule[];
+  relayStates: RelayStates;
 };
 
 export async function loadControlAnalyticsData(signal?: AbortSignal): Promise<ControlAnalyticsData> {
-  const [controlState, controlStats, latestCallResponse, latestLifecycleResponse, setPointsResponse, schedulesResponse] = await Promise.all([
-    apiGet<ControlStateResponse>(resources.control.getControlState, { signal }),
-    apiGet<ControlStats>(resources.control.getControlStats, { signal }),
-    apiGet<ControlHistoryResponse>(resources.control.getControlHistory, { signal, queryParams: { kind: 'Call', pageSize: 1 } }),
-    apiGet<ControlHistoryResponse>(resources.control.getControlHistory, { signal, queryParams: { kind: 'Lifecycle', pageSize: 1 } }),
-    apiGet<SetPointsResponse>(resources.thermostat.getSetPoints, { signal }),
-    apiGet<SchedulesResponse>(resources.thermostat.getSchedules, { signal }),
-  ]);
+  const [controlState, controlStats, latestCallResponse, latestLifecycleResponse, setPointsResponse, schedulesResponse, relayStates] =
+    await Promise.all([
+      apiGet<ControlStateResponse>(resources.control.getControlState, { signal }),
+      apiGet<ControlStats>(resources.control.getControlStats, { signal }),
+      apiGet<ControlHistoryResponse>(resources.control.getControlHistory, { signal, queryParams: { kind: 'Call', pageSize: 1 } }),
+      apiGet<ControlHistoryResponse>(resources.control.getControlHistory, { signal, queryParams: { kind: 'Lifecycle', pageSize: 1 } }),
+      apiGet<SetPointsResponse>(resources.thermostat.getSetPoints, { signal }),
+      apiGet<SchedulesResponse>(resources.thermostat.getSchedules, { signal }),
+      await apiGet<RelayStates>(apiResources.gateways.getRelayStates, { signal }),
+    ]);
 
   return {
     controlState,
@@ -45,6 +50,7 @@ export async function loadControlAnalyticsData(signal?: AbortSignal): Promise<Co
     latestLifecycleChange: latestLifecycleResponse.items?.[0],
     setPoints: setPointsResponse.setPoints,
     schedules: schedulesResponse.schedules,
+    relayStates,
   };
 }
 

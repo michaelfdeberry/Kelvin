@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <HmiProtocol.h>
 
-// Reassembles any Hmi downlink message (not just ThermostatStateChunk) via the shared HmiEnvelope header -
+// Reassembles any Hmi downlink message (not just ThermostatStateChunk) via the shared DeviceEnvelope header -
 // a single-chunk message (chunkCount == 1) completes on the first call; a multi-chunk message accumulates
 // across calls, keyed by message type.
 //

@@ -17,9 +17,9 @@ using Bytes = std::vector<uint8_t>;
 
 static Bytes frame(HmiMessageType type, uint8_t index, uint8_t count, uint32_t id, const Bytes &body)
 {
-  Bytes result(HmiEnvelope::HEADER_SIZE + body.size());
-  HmiEnvelope::writeHeader(result.data(), type, index, count, (uint16_t)body.size(), id);
-  memcpy(result.data() + HmiEnvelope::HEADER_SIZE, body.data(), body.size());
+  Bytes result(DeviceEnvelope::HEADER_SIZE + body.size());
+  DeviceEnvelope::writeHeader(result.data(), (uint8_t)type, index, count, (uint16_t)body.size(), id);
+  memcpy(result.data() + DeviceEnvelope::HEADER_SIZE, body.data(), body.size());
   return result;
 }
 
@@ -153,21 +153,21 @@ static void headerAndUplinkIds()
   auto bytes = frame(HmiMessageType::PreferencesChanged, 0, 1, 0x12345678, {1, 0});
   assert(bytes == Bytes({5, 0, 1, 2, 0, 0x78, 0x56, 0x34, 0x12, 1, 0}));
   uint8_t buffer[64];
-  HmiMessageType type;
+  uint8_t type;
   uint8_t index, count;
   uint16_t length;
   uint32_t firstId, secondId;
   size_t size = HmiCommandEncoder::encodeSetMode(RunMode::Heating, buffer, sizeof(buffer));
-  assert(HmiEnvelope::readHeader(buffer, size, type, index, count, length, firstId));
-  assert(type == HmiMessageType::SetMode && index == 0 && count == 1 && length == 5);
+  assert(DeviceEnvelope::readHeader(buffer, size, type, index, count, length, firstId));
+  assert(type == (uint8_t)HmiMessageType::SetMode && index == 0 && count == 1 && length == 5);
   HmiCbor::Map command;
   uint32_t mode = 0;
-  assert(command.parse(buffer + HmiEnvelope::HEADER_SIZE, length) && command.unsignedValue(1, mode, 4));
+  assert(command.parse(buffer + DeviceEnvelope::HEADER_SIZE, length) && command.unsignedValue(1, mode, 4));
   assert(mode == (uint8_t)RunMode::Heating);
   size = HmiCommandEncoder::encodeRequestState(buffer, sizeof(buffer));
-  assert(HmiEnvelope::readHeader(buffer, size, type, index, count, length, secondId));
-  assert(type == HmiMessageType::RequestState && length == 3 && secondId != firstId);
-  assert(HmiCommandEncoder::encodeSetMode(RunMode::Heating, buffer, HmiEnvelope::HEADER_SIZE) == 0);
+  assert(DeviceEnvelope::readHeader(buffer, size, type, index, count, length, secondId));
+  assert(type == (uint8_t)HmiMessageType::RequestState && length == 3 && secondId != firstId);
+  assert(HmiCommandEncoder::encodeSetMode(RunMode::Heating, buffer, DeviceEnvelope::HEADER_SIZE) == 0);
 }
 
 static Bytes cborReading()
@@ -335,9 +335,9 @@ static void everyUplinkAndSmallBuffer()
   {
     uint8_t buffer[240];
     size_t length = encode(buffer, sizeof(buffer));
-    assert(length > HmiEnvelope::HEADER_SIZE);
+    assert(length > DeviceEnvelope::HEADER_SIZE);
     HmiCbor::Map map;
-    assert(map.parse(buffer + HmiEnvelope::HEADER_SIZE, length - HmiEnvelope::HEADER_SIZE));
+    assert(map.parse(buffer + DeviceEnvelope::HEADER_SIZE, length - DeviceEnvelope::HEADER_SIZE));
     for (size_t capacity = 0; capacity < length; capacity++)
     {
       memset(buffer, 0xCC, sizeof(buffer));
@@ -348,7 +348,7 @@ static void everyUplinkAndSmallBuffer()
   }
   uint8_t buffer[240];
   size_t length = HmiCommandEncoder::encodeSetFanEnabled(true, buffer, sizeof(buffer));
-  assert(Bytes(buffer + HmiEnvelope::HEADER_SIZE, buffer + length) == Bytes({0xA2, 0, 1, 1, 0xF5}));
+  assert(Bytes(buffer + DeviceEnvelope::HEADER_SIZE, buffer + length) == Bytes({0xA2, 0, 1, 1, 0xF5}));
 }
 
 static Bytes notificationVector()

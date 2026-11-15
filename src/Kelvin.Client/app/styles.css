@@ -11,6 +11,13 @@
   --slider-range: #708f7f;
   --border-radius: 6px;
 
+  /* Shared by every form control so borders, focus and disabled states stay consistent */
+  --control-height: 2.5rem;
+  --control-border-color: var(--accent-idle);
+  --control-border-color-hover: var(--accent-primary);
+  --control-border-color-focus: var(--accent-info);
+  --control-focus-ring: 0 0 0 2px rgb(147 197 253 / 24%);
+  --control-disabled-opacity: 0.6;
   /* Borders / translucent surfaces */
   --border-subtle: #334155;
   --surface-overlay: rgb(15 23 42 / 35%);

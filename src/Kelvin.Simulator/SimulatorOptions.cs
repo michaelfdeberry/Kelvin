@@ -12,6 +12,7 @@ internal sealed record SimulatorOptions(
     string PortName,
     int SensorCount,
     int HmiCount,
+    bool HumidifierEnabled,
     float BaseTemperatureC,
     TimeSpan Interval,
     bool Interactive,
@@ -24,6 +25,7 @@ internal sealed record SimulatorOptions(
         var portName = string.Empty;
         var sensorCount = 5;
         var hmiCount = 1;
+        var humidifierEnabled = true;
         var baseTemperatureC = 21.5f;
         var interval = TimeSpan.FromSeconds(30);
         var interactive = true;
@@ -81,6 +83,18 @@ internal sealed record SimulatorOptions(
                 continue;
             }
 
+            if (current.Equals("--humidifier", StringComparison.OrdinalIgnoreCase))
+            {
+                humidifierEnabled = true;
+                continue;
+            }
+
+            if (current.Equals("--no-humidifier", StringComparison.OrdinalIgnoreCase))
+            {
+                humidifierEnabled = false;
+                continue;
+            }
+
             if (current.Equals("--non-interactive", StringComparison.OrdinalIgnoreCase))
             {
                 interactive = false;
@@ -112,6 +126,7 @@ internal sealed record SimulatorOptions(
             portName,
             sensorCount,
             hmiCount,
+            humidifierEnabled,
             baseTemperatureC,
             interval,
             interactive,

@@ -35,11 +35,13 @@ public class ReceiveHmiCommandHandler(
   public async Task<Result> HandleAsync(ReceiveHmiCommandRequest request, CancellationToken ct = default)
   {
     if (
-      !HmiEnvelope.TryDecode(request.Payload, out var messageType, out var chunkIndex, out var chunkCount, out _, out _)
+      !DeviceEnvelope.TryDecode(request.Payload, out var type, out var chunkIndex, out var chunkCount, out _, out _)
       || chunkIndex != 0
       || chunkCount != 1
     )
       return Result.Failure(ReceiveHmiCommandErrors.EmptyPayload);
+
+    var messageType = (HmiMessageType)type;
 
     IRequest? command;
     try
@@ -92,7 +94,8 @@ public class ReceiveHmiCommandHandler(
     };
   }
 
-  private static byte[] DecodeBody(byte[] payload) => HmiEnvelope.TryDecode(payload, out _, out _, out _, out _, out var body) ? body.ToArray() : [];
+  private static byte[] DecodeBody(byte[] payload) =>
+    DeviceEnvelope.TryDecode(payload, out _, out _, out _, out _, out var body) ? body.ToArray() : [];
 
   private static SensorPacket BuildSensorPacket(string macAddress, HmiCborMap body) =>
     new()
@@ -106,20 +109,13 @@ public class ReceiveHmiCommandHandler(
 
   private async Task RegisterHmiAsync(string macAddress, CancellationToken ct)
   {
-    var hmi = await context.Hmis.FirstOrDefaultAsync(h => h.MacAddress == macAddress, ct);
+    var hmi = await context.Hmis.Include(h => h.Sensor).FirstOrDefaultAsync(h => h.MacAddress == macAddress, ct);
     if (hmi is null)
     {
       // The panel's own reading may have already registered a Sensor for this MAC before its first command
       // arrived here - link to it rather than leaving SensorId null until a later reading creates one.
       var sensor = await context.Sensors.FirstOrDefaultAsync(s => s.MacAddress == macAddress, ct);
-      context.Hmis.Add(
-        new Models.Hmi
-        {
-          MacAddress = macAddress,
-          Enabled = true,
-          SensorId = sensor?.Id,
-        }
-      );
+      context.Hmis.Add(new Models.Hmi { MacAddress = macAddress, SensorId = sensor?.Id });
       await context.SaveChangesAsync(ct);
       return;
     }
@@ -127,7 +123,8 @@ public class ReceiveHmiCommandHandler(
     // if it was deleted, but starts sending commands again restore it, but leave it disabled - mirrors SaveSensorPacketHandler.
     if (hmi.DeletedAt is not null)
     {
-      hmi.Enabled = false;
+      if (hmi.Sensor is not null)
+        hmi.Sensor.Enabled = false;
       hmi.DeletedAt = null;
       await context.SaveChangesAsync(ct);
     }

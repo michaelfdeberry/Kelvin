@@ -3,7 +3,8 @@
 ## Transport
 
 The HMI payload migration to CBOR does not change the `KHMI` tag, serial relay, bounded latest-state
-outbound queue, or chunk reassembly. Each frame still carries this 9-byte envelope:
+outbound queue, or chunk reassembly. Each frame still carries the shared 9-byte device envelope
+(`Kelvin.Protocol/DeviceEnvelope.cs`, `Kelvin.Devices/Common/src/DeviceEnvelope.h`, shared by devices with 2-way communication):
 
 `[type:1][chunk index:1][chunk count:1][body length:2 LE][message ID:4 LE][body]`
 

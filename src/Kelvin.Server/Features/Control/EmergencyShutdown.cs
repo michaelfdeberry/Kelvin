@@ -34,7 +34,7 @@ public class EmergencyShutdownHandler(
     cache.Remove(ThermostatCache.Key);
 
     var notification = new SendNotificationRequest(request.Reason, NotificationType.Error, Heading: "Emergency Shutdown", Banner: true);
-    await dispatcher.DispatchAsync(notification, ct);
+    await dispatcher.DispatchAsync<SendNotificationRequest, SendNotificationResponse>(notification, ct);
     await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(), ct);
 
     return Result.Success();

@@ -187,10 +187,10 @@ namespace HmiCbor
   public:
     Writer(uint8_t *output, size_t size, HmiMessageType messageType, size_t fieldCount) : buffer(output), type(messageType)
     {
-      valid = size >= HmiEnvelope::HEADER_SIZE;
+      valid = size >= DeviceEnvelope::HEADER_SIZE;
       if (!valid)
         return;
-      cbor_encoder_init(&encoder, output + HmiEnvelope::HEADER_SIZE, size - HmiEnvelope::HEADER_SIZE, 0);
+      cbor_encoder_init(&encoder, output + DeviceEnvelope::HEADER_SIZE, size - DeviceEnvelope::HEADER_SIZE, 0);
       valid = cbor_encoder_create_map(&encoder, &map, fieldCount + 1) == CborNoError;
       unsignedValue(0, 1);
     }
@@ -214,10 +214,10 @@ namespace HmiCbor
     {
       if (!valid || cbor_encoder_close_container_checked(&encoder, &map) != CborNoError)
         return 0;
-      size_t length = cbor_encoder_get_buffer_size(&encoder, buffer + HmiEnvelope::HEADER_SIZE);
+      size_t length = cbor_encoder_get_buffer_size(&encoder, buffer + DeviceEnvelope::HEADER_SIZE);
       static uint32_t messageId = 0;
-      HmiEnvelope::writeHeader(buffer, type, 0, 1, (uint16_t)length, ++messageId);
-      return HmiEnvelope::HEADER_SIZE + length;
+      DeviceEnvelope::writeHeader(buffer, (uint8_t)type, 0, 1, (uint16_t)length, ++messageId);
+      return DeviceEnvelope::HEADER_SIZE + length;
     }
   };
 }

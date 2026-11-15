@@ -1,7 +1,11 @@
+#include "Config.h"
+
+// Sketches without a sensor define this in their Config.h so they don't need the Sensirion libraries.
+#if !defined(DISABLE_ENVIRONMENT_MONITOR)
+
 #include <Wire.h>
 #include <Arduino.h>
 #include <SensirionI2cSht4x.h>
-#include "Config.h"
 #include "EnvironmentMonitor.h"
 #include "../Logger.h"
 #include "../SensorPayload.h"
@@ -73,3 +77,5 @@ bool EnvironmentMonitor::shouldSendUpdate(const sensor_payload &newPayload)
 
   return shouldUpdate;
 }
+
+#endif

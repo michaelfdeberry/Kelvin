@@ -98,17 +98,56 @@ export class Tabs extends LitElement {
     if (!clickedTab) return;
 
     const clickedIndex = this.tabs.indexOf(clickedTab);
+    this.selectTab(clickedIndex);
+  }
 
+  private selectTab(selectedIndex: number): void {
     this.tabs.forEach((tab, index) => {
       const panel = this.panels[index];
       if (!panel) return;
 
-      const isSelected = index === clickedIndex;
+      const isSelected = index === selectedIndex;
       tab.setAttribute('tabindex', isSelected ? '0' : '-1');
       tab.setAttribute('aria-selected', isSelected ? 'true' : 'false');
       tab.classList.toggle('tab--selected', isSelected);
       panel.classList.toggle('panel--selected', isSelected);
     });
+  }
+
+  private handleTabKeyDown(event: KeyboardEvent): void {
+    const current = event.composedPath().find(el => el instanceof HTMLButtonElement && el.slot === 'tab') as HTMLButtonElement | undefined;
+    if (!current) return;
+
+    // Hidden tabs can't be reached, so arrow keys skip them.
+    const available = this.tabs.filter(tab => !tab.hidden);
+    const position = available.indexOf(current);
+    if (position === -1) return;
+
+    let next: number;
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        next = (position + 1) % available.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        next = (position - 1 + available.length) % available.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = available.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    const target = available[next]!;
+    this.selectTab(this.tabs.indexOf(target));
+    target.focus();
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   override render(): TemplateResult | typeof nothing {
@@ -131,6 +170,7 @@ export class Tabs extends LitElement {
             class="tabs__tablist"
             role="tablist"
             @scroll=${this.updateScrollState}
+            @keydown=${this.handleTabKeyDown}
           >
             <slot
               name="tab"

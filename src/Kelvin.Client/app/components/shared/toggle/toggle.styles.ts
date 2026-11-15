@@ -29,7 +29,7 @@ export default css`
     align-items: center;
     width: 3.1rem;
     height: 1.8rem;
-    border: 1px solid var(--accent-idle);
+    border: 1px solid var(--control-border-color);
     border-radius: 999px;
     background: var(--surface-overlay-panel);
     box-shadow: inset 0 1px 0 var(--surface-overlay-light);
@@ -81,17 +81,14 @@ export default css`
     opacity: 1;
   }
 
-  .toggle:hover .toggle__slider {
-    border-color: var(--accent-primary);
-    box-shadow:
-      inset 0 1px 0 var(--surface-overlay-light),
-      0 6px 16px rgb(2 6 23 / 20%);
+  .toggle__input:not(:disabled):hover + .toggle__slider {
+    border-color: var(--control-border-color-hover);
   }
 
   .toggle__input:focus-visible + .toggle__slider {
-    border-color: var(--accent-info);
+    border-color: var(--control-border-color-focus);
     box-shadow:
-      0 0 0 2px rgb(147 197 253 / 24%),
+      var(--control-focus-ring),
       inset 0 1px 0 var(--surface-overlay-light);
   }
 
@@ -107,7 +104,7 @@ export default css`
   }
 
   .toggle__input:disabled + .toggle__slider {
-    opacity: 0.6;
+    opacity: var(--control-disabled-opacity);
     cursor: not-allowed;
     box-shadow: none;
   }

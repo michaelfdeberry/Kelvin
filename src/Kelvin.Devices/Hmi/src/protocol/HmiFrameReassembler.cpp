@@ -30,19 +30,19 @@ bool HmiFrameReassembler::addFrame(const uint8_t *frame, size_t frameLength)
   if (!pending)
     return false;
 
-  HmiMessageType frameType;
+  uint8_t frameType;
   uint8_t chunkIndex;
   uint8_t chunkCount;
   uint16_t bodyLength;
   uint32_t messageId;
-  if (!HmiEnvelope::readHeader(frame, frameLength, frameType, chunkIndex, chunkCount, bodyLength, messageId))
+  if (!DeviceEnvelope::readHeader(frame, frameLength, frameType, chunkIndex, chunkCount, bodyLength, messageId))
   {
     pending->length = 0;
     pending->chunkCount = 0;
     return false;
   }
 
-  const uint8_t *body = frame + HmiEnvelope::HEADER_SIZE;
+  const uint8_t *body = frame + DeviceEnvelope::HEADER_SIZE;
 
   if (chunkIndex == 0)
   {
@@ -67,7 +67,7 @@ bool HmiFrameReassembler::addFrame(const uint8_t *frame, size_t frameLength)
   if (pending->nextChunkIndex != pending->chunkCount)
     return false;
 
-  type = frameType;
+  type = (HmiMessageType)frameType;
   messageLength = pending->length;
   memcpy(message, pending->data, messageLength);
   pending->length = 0;

@@ -103,6 +103,14 @@ export default css`
     color: var(--text-main);
   }
 
+  /* A tint instead of an outline, which the tablist's overflow clipping would cut off. */
+  slot[name='tab']::slotted(.tab:focus-visible) {
+    outline: none;
+    background: var(--surface-overlay-light);
+    color: var(--text-main);
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+  }
+
   slot[name='tab']::slotted(.tab.tab--selected) {
     color: var(--text-main);
     border-bottom-color: var(--accent-primary);

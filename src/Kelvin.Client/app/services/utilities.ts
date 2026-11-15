@@ -61,6 +61,17 @@ export function getPreferredUnit(temperatureUnit: TemperatureUnit): string {
   return temperatureUnit === 'Fahrenheit' ? '°F' : '°C';
 }
 
+/** Converts a temperature difference, which unlike an absolute temperature has no +32 offset. */
+export function convertDeltaToPreferredUnit(temperatureUnit: TemperatureUnit, deltaC: number): number {
+  if (temperatureUnit === 'Celsius') return deltaC;
+  return Math.round(((deltaC * 9) / 5) * 100) / 100;
+}
+
+export function deltaFromPreferredUnit(temperatureUnit: TemperatureUnit, value: number): number {
+  if (temperatureUnit === 'Celsius') return value;
+  return Math.round(((value * 5) / 9) * 1000) / 1000;
+}
+
 export function timestampToDate(timestamp: string): Date {
   const now = new Date();
   const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

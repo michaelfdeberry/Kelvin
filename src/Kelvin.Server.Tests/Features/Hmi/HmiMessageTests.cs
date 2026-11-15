@@ -506,8 +506,8 @@ public class HmiMessageTests
             snapshot,
             A.Fake<IHandler<Kelvin.Server.Features.Notifications.DismissNotificationRequest>>()
         );
-        var frame = HmiEnvelope
-            .Encode((HmiMessageType)messageType, Convert.FromHexString(hex))
+        var frame = Kelvin
+            .Protocol.DeviceEnvelope.Encode((byte)messageType, Convert.FromHexString(hex))
             .Single();
         var result = await handler.HandleAsync(
             new ReceiveHmiCommandRequest("AA:BB:CC:DD:EE:FF", frame)

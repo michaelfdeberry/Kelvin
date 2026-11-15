@@ -42,10 +42,10 @@ export const routes: Route[] = [
   {
     name: 'settings',
     title: 'Settings',
-    pattern: new URLPattern({ pathname: '/settings' }),
-    render: async () => {
+    pattern: new URLPattern({ pathname: '/settings/:section?' }),
+    render: async params => {
       await import('./components/views/settings/settings-view.js');
-      return html`<app-settings-view></app-settings-view>`;
+      return html`<app-settings-view .section=${params?.section}></app-settings-view>`;
     },
     guard: () => !isKioskMode(),
     redirectTo: '/',

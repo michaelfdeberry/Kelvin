@@ -43,15 +43,23 @@ internal sealed class SimulatedSensor
         };
     }
 
-    public void Step(float ambientTemperatureC)
+    public void Step(
+        float ambientTemperatureC,
+        float? baseHumidityPercentage = null,
+        ushort? baseCO2LevelPpm = null
+    )
     {
         TemperatureC = ambientTemperatureC + roomOffsetC;
         HumidityPercentage = Math.Clamp(
-            HumidityPercentage + (float)(Random.NextDouble() * 0.3 - 0.15),
-            20.0f,
-            70.0f
+            (baseHumidityPercentage ?? HumidityPercentage) + (float)(Random.NextDouble() * 0.3 - 0.15),
+            baseHumidityPercentage.HasValue ? 0f : 20f,
+            baseHumidityPercentage.HasValue ? 100f : 70f
         );
-        CO2LevelPpm = (ushort)Math.Clamp(CO2LevelPpm + Random.Next(-5, 6), 400, 2500);
+        CO2LevelPpm = (ushort)Math.Clamp(
+            (baseCO2LevelPpm ?? CO2LevelPpm) + Random.Next(-5, 6),
+            baseCO2LevelPpm.HasValue ? 0 : 400,
+            baseCO2LevelPpm.HasValue ? ushort.MaxValue : 2500
+        );
         BatteryLevelPercentage = Math.Max(0.0f, BatteryLevelPercentage - 0.0001f);
     }
 

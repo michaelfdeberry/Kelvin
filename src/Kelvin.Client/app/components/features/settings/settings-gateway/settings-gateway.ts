@@ -1,32 +1,19 @@
 import '../../../shared/number-input/number-input.js';
-import '../../../shared/toggle/toggle.js';
 
-import { consume } from '@lit/context';
 import { Task } from '@lit/task';
 import { html, LitElement, TemplateResult } from 'lit';
-import { customElement, query } from 'lit/decorators.js';
+import { customElement } from 'lit/decorators.js';
 
 import settingsGatewayStyles from './settings-gateway.styles';
-import { thermostatContext } from '../../../../contexts/thermostat-context.js';
-import { events } from '../../../../events.js';
 import { Gateway, RelayStates } from '../../../../models/gateway';
-import { Thermostat } from '../../../../models/thermostat.js';
 import { apiGet, apiPut } from '../../../../services/api';
 import apiResources from '../../../../services/api-resources';
-import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
+import { dispatchToast } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles';
-import { confirmModal } from '../../../shared/modal/modal-utilities.js';
-import { Toggle } from '../../../shared/toggle/toggle.js';
 
 @customElement('app-settings-gateway')
 export class SettingsGateway extends LitElement {
   static override styles = [sharedStyles, settingsGatewayStyles];
-
-  @consume({ context: thermostatContext, subscribe: true })
-  private thermostat!: Thermostat;
-
-  @query('app-toggle')
-  private toggle!: Toggle;
 
   private gatewayTask = new Task(this, {
     task: async (_, { signal }) => {
@@ -59,38 +46,6 @@ export class SettingsGateway extends LitElement {
 
     await apiPut(apiResources.gateways.updateGateway, { body: update });
     dispatchToast(this, 'Success', 'Gateway settings saved successfully.');
-  }
-
-  private async handleControlChange(): Promise<void> {
-    const updatedThermostatSettings: Thermostat = {
-      ...this.thermostat,
-    };
-
-    if (this.toggle.checked) {
-      const result = await confirmModal('Enabling the gateway will allow the system to control your HVAC. Are you sure you want to enable it?');
-      if (!result) {
-        this.toggle.checked = false;
-        return;
-      }
-      updatedThermostatSettings.mode = 'Off';
-    } else {
-      const result = await confirmModal(
-        `
-          Disabling the gateway will prevent the system from controlling your HVAC and revert control to the failsafe thermostat. 
-          Are you sure you want to disable it?
-        `,
-      );
-      if (!result) {
-        this.toggle.checked = true;
-        return;
-      }
-      updatedThermostatSettings.mode = 'Disabled';
-    }
-
-    await apiPut(apiResources.thermostat.updateThermostat, {
-      body: updatedThermostatSettings,
-    });
-    dispatchCustomEvent(this, events.thermostatUpdated);
   }
 
   private renderGateway(gateway: Gateway & { relayStates: RelayStates }): TemplateResult {
@@ -199,14 +154,7 @@ export class SettingsGateway extends LitElement {
             pending: () => html`<p>Loading gateway settings...</p>`,
             complete: gateway => html`
               <div class="card__header">
-                <h2 class="card__title">Gateway Settings</h2>
-                <label class="settings-gateway__toggle-label">
-                  HVAC Control
-                  <app-toggle
-                    @change=${this.handleControlChange}
-                    ?checked=${gateway.relayStates?.control ?? false}
-                  ></app-toggle>
-                </label>
+                <h2 class="card__title">Gateway</h2>
               </div>
               ${this.renderGateway(gateway)}
             `,

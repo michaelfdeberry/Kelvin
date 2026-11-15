@@ -183,6 +183,74 @@ public class GetWeatherForecastTests
     }
 
     [Fact]
+    public async Task CachedOnly_CacheMiss_FailsWithoutCallingTheApi()
+    {
+        var location = CreateLocation();
+        var dispatcher = A.Fake<IDispatcher>();
+        A.CallTo(() =>
+                dispatcher.DispatchAsync<GetCurrentLocationRequest, GetCurrentLocationResponse>(
+                    A<GetCurrentLocationRequest>._,
+                    A<CancellationToken>._
+                )
+            )
+            .Returns(Result<GetCurrentLocationResponse>.Success(location));
+
+        var weatherApi = A.Fake<IWeatherApi>();
+        var logger = A.Fake<ILogger<GetWeatherForecastHandler>>();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var handler = new GetWeatherForecastHandler(dispatcher, logger, cache, weatherApi);
+
+        var result = await handler.HandleAsync(new GetWeatherForecastRequest(CachedOnly: true));
+
+        result.Error.ShouldBe(GetWeatherForecastErrors.NotCached);
+        A.CallTo(() =>
+                weatherApi.GetForecastAsync(A<double>._, A<double>._, A<CancellationToken>._)
+            )
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task CachedOnly_CacheHit_ReturnsTheCachedForecast()
+    {
+        var location = CreateLocation();
+        var dispatcher = A.Fake<IDispatcher>();
+        A.CallTo(() =>
+                dispatcher.DispatchAsync<GetCurrentLocationRequest, GetCurrentLocationResponse>(
+                    A<GetCurrentLocationRequest>._,
+                    A<CancellationToken>._
+                )
+            )
+            .Returns(Result<GetCurrentLocationResponse>.Success(location));
+
+        var weatherApi = A.Fake<IWeatherApi>();
+        A.CallTo(() =>
+                weatherApi.GetForecastAsync(
+                    location.Latitude,
+                    location.Longitude,
+                    A<CancellationToken>._
+                )
+            )
+            .Returns(
+                Task.FromResult<WeatherForecast?>(
+                    CreateForecast(location.Latitude, location.Longitude)
+                )
+            );
+
+        var logger = A.Fake<ILogger<GetWeatherForecastHandler>>();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var handler = new GetWeatherForecastHandler(dispatcher, logger, cache, weatherApi);
+        await handler.HandleAsync(new GetWeatherForecastRequest());
+
+        var result = await handler.HandleAsync(new GetWeatherForecastRequest(CachedOnly: true));
+
+        result.IsSuccess.ShouldBeTrue();
+        A.CallTo(() =>
+                weatherApi.GetForecastAsync(A<double>._, A<double>._, A<CancellationToken>._)
+            )
+            .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
     public async Task DifferentCoordinates_BypassTheCache()
     {
         var firstLocation = CreateLocation(40.7128, -74.0060);

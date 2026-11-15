@@ -27,5 +27,9 @@
   "[html]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "csharpOrganizeUsings.splitGroups": false
+  "csharpOrganizeUsings.splitGroups": false,
+  "chat.tools.terminal.autoApprove": {
+    "dotnet test": true,
+    "dotnet build": true
+  }
 }

@@ -26,6 +26,8 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
 
   public DbSet<Notification> Notifications => Set<Notification>();
 
+  public DbSet<Device> Devices => Set<Device>();
+
   public static string ResolveSqliteConnectionString(IConfiguration configuration)
   {
     var databaseDirectory = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "kelvin");
@@ -64,6 +66,14 @@ public class KelvinContext(DbContextOptions<KelvinContext> options) : DbContext(
     {
       modelBuilder.Entity(entityType);
     }
+
+    modelBuilder.Entity<Device>().HasDiscriminator<DeviceType>("Type").HasValue<HumidifierDevice>(DeviceType.Humidifier);
+
+    modelBuilder
+      .Entity<Thermostat>()
+      .Property(thermostat => thermostat.FanMode)
+      .HasDefaultValue(FanMode.CoolingOnly)
+      .HasSentinel(FanMode.CoolingOnly);
 
     // The history is always read as a timeline for one axis over a date range.
     modelBuilder.Entity<ControlStateChange>().HasIndex(change => new { change.Kind, change.CreatedAt });

@@ -20,8 +20,8 @@ const checkboxStyles = css`
   }
 
   .form-control__label:has(> .checkbox:focus-visible) {
-    border-color: var(--accent-info);
-    box-shadow: 0 0 0 2px rgb(147 197 253 / 24%);
+    border-color: var(--control-border-color-focus);
+    box-shadow: var(--control-focus-ring);
   }
 
   .form-control__input.checkbox {
@@ -33,7 +33,7 @@ const checkboxStyles = css`
   .checkbox {
     appearance: none;
     flex-shrink: 0;
-    border: 1px solid var(--accent-idle);
+    border: 1px solid var(--control-border-color);
     border-radius: 0.25rem;
     background: var(--bg-panel);
     cursor: pointer;
@@ -45,18 +45,23 @@ const checkboxStyles = css`
     position: relative;
   }
 
-  .checkbox:hover {
-    border-color: var(--accent-primary);
+  .checkbox:hover:not(:disabled) {
+    border-color: var(--control-border-color-hover);
   }
 
-  .checkbox:active {
+  .checkbox:active:not(:disabled) {
     transform: scale(0.96);
   }
 
   .checkbox:focus-visible {
     outline: none;
-    border-color: var(--accent-info);
-    box-shadow: 0 0 0 2px rgb(147 197 253 / 24%);
+    border-color: var(--control-border-color-focus);
+    box-shadow: var(--control-focus-ring);
+  }
+
+  .checkbox:disabled {
+    opacity: var(--control-disabled-opacity);
+    cursor: not-allowed;
   }
 
   .checkbox:checked {

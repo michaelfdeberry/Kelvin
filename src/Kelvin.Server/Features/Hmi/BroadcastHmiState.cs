@@ -12,14 +12,16 @@ public record BroadcastHmiStateRequest() : IRequest;
 /// Pushes the full thermostat state to every registered panel, split into ESP-NOW-sized chunks since the
 /// schedule list is open-ended and can exceed a single ~250 byte frame.
 /// </summary>
-public class BroadcastHmiStateHandler(KelvinContext context, IHmiOutboundChannel outboundChannel) : IHandler<BroadcastHmiStateRequest>
+public class BroadcastHmiStateHandler(
+  KelvinContext context,
+  IHandler<GetHmiMacAddressesRequest, GetHmiMacAddressesResponse> getMacAddresses,
+  IDeviceOutboundChannel outboundChannel
+) : IHandler<BroadcastHmiStateRequest>
 {
   public async Task<Result> HandleAsync(BroadcastHmiStateRequest request, CancellationToken ct = default)
   {
-    var macAddresses = await context
-      .Hmis.Where(hmi => hmi.Enabled && hmi.DeletedAt == null && hmi.MacAddress != null)
-      .Select(hmi => hmi.MacAddress!)
-      .ToListAsync(ct);
+    var macAddressesResult = await getMacAddresses.HandleAsync(new GetHmiMacAddressesRequest(), ct);
+    var macAddresses = macAddressesResult.Value!.MacAddresses;
 
     if (macAddresses.Count == 0)
       return Result.Success();
@@ -31,7 +33,7 @@ public class BroadcastHmiStateHandler(KelvinContext context, IHmiOutboundChannel
     var payload = HmiThermostatStateEncoder.Encode(thermostat);
     foreach (var macAddress in macAddresses)
     {
-      outboundChannel.Write(macAddress, HmiMessageType.ThermostatStateChunk, payload);
+      outboundChannel.WriteHmi(macAddress, HmiMessageType.ThermostatStateChunk, payload);
     }
 
     return Result.Success();
