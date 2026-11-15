@@ -26,7 +26,7 @@ public class UpdateFanStateHandler(KelvinContext context, IControlChannel contro
     if (thermostat is null)
       return Result.Failure(UpdateThermostatErrors.ThermostatNotFound);
 
-    if (thermostat.Mode is RunMode.Disabled or RunMode.Off)
+    if (thermostat.Mode == RunMode.Disabled)
       return Result.Success();
 
     if (thermostat.FanEnabled == request.FanEnabled)
