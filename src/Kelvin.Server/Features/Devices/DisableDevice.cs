@@ -25,6 +25,7 @@ public class DisableDeviceHandler(KelvinContext context, IDispatcher dispatcher)
     device.Enabled = false;
     await context.SaveChangesAsync(ct);
 
+    await dispatcher.PublishAsync(new DeviceDisabledEvent(device), ct);
     await dispatcher.PublishAsync(new DevicesChangedEvent(), ct);
     return Result.Success();
   }

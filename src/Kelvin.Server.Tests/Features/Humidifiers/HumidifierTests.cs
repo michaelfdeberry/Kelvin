@@ -386,8 +386,24 @@ public class HumidifierTests : IDisposable
         await ReportRelayAsync(true);
         var outbound = new DeviceOutboundChannel();
 
-        await new CleanUpDeletedHumidifierHandler(outbound, _deviceStates).HandleAsync(
+        await new ReleaseHumidifierHandler(outbound, _deviceStates).HandleAsync(
             new DeviceDeletedEvent(
+                new HumidifierDevice { Name = "Humidifier", MacAddress = MacAddress }
+            )
+        );
+
+        ReadSentState(outbound).ShouldBe(false);
+        ReportedRelayState().ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Disabled_RunningHumidifier_IsSentOffAndItsStateForgotten()
+    {
+        await ReportRelayAsync(true);
+        var outbound = new DeviceOutboundChannel();
+
+        await new ReleaseHumidifierHandler(outbound, _deviceStates).HandleAsync(
+            new DeviceDisabledEvent(
                 new HumidifierDevice { Name = "Humidifier", MacAddress = MacAddress }
             )
         );
@@ -402,7 +418,7 @@ public class HumidifierTests : IDisposable
         await ReportRelayAsync(true);
         var outbound = new DeviceOutboundChannel();
 
-        await new CleanUpDeletedHumidifierHandler(outbound, _deviceStates).HandleAsync(
+        await new ReleaseHumidifierHandler(outbound, _deviceStates).HandleAsync(
             new DeviceDeletedEvent(new HumidifierDevice { Name = "Humidifier" })
         );
 

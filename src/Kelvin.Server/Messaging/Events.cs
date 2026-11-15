@@ -20,6 +20,9 @@ public record DevicesChangedEvent();
 /// <summary>Raised after a device is deleted, so its type can clean up after it (e.g. switch off what it was running).</summary>
 public record DeviceDeletedEvent(Device Device);
 
+/// <summary>Raised after a device is disabled, so its type can stop what it was running.</summary>
+public record DeviceDisabledEvent(Device Device);
+
 /// <summary>Raised whenever a device's reported state changes; carries the latest state of every device type by name.</summary>
 public record DeviceStateChangedEvent(IReadOnlyDictionary<string, object> States);
 
