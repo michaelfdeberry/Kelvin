@@ -254,6 +254,51 @@ public class HumidifierTests : IDisposable
             .MustNotHaveHappened();
     }
 
+    [Fact]
+    public async Task CheckIn_FromASecondDevice_IsRejectedWhileAnotherIsRegistered()
+    {
+        await AddDeviceAsync();
+
+        var result = await ReceiveAsync(Uplink(HumidifierMessageType.CheckIn, relayOn: true), "11:22:33:44:55:66");
+
+        result.Error.ShouldBe(ReceiveHumidifierMessageErrors.AlreadyRegistered);
+        using var context = _harness.CreateContext();
+        (await context.Devices.SingleAsync()).MacAddress.ShouldBe(MacAddress);
+        ReportedRelayState().ShouldBeNull();
+        A.CallTo(() => _dispatcher.PublishAsync(A<DevicesChangedEvent>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task CheckIn_FromADeletedDevice_IsNotRestoredWhileAnotherIsRegistered()
+    {
+        var deletedId = await AddDeviceAsync();
+        using (var context = _harness.CreateContext())
+        {
+            context.Devices.Remove(await context.Devices.SingleAsync(d => d.Id == deletedId));
+            await context.SaveChangesAsync();
+        }
+        using (var context = _harness.CreateContext())
+        {
+            context.Devices.Add(
+                new HumidifierDevice
+                {
+                    Name = "Humidifier",
+                    MacAddress = "11:22:33:44:55:66",
+                    Enabled = true,
+                    Configuration = new HumidifierConfiguration(),
+                }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        var result = await ReceiveAsync(Uplink(HumidifierMessageType.CheckIn, relayOn: false));
+
+        result.Error.ShouldBe(ReceiveHumidifierMessageErrors.AlreadyRegistered);
+        using var verify = _harness.CreateContext();
+        (await verify.Devices.FindAsync(deletedId))!.DeletedAt.ShouldNotBeNull();
+    }
+
     [Theory]
     [InlineData("01A2000101F5")]
     [InlineData("020001050000000000A2000101F5")]
@@ -407,7 +452,7 @@ public class HumidifierTests : IDisposable
         return result.Value!;
     }
 
-    private async Task<Result> ReceiveAsync(byte[] payload)
+    private async Task<Result> ReceiveAsync(byte[] payload, string macAddress = MacAddress)
     {
         using var context = _harness.CreateContext();
         var handler = new ReceiveHumidifierMessageHandler(
@@ -416,7 +461,7 @@ public class HumidifierTests : IDisposable
             _dispatcher,
             _deviceStates
         );
-        return await handler.HandleAsync(new ReceiveHumidifierMessageRequest(MacAddress, payload));
+        return await handler.HandleAsync(new ReceiveHumidifierMessageRequest(macAddress, payload));
     }
 
     private Task ReportRelayAsync(bool relayOn) =>

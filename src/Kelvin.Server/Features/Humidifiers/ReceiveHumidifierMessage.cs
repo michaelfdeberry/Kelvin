@@ -13,11 +13,17 @@ public record ReceiveHumidifierMessageRequest(string MacAddress, byte[] Payload)
 public static class ReceiveHumidifierMessageErrors
 {
   public static readonly Error InvalidPayload = new("ReceiveHumidifierMessage.InvalidPayload", "The humidifier message payload was invalid.");
+
+  public static readonly Error AlreadyRegistered = new(
+    "ReceiveHumidifierMessage.AlreadyRegistered",
+    "Another humidifier is already registered, and only one is supported."
+  );
 }
 
 /// <summary>
-/// Records a humidifier's check-in or state acknowledgement, registering unknown devices by MAC. The relay state
-/// it reports becomes the published device state, and a check-in prompts the server to send the current state.
+/// Records a humidifier's check-in or state acknowledgement, registering an unknown device by MAC unless another
+/// humidifier is already registered. The relay state it reports becomes the published device state, and a check-in
+/// prompts the server to send the current state.
 /// </summary>
 public class ReceiveHumidifierMessageHandler(
   KelvinContext context,
@@ -32,6 +38,9 @@ public class ReceiveHumidifierMessageHandler(
       return Result.Failure(ReceiveHumidifierMessageErrors.InvalidPayload);
 
     var device = await RegisterAsync(request.MacAddress, ct);
+    if (device is null)
+      return Result.Failure(ReceiveHumidifierMessageErrors.AlreadyRegistered);
+
     await deviceStates.HandleAsync(new UpdateDeviceStateRequest(DeviceStateNames.Humidifier, device.Enabled, new HumidifierState(relayOn)), ct);
 
     // Refreshes the device list's last seen time, and the integration service answers with the current state.
@@ -41,9 +50,18 @@ public class ReceiveHumidifierMessageHandler(
     return Result.Success();
   }
 
-  private async Task<HumidifierDevice> RegisterAsync(string macAddress, CancellationToken ct)
+  private async Task<HumidifierDevice?> RegisterAsync(string macAddress, CancellationToken ct)
   {
     var device = await context.Devices.OfType<HumidifierDevice>().FirstOrDefaultAsync(d => d.MacAddress == macAddress, ct);
+
+    // Only one humidifier is supported, so a new or deleted one can't be (re)registered while another is active.
+    if (device is null or { DeletedAt: not null })
+    {
+      var otherActive = await context.Devices.OfType<HumidifierDevice>().AnyAsync(d => d.DeletedAt == null && d.MacAddress != macAddress, ct);
+      if (otherActive)
+        return null;
+    }
+
     if (device is null)
     {
       device = new HumidifierDevice

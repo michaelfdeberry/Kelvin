@@ -28,7 +28,8 @@ public class SyncHumidifierHandler(
     var device = await context
       .Devices.AsNoTracking()
       .OfType<HumidifierDevice>()
-      .FirstOrDefaultAsync(d => d.DeletedAt == null && d.MacAddress != null, ct);
+      .FirstOrDefaultAsync(d => d.Enabled && d.DeletedAt == null && d.MacAddress != null, ct);
+
     if (device is null)
       return Result.Success();
 
