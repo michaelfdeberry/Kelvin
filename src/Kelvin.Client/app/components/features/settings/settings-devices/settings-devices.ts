@@ -13,7 +13,7 @@ import powerIcon from '../../../../../assets/icons/power.svg?raw';
 import trashIcon from '../../../../../assets/icons/trash.svg?raw';
 import { devicesContext } from '../../../../contexts/devices-context.js';
 import { events } from '../../../../events.js';
-import { Device, UpdateDeviceRequest } from '../../../../models/devices.js';
+import { Device, DevicesSettings, UpdateDeviceRequest } from '../../../../models/devices.js';
 import resources from '../../../../services/api-resources.js';
 import { apiDelete, apiPost, apiPut } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
@@ -62,6 +62,10 @@ export class SettingsDevices extends LitElement {
     return this.devices?.find(device => device.id === this.editingId);
   }
 
+  private updateDevices(devices: Device[]): void {
+    dispatchCustomEvent<Partial<DevicesSettings>>(this, events.devicesUpdated, { devices });
+  }
+
   private handleEdit(device: Device): void {
     this.editingId = device.id;
     this.isModalOpen = true;
@@ -87,7 +91,7 @@ export class SettingsDevices extends LitElement {
     try {
       await apiPut<void>(resources.devices.updateDevice, { body, routeParams: { id: device.id } });
       dispatchToast(this, 'Success', 'Device updated successfully.');
-      dispatchCustomEvent(this, events.devicesUpdated);
+      this.updateDevices(this.devices.map(existing => (existing.id === device.id ? { ...existing, name } : existing)));
       this.isModalOpen = false;
     } catch {
       // apiPut already surfaces an error toast.
@@ -102,7 +106,7 @@ export class SettingsDevices extends LitElement {
         await apiPost<void>(resources.devices.enableDevice, { body: undefined, routeParams: { deviceId: device.id } });
       }
       dispatchToast(this, 'Success', `Device ${device.enabled ? 'disabled' : 'enabled'} successfully`);
-      dispatchCustomEvent(this, events.devicesUpdated);
+      this.updateDevices(this.devices.map(existing => (existing.id === device.id ? { ...existing, enabled: !device.enabled } : existing)));
     } catch {
       // The api helpers already surface an error toast.
     }
@@ -112,7 +116,8 @@ export class SettingsDevices extends LitElement {
     try {
       await apiPost<void>(resources.devices.restoreDevice, { body: undefined, routeParams: { id: device.id } });
       dispatchToast(this, 'Success', `Device ${device.name} restored successfully`);
-      dispatchCustomEvent(this, events.devicesUpdated);
+      const others = this.devices.filter(existing => existing.id !== device.id);
+      this.updateDevices([...others, device].sort((a, b) => a.name.localeCompare(b.name)));
     } catch {
       // The api helpers already surface an error toast.
     }
@@ -137,7 +142,7 @@ export class SettingsDevices extends LitElement {
           </button>
         `,
       });
-      dispatchCustomEvent(this, events.devicesUpdated);
+      this.updateDevices(this.devices.filter(existing => existing.id !== device.id));
     } catch {
       // The api helpers already surface an error toast.
     }

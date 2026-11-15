@@ -33,8 +33,8 @@ public class UpdateSensorHandler(KelvinContext context, IMemoryCache cache, IDis
     sensor.CO2LevelPpmOffset = request.Update.CO2LevelPpmOffset;
 
     await context.SaveChangesAsync(ct);
-    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
     cache.Remove(SensorsCache.Key);
+    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
 
     return Result.Success();
   }

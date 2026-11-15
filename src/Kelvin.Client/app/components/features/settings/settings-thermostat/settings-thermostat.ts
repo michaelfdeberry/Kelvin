@@ -13,7 +13,7 @@ import { thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
 import { RelayStates } from '../../../../models/gateway.js';
 import { Preferences } from '../../../../models/preferences.js';
-import { FanMode, Thermostat, UpdateThermostatConfigurationRequest } from '../../../../models/thermostat.js';
+import { FanMode, Thermostat, ThermostatSettings, UpdateThermostatConfigurationRequest } from '../../../../models/thermostat.js';
 import apiResources from '../../../../services/api-resources.js';
 import { apiGet, apiPut } from '../../../../services/api.js';
 import {
@@ -118,7 +118,7 @@ export class SettingsThermostat extends LitElement {
     try {
       await apiPut<void>(apiResources.thermostat.updateThermostatConfiguration, { body: request });
       this.clearDraft(section);
-      dispatchCustomEvent(this, events.thermostatUpdated);
+      dispatchCustomEvent<Partial<ThermostatSettings>>(this, events.thermostatUpdated, { thermostat: { ...this.thermostat, ...request } });
       dispatchToast(this, 'Success', 'Thermostat settings saved successfully.');
     } catch {
       // apiPut already surfaces an error toast.
@@ -150,7 +150,7 @@ export class SettingsThermostat extends LitElement {
     }
 
     await apiPut(apiResources.thermostat.updateThermostat, { body: updatedThermostat });
-    dispatchCustomEvent(this, events.thermostatUpdated);
+    dispatchCustomEvent<Partial<ThermostatSettings>>(this, events.thermostatUpdated, { thermostat: updatedThermostat });
   }
 
   private renderDelta(id: string, label: string, deltaC: number, disabled: boolean): TemplateResult {

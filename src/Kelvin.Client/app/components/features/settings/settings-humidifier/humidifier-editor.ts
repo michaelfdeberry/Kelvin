@@ -9,9 +9,10 @@ import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 
 import humidifierEditorStyles from './humidifier-editor.styles.js';
 import trashIcon from '../../../../../assets/icons/trash.svg?raw';
+import { humidifiersContext } from '../../../../contexts/devices-context.js';
 import { preferencesContext } from '../../../../contexts/preferences-context.js';
 import { events } from '../../../../events.js';
-import { Humidifier, HumidityTarget, UpdateHumidifierConfigurationRequest } from '../../../../models/devices.js';
+import { DevicesSettings, Humidifier, HumidityTarget, UpdateHumidifierConfigurationRequest } from '../../../../models/devices.js';
 import { Preferences } from '../../../../models/preferences.js';
 import apiResources from '../../../../services/api-resources.js';
 import { apiPut } from '../../../../services/api.js';
@@ -28,6 +29,9 @@ export class HumidifierEditor extends LitElement {
 
   @consume({ context: preferencesContext, subscribe: true })
   private preferences?: Preferences;
+
+  @consume({ context: humidifiersContext, subscribe: true })
+  private humidifiers!: Humidifier[];
 
   @query('app-modal')
   private modal!: Modal;
@@ -110,7 +114,13 @@ export class HumidifierEditor extends LitElement {
 
     try {
       await apiPut<void>(apiResources.humidifiers.updateHumidifierConfiguration, { body, routeParams: { id: this.humidifier!.id } });
-      dispatchCustomEvent(this, events.devicesUpdated);
+      const id = this.humidifier!.id;
+      const humidifiers = this.humidifiers.map(humidifier =>
+        humidifier.id === id
+          ? { ...humidifier, ...body, targets: [...body.targets].sort((a, b) => a.outdoorTemperatureC - b.outdoorTemperatureC) }
+          : humidifier,
+      );
+      dispatchCustomEvent<Partial<DevicesSettings>>(this, events.devicesUpdated, { humidifiers });
       dispatchToast(this, 'Success', 'Humidifier settings saved successfully.');
       this.modal.hide();
     } catch {

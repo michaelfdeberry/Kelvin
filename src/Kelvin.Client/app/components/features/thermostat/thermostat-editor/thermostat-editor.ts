@@ -13,12 +13,20 @@ import { ThermostatEditorForecast } from './thermostat-editor-forecast.js';
 import { ThermostatEditorSchedules } from './thermostat-editor-schedules.js';
 import { ThermostatEditorSetPoints } from './thermostat-editor-set-points.js';
 import thermostatEditorStyles from './thermostat-editor.styles.js';
-import { thermostatContext } from '../../../../contexts/thermostat-context.js';
+import { schedulesContext, setPointsContext, thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
-import { RunMode, Thermostat, UpdateThermostatSettingsRequest } from '../../../../models/thermostat.js';
+import {
+  RunMode,
+  RunType,
+  Schedule,
+  SetPoint,
+  Thermostat,
+  ThermostatSettings,
+  UpdateThermostatSettingsRequest,
+} from '../../../../models/thermostat.js';
 import resources from '../../../../services/api-resources.js';
 import { apiPut } from '../../../../services/api.js';
-import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
+import { dispatchCustomEvent, dispatchToast, generateProvisionalId } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 import { Modal } from '../../../shared/modal/modal.js';
 
@@ -40,6 +48,12 @@ export class ThermostatEditor extends LitElement {
 
   @consume({ context: thermostatContext, subscribe: true })
   thermostat!: Thermostat;
+
+  @consume({ context: setPointsContext, subscribe: true })
+  private setPoints!: SetPoint[];
+
+  @consume({ context: schedulesContext, subscribe: true })
+  private schedules!: Schedule[];
 
   @state()
   private targetMode?: RunMode;
@@ -102,12 +116,37 @@ export class ThermostatEditor extends LitElement {
 
     try {
       await apiPut<void>(resources.thermostat.updateThermostatSettings, { body: request });
-      dispatchCustomEvent(this, events.thermostatUpdated);
+      dispatchCustomEvent<Partial<ThermostatSettings>>(this, events.thermostatUpdated, this.applySettings(request));
       dispatchToast(this, 'Success', 'Thermostat settings saved successfully.');
       this.modal.hide();
     } catch {
       // apiPut already surfaces an error toast - keep the modal open so the user can correct the input.
     }
+  }
+
+  // Mirrors how the server applies the settings: a mode's lockout is only taken when that mode is in play, and its set point/schedules replace what was there.
+  private applySettings(request: UpdateThermostatSettingsRequest): ThermostatSettings {
+    const heating = this.isHeatingAvailable;
+    const cooling = this.isCoolingAvailable;
+    const replaces = (type: RunType) => (type === 'Heating' ? heating : cooling) || request.schedules.some(schedule => schedule.type === type);
+
+    return {
+      thermostat: {
+        ...this.thermostat,
+        ...(heating && { heatingLockoutC: request.heatingLockoutC }),
+        ...(cooling && { coolingLockoutC: request.coolingLockoutC }),
+      },
+      setPoints: [
+        ...this.setPoints.filter(setPoint => !request.setPoints.some(updated => updated.type === setPoint.type)),
+        ...request.setPoints.map(setPoint => ({ ...setPoint, id: setPoint.id ?? generateProvisionalId() })),
+      ],
+      schedules: [
+        ...this.schedules.filter(schedule => !replaces(schedule.type)),
+        ...request.schedules
+          .filter(schedule => replaces(schedule.type))
+          .map(schedule => ({ ...schedule, id: schedule.id ?? generateProvisionalId() })),
+      ],
+    };
   }
 
   override render(): TemplateResult | typeof nothing {

@@ -72,6 +72,17 @@ export function deltaFromPreferredUnit(temperatureUnit: TemperatureUnit, value: 
   return Math.round(((value * 5) / 9) * 1000) / 1000;
 }
 
+/**
+ * A well-formed GUID for a record the server hasn't assigned an id to yet, so local state can hold it until the pushed data replaces it.
+ * crypto.randomUUID is not used because it is only available in secure contexts, and Kelvin is normally served over plain http.
+ */
+export function generateProvisionalId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, placeholder => {
+    const random = (crypto.getRandomValues(new Uint8Array(1))[0] ?? 0) & 0x0f;
+    return (placeholder === 'x' ? random : (random & 0x03) | 0x08).toString(16);
+  });
+}
+
 export function timestampToDate(timestamp: string): Date {
   const now = new Date();
   const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

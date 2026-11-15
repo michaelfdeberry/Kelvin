@@ -18,7 +18,7 @@ import { events } from '../../../../events.js';
 import { ControlStateChange } from '../../../../models/control-state-change.js';
 import { Device, DeviceStates } from '../../../../models/devices.js';
 import { EnvironmentReading } from '../../../../models/sensors.js';
-import { RunMode, Schedule, SetPoint, Thermostat } from '../../../../models/thermostat.js';
+import { RunMode, Schedule, SetPoint, Thermostat, ThermostatSettings } from '../../../../models/thermostat.js';
 import { ToastDetail } from '../../../../models/toast-detail.js';
 import resources from '../../../../services/api-resources.js';
 import { apiPut } from '../../../../services/api.js';
@@ -142,7 +142,7 @@ export class ThermostatControl extends LitElement {
 
   private async updateThermostat(update: Thermostat): Promise<void> {
     await apiPut<void>(resources.thermostat.updateThermostat, { body: update });
-    dispatchCustomEvent(this, events.thermostatUpdated);
+    dispatchCustomEvent<Partial<ThermostatSettings>>(this, events.thermostatUpdated, { thermostat: update });
   }
 
   private async toggleFan(): Promise<void> {

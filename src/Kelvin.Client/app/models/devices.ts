@@ -9,8 +9,10 @@ export type Device = {
   lastSeenAt?: string | null;
 };
 
-export type Devices = {
+// Everything the server pushes about devices; local updates may carry only the parts that changed.
+export type DevicesSettings = {
   devices: Device[];
+  humidifiers: Humidifier[];
 };
 
 export type HumidifierState = {
@@ -38,10 +40,6 @@ export type Humidifier = {
   startMonth: number;
   endMonth: number;
   targets: HumidityTarget[];
-};
-
-export type Humidifiers = {
-  humidifiers: Humidifier[];
 };
 
 export type UpdateHumidifierConfigurationRequest = Pick<Humidifier, 'startMonth' | 'endMonth' | 'targets'>;

@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace Kelvin.Server.Messaging;
 
 /// <summary>Forwards bus events to every connected browser client over the single realtime hub.</summary>
-public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> hub)
+public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> hub, RealtimeSnapshots snapshots)
   : IEventHandler<ControlStateChangedEvent>,
     IEventHandler<EnvironmentReadingChangedEvent>,
     IEventHandler<ThermostatConfigChangedEvent>,
@@ -23,14 +23,15 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
   public Task HandleAsync(EnvironmentReadingChangedEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.EnvironmentReadingChanged, @event.Reading));
 
-  public Task HandleAsync(ThermostatConfigChangedEvent @event, CancellationToken cancellationToken = default) =>
-    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.ThermostatSettingsChanged, null));
+  // These events only signal that something changed, so the current data is read and pushed rather than having clients pull it.
+  public async Task HandleAsync(ThermostatConfigChangedEvent @event, CancellationToken cancellationToken = default) =>
+    await SendAsync(await snapshots.ThermostatAsync(cancellationToken));
 
-  public Task HandleAsync(SensorsChangedEvent @event, CancellationToken cancellationToken = default) =>
-    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.SensorsSettingsChanged, null));
+  public async Task HandleAsync(SensorsChangedEvent @event, CancellationToken cancellationToken = default) =>
+    await SendAsync(await snapshots.SensorsAsync(cancellationToken));
 
-  public Task HandleAsync(DevicesChangedEvent @event, CancellationToken cancellationToken = default) =>
-    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DevicesSettingsChanged, null));
+  public async Task HandleAsync(DevicesChangedEvent @event, CancellationToken cancellationToken = default) =>
+    await SendAsync(await snapshots.DevicesAsync(cancellationToken));
 
   public Task HandleAsync(DeviceStateChangedEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DeviceStateChanged, @event.States));
@@ -43,6 +44,8 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
 
   public Task HandleAsync(PreferencesChangedEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.PreferencesChanged, @event.Preferences));
+
+  private Task SendAsync(RealtimeMessage? message) => message is null ? Task.CompletedTask : hub.Clients.All.Receive(message);
 }
 
 public class SignalRBroadcastServiceRegistration : IRegistration

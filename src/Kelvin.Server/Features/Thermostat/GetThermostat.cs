@@ -30,7 +30,27 @@ public record GetThermostatResponseDto(
   float HeatingBalanceSatisfiedC = 0.0f,
   int HeatingAutoBalanceDurationMs = 0,
   FanMode FanMode = FanMode.CoolingOnly
-);
+)
+{
+  public static GetThermostatResponseDto FromThermostat(Models.Thermostat thermostat) =>
+    new(
+      thermostat.Id,
+      thermostat.Mode,
+      thermostat.FanEnabled,
+      thermostat.HysteresisC,
+      thermostat.HeatingLockoutC,
+      thermostat.CoolingLockoutC,
+      CO2RecirculationEnabled: thermostat.CO2RecirculationEnabled,
+      CO2RecirculationTriggerPpm: thermostat.CO2RecirculationTriggerPpm,
+      CO2RecirculationSatisfiedPpm: thermostat.CO2RecirculationSatisfiedPpm,
+      CO2RecirculationDurationMs: thermostat.CO2RecirculationDurationMs,
+      HeatingAutoBalanceEnabled: thermostat.HeatingAutoBalanceEnabled,
+      HeatingBalanceTriggerC: thermostat.HeatingBalanceTriggerC,
+      HeatingBalanceSatisfiedC: thermostat.HeatingBalanceSatisfiedC,
+      HeatingAutoBalanceDurationMs: thermostat.HeatingAutoBalanceDurationMs,
+      FanMode: thermostat.FanMode
+    );
+}
 
 public static class ThermostatCache
 {
@@ -91,26 +111,7 @@ public class GetThermostatEndpoint : IEndpointMapper
             return Results.InternalServerError(result.Error);
           }
 
-          var thermostat = result.Value!.Thermostat!;
-          return Results.Ok(
-            new GetThermostatResponseDto(
-              thermostat.Id,
-              thermostat.Mode,
-              thermostat.FanEnabled,
-              thermostat.HysteresisC,
-              thermostat.HeatingLockoutC,
-              thermostat.CoolingLockoutC,
-              CO2RecirculationEnabled: thermostat.CO2RecirculationEnabled,
-              CO2RecirculationTriggerPpm: thermostat.CO2RecirculationTriggerPpm,
-              CO2RecirculationSatisfiedPpm: thermostat.CO2RecirculationSatisfiedPpm,
-              CO2RecirculationDurationMs: thermostat.CO2RecirculationDurationMs,
-              HeatingAutoBalanceEnabled: thermostat.HeatingAutoBalanceEnabled,
-              HeatingBalanceTriggerC: thermostat.HeatingBalanceTriggerC,
-              HeatingBalanceSatisfiedC: thermostat.HeatingBalanceSatisfiedC,
-              HeatingAutoBalanceDurationMs: thermostat.HeatingAutoBalanceDurationMs,
-              FanMode: thermostat.FanMode
-            )
-          );
+          return Results.Ok(GetThermostatResponseDto.FromThermostat(result.Value!.Thermostat!));
         }
       )
       .WithName("GetThermostat")

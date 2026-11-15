@@ -5,14 +5,12 @@ import { bannerContext, defaultBanner } from '../contexts/banner-context.js';
 import { events, signalrEvents } from '../events.js';
 import { SignalRHubBase } from './signalr-hub-base.js';
 import { Preferences } from '../models/preferences.js';
-import apiResources from '../services/api-resources.js';
-import { apiGet } from '../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../services/utilities.js';
 
 import type { ControlStateChange } from '../models/control-state-change.js';
-import type { ControlStateResponse } from '../models/control-state.js';
-import type { DeviceStates } from '../models/devices.js';
-import type { EnvironmentReading } from '../models/sensors.js';
+import type { DevicesSettings, DeviceStates } from '../models/devices.js';
+import type { EnvironmentReading, Sensor } from '../models/sensors.js';
+import type { ThermostatSettings } from '../models/thermostat.js';
 import type { ToastDetail } from '../models/toast-detail.js';
 
 const RECEIVE_HANDLER = 'Receive';
@@ -38,9 +36,9 @@ type RealtimeMessage<T = unknown> = {
 type Notification = ToastDetail & { id?: string; banner?: boolean };
 
 /**
- * The single real-time pipe from the server: every push (control state, thermostat/sensors config
- * changes, environment readings, notifications) arrives as one envelope on this hub and is re-dispatched
- * here as the same DOM CustomEvents the rest of the app already listens for.
+ * The single real-time pipe from the server: everything is pushed on connect (and again on reconnect), then every change after that
+ * (control state, thermostat/sensors/devices data, environment readings, notifications) arrives as one envelope on this hub and is
+ * re-dispatched here as the same DOM CustomEvents the rest of the app already listens for.
  */
 @customElement('signalr-realtime-hub')
 export class RealtimeHub extends SignalRHubBase {
@@ -51,12 +49,6 @@ export class RealtimeHub extends SignalRHubBase {
     context: bannerContext,
     initialValue: defaultBanner,
   });
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    void this.loadInitialControlState();
-    void this.loadInitialReadings();
-  }
 
   protected override onSignalrConnected(): void {
     this.registerRawHandler<RealtimeMessage>(RECEIVE_HANDLER, message => this.handleMessage(message));
@@ -75,13 +67,13 @@ export class RealtimeHub extends SignalRHubBase {
         break;
       }
       case MessageType.ThermostatSettingsChanged:
-        dispatchCustomEvent(this, events.thermostatUpdated);
+        dispatchCustomEvent<ThermostatSettings>(this, events.thermostatUpdated, message.payload as ThermostatSettings);
         break;
       case MessageType.SensorsSettingsChanged:
-        dispatchCustomEvent(this, events.sensorsUpdated);
+        dispatchCustomEvent<Sensor[]>(this, events.sensorsUpdated, message.payload as Sensor[]);
         break;
       case MessageType.DevicesSettingsChanged:
-        dispatchCustomEvent(this, events.devicesUpdated);
+        dispatchCustomEvent<DevicesSettings>(this, events.devicesUpdated, message.payload as DevicesSettings);
         break;
       case MessageType.DeviceStateChanged:
         dispatchCustomEvent<DeviceStates>(this, events.deviceStateChanged, message.payload as DeviceStates);
@@ -120,29 +112,6 @@ export class RealtimeHub extends SignalRHubBase {
     }
 
     dispatchCustomEvent<string>(this, events.clearToast, notificationId);
-  }
-
-  private async loadInitialControlState(): Promise<void> {
-    try {
-      const response = await apiGet<ControlStateResponse>(apiResources.control.getControlState);
-      if (!response.lastChange) {
-        console.warn('No control state change found in the response.');
-        return;
-      }
-
-      // this endpoint now always returns the last call, so dispatch to update both the control state and the call state caches
-      dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.controlStateChanged, response.lastChange);
-      dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.callStateChanged, response.lastChange);
-    } catch (error) {
-      console.error('Failed to load control state:', error);
-    }
-  }
-
-  private async loadInitialReadings(): Promise<void> {
-    const response = await apiGet<{ reading: EnvironmentReading }>(apiResources.sensors.getLatestReading);
-    if (response) {
-      dispatchCustomEvent<Partial<EnvironmentReading>>(this, signalrEvents.readingsHub.sensorReadingsUpdated, response.reading);
-    }
   }
 }
 

@@ -1,0 +1,123 @@
+using Kelvin.Server.Application;
+using Kelvin.Server.Features.Control;
+using Kelvin.Server.Features.Devices;
+using Kelvin.Server.Features.Humidifiers;
+using Kelvin.Server.Features.Preferences;
+using Kelvin.Server.Features.Sensors;
+using Kelvin.Server.Features.Thermostat;
+
+namespace Kelvin.Server.Hubs;
+
+/// <summary>The thermostat and everything a client needs to show and edit it, pushed together.</summary>
+public record ThermostatSettingsPayload(
+  GetThermostatResponseDto Thermostat,
+  IEnumerable<SetPointResponse> SetPoints,
+  IEnumerable<ScheduleResponse> Schedules
+);
+
+/// <summary>The devices and the per-type configuration that lives alongside them, pushed together.</summary>
+public record DevicesSettingsPayload(List<DeviceResponse> Devices, List<HumidifierResponse> Humidifiers);
+
+/// <summary>
+/// Reads the current value of everything the realtime hub pushes, reusing the query handlers the API serves.
+/// </summary>
+/// <remarks>
+/// Used for the full push when a client connects, and to build the payload for updates that only signal that
+/// something changed. A snapshot that can't be read is skipped rather than failing the rest.
+/// </remarks>
+public class RealtimeSnapshots(
+  IHandler<GetControlStateRequest, GetControlStateResponse> controlState,
+  IHandler<GetLatestReadingsRequest, GetLatestReadingsResponse> latestReadings,
+  IHandler<GetThermostatRequest, GetThermostatResponse> thermostat,
+  IHandler<GetSetPointsRequest, GetSetPointsResponse> setPoints,
+  IHandler<GetSchedulesRequest, GetSchedulesResponse> schedules,
+  IHandler<GetSensorsRequest, GetSensorsResponse> sensors,
+  IHandler<GetDevicesRequest, GetDevicesResponse> devices,
+  IHandler<GetHumidifiersRequest, GetHumidifiersResponse> humidifiers,
+  IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse> deviceStates,
+  IHandler<GetPreferencesRequest, GetPreferencesResponse> preferences
+)
+{
+  /// <summary>Every snapshot, for a client that has just connected.</summary>
+  public async Task<IReadOnlyList<RealtimeMessage>> AllAsync(CancellationToken ct = default)
+  {
+    var messages = new[]
+    {
+      await ControlStateAsync(ct),
+      await EnvironmentReadingAsync(ct),
+      await ThermostatAsync(ct),
+      await SensorsAsync(ct),
+      await DevicesAsync(ct),
+      await DeviceStatesAsync(ct),
+      await PreferencesAsync(ct),
+    };
+
+    return messages.OfType<RealtimeMessage>().ToList();
+  }
+
+  // Until anything has been actuated there is no call to report, so the client keeps its defaults.
+  public async Task<RealtimeMessage?> ControlStateAsync(CancellationToken ct = default)
+  {
+    var result = await controlState.HandleAsync(new GetControlStateRequest(), ct);
+    return result.IsSuccess && result.Value!.LastChange is { } change ? new RealtimeMessage(RealtimeMessageTypes.ControlStateChanged, change) : null;
+  }
+
+  public async Task<RealtimeMessage?> EnvironmentReadingAsync(CancellationToken ct = default)
+  {
+    var result = await latestReadings.HandleAsync(new GetLatestReadingsRequest(), ct);
+    return result.IsSuccess ? new RealtimeMessage(RealtimeMessageTypes.EnvironmentReadingChanged, result.Value!.Reading) : null;
+  }
+
+  public async Task<RealtimeMessage?> ThermostatAsync(CancellationToken ct = default)
+  {
+    var thermostatResult = await thermostat.HandleAsync(new GetThermostatRequest(), ct);
+    var setPointsResult = await setPoints.HandleAsync(new GetSetPointsRequest(), ct);
+    var schedulesResult = await schedules.HandleAsync(new GetSchedulesRequest(), ct);
+    if (thermostatResult.IsFailure || setPointsResult.IsFailure || schedulesResult.IsFailure)
+      return null;
+
+    var payload = new ThermostatSettingsPayload(
+      GetThermostatResponseDto.FromThermostat(thermostatResult.Value!.Thermostat),
+      setPointsResult.Value!.SetPoints,
+      schedulesResult.Value!.Schedules
+    );
+    return new RealtimeMessage(RealtimeMessageTypes.ThermostatSettingsChanged, payload);
+  }
+
+  public async Task<RealtimeMessage?> SensorsAsync(CancellationToken ct = default)
+  {
+    var result = await sensors.HandleAsync(new GetSensorsRequest(), ct);
+    return result.IsSuccess ? new RealtimeMessage(RealtimeMessageTypes.SensorsSettingsChanged, result.Value!.Sensors) : null;
+  }
+
+  public async Task<RealtimeMessage?> DevicesAsync(CancellationToken ct = default)
+  {
+    var devicesResult = await devices.HandleAsync(new GetDevicesRequest(), ct);
+    var humidifiersResult = await humidifiers.HandleAsync(new GetHumidifiersRequest(), ct);
+    if (devicesResult.IsFailure || humidifiersResult.IsFailure)
+      return null;
+
+    var payload = new DevicesSettingsPayload(devicesResult.Value!.Devices, humidifiersResult.Value!.Humidifiers);
+    return new RealtimeMessage(RealtimeMessageTypes.DevicesSettingsChanged, payload);
+  }
+
+  public async Task<RealtimeMessage?> DeviceStatesAsync(CancellationToken ct = default)
+  {
+    var result = await deviceStates.HandleAsync(new GetDeviceStatesRequest(), ct);
+    return result.IsSuccess ? new RealtimeMessage(RealtimeMessageTypes.DeviceStateChanged, result.Value!.States) : null;
+  }
+
+  public async Task<RealtimeMessage?> PreferencesAsync(CancellationToken ct = default)
+  {
+    var result = await preferences.HandleAsync(new GetPreferencesRequest(), ct);
+    return result.IsSuccess ? new RealtimeMessage(RealtimeMessageTypes.PreferencesChanged, result.Value) : null;
+  }
+}
+
+public class RealtimeSnapshotsRegistration : IRegistration
+{
+  public void Register(IServiceCollection services)
+  {
+    services.AddScoped<RealtimeSnapshots>();
+  }
+}

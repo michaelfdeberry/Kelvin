@@ -12,7 +12,14 @@ import { when } from 'lit/directives/when.js';
 import appShellStyles from './app.styles.js';
 import { bannerContext } from './contexts/banner-context.js';
 import './components/layout/app-sidebar/app-sidebar.js';
-import { defaultDevices, defaultDeviceStates, devicesContext, deviceStatesContext } from './contexts/devices-context.js';
+import {
+  defaultDevices,
+  defaultDeviceStates,
+  defaultHumidifiers,
+  devicesContext,
+  deviceStatesContext,
+  humidifiersContext,
+} from './contexts/devices-context.js';
 import { defaultPreferences, preferencesContext } from './contexts/preferences-context.js';
 import { defaultSensors, sensorsContext } from './contexts/sensors-context.js';
 import {
@@ -24,13 +31,13 @@ import {
   schedulesContext,
 } from './contexts/thermostat-context.js';
 import { events } from './events.js';
-import { Devices as DevicesResponse, DeviceStates } from './models/devices.js';
-import { Sensors as SensorsResponse } from './models/sensors.js';
+import { DevicesSettings, DeviceStates } from './models/devices.js';
+import { Sensor } from './models/sensors.js';
 import './router.js';
-import { SchedulesResponse, SetPointsResponse, Thermostat } from './models/thermostat.js';
+import { Thermostat, ThermostatSettings } from './models/thermostat.js';
 import { ToastDetail } from './models/toast-detail.js';
 import resources from './services/api-resources.js';
-import { apiGet, apiPut } from './services/api.js';
+import { apiPut } from './services/api.js';
 import { isKioskMode } from './services/kiosk.js';
 import { dispatchToast } from './services/utilities.js';
 import sharedStyles from './shared.styles.js';
@@ -54,6 +61,11 @@ export class KelvinApp extends LitElement {
   private devicesProvider = new ContextProvider(this, {
     context: devicesContext,
     initialValue: defaultDevices,
+  });
+
+  private humidifiersProvider = new ContextProvider(this, {
+    context: humidifiersContext,
+    initialValue: defaultHumidifiers,
   });
 
   private deviceStatesProvider = new ContextProvider(this, {
@@ -84,11 +96,6 @@ export class KelvinApp extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-
-    this.loadThermostat();
-    this.loadSensors();
-    this.loadDevices();
-    this.loadPreferences();
 
     this.handlePreferencesSaved = this.handlePreferencesSaved.bind(this);
     this.handleSensorsUpdated = this.handleSensorsUpdated.bind(this);
@@ -122,17 +129,20 @@ export class KelvinApp extends LitElement {
 
   handleSensorsUpdated(event: Event): void {
     event.stopPropagation();
-    this.loadSensors();
+    this.sensorsProvider.setValue((event as CustomEvent<Sensor[]>).detail);
   }
 
   handleThermostatUpdated(event: Event): void {
     event.stopPropagation();
-    this.loadThermostat();
+    this.applyThermostatSettings((event as CustomEvent<Partial<ThermostatSettings>>).detail);
   }
 
   handleDevicesUpdated(event: Event): void {
     event.stopPropagation();
-    this.loadDevices();
+
+    const { devices, humidifiers } = (event as CustomEvent<Partial<DevicesSettings>>).detail;
+    if (devices) this.devicesProvider.setValue(devices);
+    if (humidifiers) this.humidifiersProvider.setValue(humidifiers);
   }
 
   handleDeviceStateChanged(event: Event): void {
@@ -140,60 +150,21 @@ export class KelvinApp extends LitElement {
     this.deviceStatesProvider.setValue((event as CustomEvent<DeviceStates>).detail);
   }
 
-  private async loadPreferences(): Promise<void> {
-    try {
-      const preferences = await apiGet<Preferences>(resources.preferences.getPreferences);
-      this.preferencesProvider.setValue(preferences);
-    } catch (err) {
-      dispatchToast(this, 'Error', 'Failed to load preferences.');
-      console.error('Failed to load preferences:', err);
-    }
-  }
-
-  private async loadSensors(): Promise<void> {
-    try {
-      const response = await apiGet<SensorsResponse>(resources.sensors.getSensors);
-      this.sensorsProvider.setValue(response.sensors);
-    } catch (err) {
-      dispatchToast(this, 'Error', 'Failed to load sensors.');
-      console.error('Failed to load sensors:', err);
-    }
-  }
-
-  private async loadDevices(): Promise<void> {
-    try {
-      const response = await apiGet<DevicesResponse>(resources.devices.getDevices);
-      this.devicesProvider.setValue(response.devices);
-    } catch (err) {
-      dispatchToast(this, 'Error', 'Failed to load devices.');
-      console.error('Failed to load devices:', err);
-    }
-  }
-
-  private async loadThermostat(): Promise<void> {
-    try {
-      const thermostat = await apiGet<Thermostat>(resources.thermostat.getThermostat);
+  private applyThermostatSettings({ thermostat, setPoints, schedules }: Partial<ThermostatSettings>): void {
+    if (thermostat) {
       this.isThermostatDisabled = thermostat.mode === 'Disabled';
       this.thermostatProvider.setValue(thermostat);
-
-      const setPointsResponse = await apiGet<SetPointsResponse>(resources.thermostat.getSetPoints);
-      this.setPointsProvider.setValue(setPointsResponse.setPoints);
-
-      const schedulesResponse = await apiGet<SchedulesResponse>(resources.thermostat.getSchedules);
-      this.schedulesProvider.setValue(schedulesResponse.schedules);
-    } catch (err) {
-      dispatchToast(this, 'Error', 'Failed to load thermostat.');
-      console.error('Failed to load thermostat:', err);
     }
+
+    if (setPoints) this.setPointsProvider.setValue(setPoints);
+    if (schedules) this.schedulesProvider.setValue(schedules);
   }
 
   private async handleTakeControlClick(): Promise<void> {
     try {
-      console.log('Current thermostat mode:', this.thermostatProvider.value.mode);
-      await apiPut<void>(resources.thermostat.updateThermostat, {
-        body: { ...this.thermostatProvider.value, mode: 'Off' },
-      });
-      this.loadThermostat();
+      const thermostat: Thermostat = { ...this.thermostatProvider.value, mode: 'Off' };
+      await apiPut<void>(resources.thermostat.updateThermostat, { body: thermostat });
+      this.applyThermostatSettings({ thermostat });
     } catch (error) {
       dispatchToast(this, 'Error', 'Failed to take control of the thermostat.');
       console.error('Failed to take control of the thermostat:', error);

@@ -44,6 +44,10 @@ export class SettingsSensors extends LitElement {
     args: () => [],
   });
 
+  private updateSensors(sensors: Sensor[]): void {
+    dispatchCustomEvent<Sensor[]>(this, events.sensorsUpdated, sensors);
+  }
+
   private handleSensorSelected(sensorId: string) {
     if (!this.sensorSettings) return;
     this.sensorSettings.sensorId = sensorId;
@@ -58,7 +62,7 @@ export class SettingsSensors extends LitElement {
         await apiPost<void>(resources.sensors.enableSensor, { body: undefined, routeParams: { sensorId } });
       }
       dispatchToast(this, 'Success', `Sensor ${enabled ? 'disabled' : 'enabled'} successfully`);
-      dispatchCustomEvent(this, events.sensorsUpdated);
+      this.updateSensors(this.sensors.map(sensor => (sensor.id === sensorId ? { ...sensor, enabled: !enabled } : sensor)));
     } catch {
       dispatchToast(this, 'Error', `Failed to ${enabled ? 'disable' : 'enable'} sensor`);
     }
@@ -68,7 +72,8 @@ export class SettingsSensors extends LitElement {
     try {
       await apiPost<void>(resources.sensors.restoreSensor, { body: undefined, routeParams: { id: sensor.id } });
       dispatchToast(this, 'Success', `Sensor ${sensor.name} restored successfully`);
-      dispatchCustomEvent(this, events.sensorsUpdated);
+      const others = this.sensors.filter(existing => existing.id !== sensor.id);
+      this.updateSensors([...others, sensor].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')));
     } catch {
       dispatchToast(this, 'Error', 'Failed to restore sensor');
     }
@@ -96,7 +101,7 @@ export class SettingsSensors extends LitElement {
           </button>
         `,
       });
-      dispatchCustomEvent(this, events.sensorsUpdated);
+      this.updateSensors(this.sensors.filter(existing => existing.id !== sensor.id));
     } catch (error) {
       console.error('Failed to remove sensor:', error);
       dispatchToast(this, 'Error', 'Failed to remove sensor');
