@@ -40,7 +40,7 @@ public sealed class FanServiceHarness
 
     public bool FailFanUpdates { get; set; }
 
-    public List<UpdateThermostatRequest> FanUpdates { get; } = [];
+    public List<UpdateFanStateRequest> FanUpdates { get; } = [];
 
     public List<SendNotificationRequest> Notifications { get; } = [];
 
@@ -75,10 +75,10 @@ public sealed class FanServiceHarness
             });
 
         A.CallTo(() =>
-                _dispatcher.DispatchAsync(A<UpdateThermostatRequest>._, A<CancellationToken>._)
+                _dispatcher.DispatchAsync(A<UpdateFanStateRequest>._, A<CancellationToken>._)
             )
             .Invokes(
-                (UpdateThermostatRequest request, CancellationToken _) =>
+                (UpdateFanStateRequest request, CancellationToken _) =>
                 {
                     FanUpdates.Add(request);
                     if (!FailFanUpdates)

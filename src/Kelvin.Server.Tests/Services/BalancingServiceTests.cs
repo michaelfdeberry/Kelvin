@@ -38,7 +38,6 @@ public class BalancingServiceTests
 
         var update = harness.FanUpdates.ShouldHaveSingleItem();
         update.FanEnabled.ShouldBeTrue();
-        update.Mode.ShouldBe(mode);
 
         var notification = harness.Notifications.ShouldHaveSingleItem();
         notification.Type.ShouldBe(NotificationType.Information);

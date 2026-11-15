@@ -43,7 +43,7 @@ public class FanArbiter(IDispatcher dispatcher) : IFanArbiter
         var fanWasEnabled = thermostat.FanEnabled;
         if (!fanWasEnabled)
         {
-          var update = await dispatcher.DispatchAsync(new UpdateThermostatRequest(thermostat.Mode, FanEnabled: true), cancellationToken);
+          var update = await dispatcher.DispatchAsync(new UpdateFanStateRequest(FanEnabled: true), cancellationToken);
           if (update.IsFailure)
             return update;
         }
@@ -70,7 +70,7 @@ public class FanArbiter(IDispatcher dispatcher) : IFanArbiter
 
       if (_owners.Count == 1 && thermostat.FanEnabled != _fanEnabledBeforeOwnership)
       {
-        var update = await dispatcher.DispatchAsync(new UpdateThermostatRequest(thermostat.Mode, _fanEnabledBeforeOwnership), cancellationToken);
+        var update = await dispatcher.DispatchAsync(new UpdateFanStateRequest(FanEnabled: _fanEnabledBeforeOwnership), cancellationToken);
         if (update.IsFailure)
           return update;
       }

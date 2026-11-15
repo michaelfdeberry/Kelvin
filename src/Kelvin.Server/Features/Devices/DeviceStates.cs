@@ -64,23 +64,6 @@ public class DeviceStateHandler(IDispatcher dispatcher)
   }
 }
 
-public class GetDeviceStatesEndpoint : IEndpointMapper
-{
-  public void MapEndpoint(IEndpointRouteBuilder app)
-  {
-    app.MapGet(
-        "/api/devices/state",
-        async (IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse> handler, CancellationToken ct) =>
-        {
-          var result = await handler.HandleAsync(new GetDeviceStatesRequest(), ct);
-          return Results.Ok(result.Value!.States);
-        }
-      )
-      .WithName("GetDeviceStates")
-      .WithTags("Devices");
-  }
-}
-
 public class DeviceStateRegistration : IRegistration
 {
   public void Register(IServiceCollection services)

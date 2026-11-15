@@ -133,16 +133,13 @@ export class StatsPanel extends LitElement {
   }
 
   private buildRelaySection(data: ControlAnalyticsData): StatSection {
-    const controlEnabled = data.controlState.controlState === 'Enable';
-    const callState = data.controlState.callState;
-
     return {
       title: 'Hardware Relays (GPIO)',
       rows: [
-        { label: 'R1 (Cool - Y):', value: this.formatRelayState(controlEnabled && callState === 'Cooling') },
-        { label: 'R2 (Heat - W):', value: this.formatRelayState(controlEnabled && callState === 'Heating') },
-        { label: 'R3 (Fan - G):', value: this.formatRelayState(controlEnabled && data.controlState.fanOn) },
-        { label: 'R4 (Gateway Control):', value: this.formatRelayState(controlEnabled, 'ARMED', 'REVERTED') },
+        { label: 'R1 (Cool - Y):', value: this.formatRelayState(data.relayStates.cooling === true) },
+        { label: 'R2 (Heat - W):', value: this.formatRelayState(data.relayStates.heating === true) },
+        { label: 'R3 (Fan - G):', value: this.formatRelayState(data.relayStates.fan === true) },
+        { label: 'R4 (Gateway Control):', value: this.formatRelayState(data.relayStates.control === true, 'ARMED', 'REVERTED') },
       ],
     };
   }

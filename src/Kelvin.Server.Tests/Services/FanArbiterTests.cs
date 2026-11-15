@@ -12,17 +12,17 @@ namespace Kelvin.Server.Tests.Services;
 public class FanArbiterTests
 {
     private readonly IDispatcher _dispatcher = A.Fake<IDispatcher>();
-    private readonly List<UpdateThermostatRequest> _updates = [];
+    private readonly List<UpdateFanStateRequest> _updates = [];
     private readonly Thermostat _thermostat = ThermostatFixtures.CreateThermostat(RunMode.Heating);
     private readonly FanArbiter _arbiter;
 
     public FanArbiterTests()
     {
         A.CallTo(() =>
-                _dispatcher.DispatchAsync(A<UpdateThermostatRequest>._, A<CancellationToken>._)
+                _dispatcher.DispatchAsync(A<UpdateFanStateRequest>._, A<CancellationToken>._)
             )
             .Invokes(
-                (UpdateThermostatRequest request, CancellationToken _) =>
+                (UpdateFanStateRequest request, CancellationToken _) =>
                 {
                     _updates.Add(request);
                     _thermostat.FanEnabled = request.FanEnabled;
@@ -87,7 +87,7 @@ public class FanArbiterTests
     public async Task FailedAcquire_DoesNotTakeOwnership()
     {
         A.CallTo(() =>
-                _dispatcher.DispatchAsync(A<UpdateThermostatRequest>._, A<CancellationToken>._)
+                _dispatcher.DispatchAsync(A<UpdateFanStateRequest>._, A<CancellationToken>._)
             )
             .Returns(Result.Failure(new Error("Test.Fan", "failed")));
 

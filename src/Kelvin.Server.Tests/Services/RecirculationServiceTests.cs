@@ -101,7 +101,6 @@ public class RecirculationServiceTests
 
         var update = harness.FanUpdates.ShouldHaveSingleItem();
         update.FanEnabled.ShouldBeTrue();
-        update.Mode.ShouldBe(harness.Thermostat.Mode);
 
         var notification = harness.Notifications.ShouldHaveSingleItem();
         notification.Type.ShouldBe(NotificationType.Warning);

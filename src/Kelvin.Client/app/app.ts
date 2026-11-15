@@ -88,7 +88,6 @@ export class KelvinApp extends LitElement {
     this.loadThermostat();
     this.loadSensors();
     this.loadDevices();
-    this.loadDeviceStates();
     this.loadPreferences();
 
     this.handlePreferencesSaved = this.handlePreferencesSaved.bind(this);
@@ -139,14 +138,6 @@ export class KelvinApp extends LitElement {
   handleDeviceStateChanged(event: Event): void {
     event.stopPropagation();
     this.deviceStatesProvider.setValue((event as CustomEvent<DeviceStates>).detail);
-  }
-
-  private async loadDeviceStates(): Promise<void> {
-    try {
-      this.deviceStatesProvider.setValue(await apiGet<DeviceStates>(resources.devices.getDeviceStates));
-    } catch (err) {
-      console.error('Failed to load device states:', err);
-    }
   }
 
   private async loadPreferences(): Promise<void> {
