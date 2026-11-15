@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using FakeItEasy;
 using Kelvin.Server.Application;
+using Kelvin.Server.Features.Devices;
 using Kelvin.Server.Features.Humidifiers;
 using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
@@ -46,6 +47,10 @@ public class DeviceIntegrationServiceTests
         await _service.StartAsync(CancellationToken.None);
 
         (await NextSyncAsync()).ShouldBeTrue();
+        A.CallTo(() =>
+                _dispatcher.DispatchAsync(A<ExpireDeviceStatesRequest>._, A<CancellationToken>._)
+            )
+            .MustHaveHappened();
 
         await _service.StopAsync(CancellationToken.None);
     }

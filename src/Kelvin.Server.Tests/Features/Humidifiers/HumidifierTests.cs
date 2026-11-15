@@ -33,7 +33,7 @@ public class HumidifierTests : IDisposable
 
     public HumidifierTests()
     {
-        _deviceStates = new DeviceStateHandler(_dispatcher);
+        _deviceStates = new DeviceStateHandler(_dispatcher, _harness.Time);
 
         // Harness clock is 2024-01-01 (in season), heating, -5C outside (target 40%), 20% inside.
         SetControl(ControlState.Enable, ControlState.Heating);
@@ -365,6 +365,34 @@ public class HumidifierTests : IDisposable
     }
 
     [Fact]
+    public async Task Sync_AfterOnWasSentWithoutAnAcknowledgement_KeepsSendingOffUntilItReportsOffOrTimesOut()
+    {
+        await AddDeviceAsync();
+        await ReportRelayAsync(false);
+        (await SyncAsync(force: false)).ShouldBe(true);
+
+        // The acknowledgement of the on state was lost, so the device is assumed to still be running.
+        SetControl(ControlState.Enable, ControlState.Dwell);
+        (await SyncAsync(force: false)).ShouldBe(false);
+        (await SyncAsync(force: false)).ShouldBe(false);
+
+        await ReceiveAsync(Uplink(HumidifierMessageType.StateAck, relayOn: false));
+        (await SyncAsync(force: false)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Sync_AfterOnWasSentToADeviceThatNeverAnswers_StopsSendingOffOnceItTimesOut()
+    {
+        await AddDeviceAsync();
+        (await SyncAsync(force: false)).ShouldBe(true);
+
+        SetControl(ControlState.Enable, ControlState.Dwell);
+        _harness.Time.Advance(HumidifierState.ReportTimeout + TimeSpan.FromSeconds(1));
+
+        (await SyncAsync(force: false)).ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Sync_WithInvalidStoredConfiguration_SendsOff()
     {
         await AddDeviceAsync();
@@ -505,6 +533,7 @@ public class HumidifierTests : IDisposable
             var handler = new SyncHumidifierHandler(
                 context,
                 CreateEvaluator(context),
+                _deviceStates,
                 _deviceStates,
                 outbound,
                 NullLogger<SyncHumidifierHandler>.Instance

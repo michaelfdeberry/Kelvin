@@ -29,8 +29,9 @@ public class UpdateHumidifierConfigurationHandler(KelvinContext context, IDispat
     }
 
     var targets = update.Targets ?? [];
+    // A JSON array can contain null entries, which deserialize without error.
     var targetsAreValid =
-      targets.All(t => float.IsFinite(t.OutdoorTemperatureC) && float.IsFinite(t.HumidityPercentage) && t.HumidityPercentage is >= 0 and <= 100)
+      targets.All(t => t is not null && float.IsFinite(t.OutdoorTemperatureC) && float.IsFinite(t.HumidityPercentage) && t.HumidityPercentage is >= 0 and <= 100)
       && targets.Select(t => t.OutdoorTemperatureC).Distinct().Count() == targets.Count;
     if (!targetsAreValid)
     {

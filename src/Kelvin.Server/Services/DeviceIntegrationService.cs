@@ -1,4 +1,5 @@
 using Kelvin.Server.Application;
+using Kelvin.Server.Features.Devices;
 using Kelvin.Server.Features.Humidifiers;
 using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
@@ -46,6 +47,7 @@ public class DeviceIntegrationService(ILogger<DeviceIntegrationService> logger, 
     {
       try
       {
+        await dispatcher.DispatchAsync(new ExpireDeviceStatesRequest(), stoppingToken);
         await dispatcher.DispatchAsync(new SyncHumidifierRequest(force), stoppingToken);
       }
       catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

@@ -13,12 +13,13 @@ public record SyncHumidifierRequest(bool Force) : IRequest;
 /// <summary>
 /// Evaluates the humidifier and queues its state. While it should run the state is resent every time, since the
 /// device releases its relay when the pushes stop; otherwise it's only sent when forced or the device last
-/// acknowledged running.
+/// acknowledged (or was last sent) running.
 /// </summary>
 public class SyncHumidifierHandler(
   KelvinContext context,
   IHandler<EvaluateHumidifierRequest, EvaluateHumidifierResponse> evaluateHumidifier,
   IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse> getDeviceStates,
+  IHandler<UpdateDeviceStateRequest> updateDeviceState,
   IDeviceOutboundChannel outboundChannel,
   ILogger<SyncHumidifierHandler> logger
 ) : IHandler<SyncHumidifierRequest>
@@ -71,6 +72,16 @@ public class SyncHumidifierHandler(
     if (request.Force || enabled || relayOn == true)
     {
       outboundChannel.Write(device.MacAddress!, FrameTags.Humidifier, (byte)HumidifierMessageType.State, HumidifierProtocol.EncodeState(enabled));
+    }
+
+    // If the acknowledgement of an on state is lost the device can still be running, so it's assumed to be until it
+    // reports otherwise or stops being heard from. That keeps the off state being sent once it should stop.
+    if (enabled)
+    {
+      await updateDeviceState.HandleAsync(
+        new UpdateDeviceStateRequest(DeviceStateNames.Humidifier, DeviceEnabled: true, new HumidifierState(true), Commanded: true),
+        ct
+      );
     }
 
     return Result.Success();

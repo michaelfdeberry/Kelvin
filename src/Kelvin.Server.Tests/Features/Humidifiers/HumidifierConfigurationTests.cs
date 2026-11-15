@@ -110,6 +110,9 @@ public class HumidifierConfigurationTests : IDisposable
         (await handler.HandleAsync(new(id, new(10, 3, [new(0, 140)])))).Error.ShouldBe(
             UpdateHumidifierConfigurationErrors.InvalidTargets
         );
+        (await handler.HandleAsync(new(id, new(10, 3, [null!])))).Error.ShouldBe(
+            UpdateHumidifierConfigurationErrors.InvalidTargets
+        );
     }
 
     [Fact]
