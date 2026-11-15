@@ -107,6 +107,13 @@ public class DeviceTests : IDisposable
             ).IsSuccess.ShouldBeTrue();
         }
         (await _harness.CreateContext().Devices.FindAsync(id))!.DeletedAt.ShouldNotBeNull();
+        A.CallTo(() =>
+                _dispatcher.PublishAsync(
+                    A<DeviceDeletedEvent>.That.Matches(e => e.Device.Id == id),
+                    A<CancellationToken>._
+                )
+            )
+            .MustHaveHappenedOnceExactly();
 
         await using (var context = _harness.CreateContext())
         {

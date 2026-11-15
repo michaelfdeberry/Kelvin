@@ -12,7 +12,7 @@ public static class DeviceStateNames
 /// <param name="Enabled">Whether the humidifier is currently running.</param>
 public record HumidifierState(bool Enabled);
 
-/// <param name="DeviceEnabled">Disabled devices have their state dropped and are never broadcast.</param>
+/// <param name="DeviceEnabled">Disabled devices have their state dropped, and their state is never broadcast.</param>
 public record UpdateDeviceStateRequest(string Name, bool DeviceEnabled, object State) : IRequest;
 
 public record GetDeviceStatesRequest() : IRequest<GetDeviceStatesResponse>;
@@ -37,17 +37,20 @@ public class DeviceStateHandler(IDispatcher dispatcher)
     {
       if (!request.DeviceEnabled)
       {
-        _states.Remove(request.Name);
-        return Result.Success();
+        // Only broadcast when a state was actually dropped, so clients don't keep showing it.
+        if (!_states.Remove(request.Name))
+          return Result.Success();
       }
-
       // Devices report every few seconds, so only a real change is worth broadcasting.
-      if (_states.TryGetValue(request.Name, out var existing) && existing.Equals(request.State))
+      else if (_states.TryGetValue(request.Name, out var existing) && existing.Equals(request.State))
       {
         return Result.Success();
       }
+      else
+      {
+        _states[request.Name] = request.State;
+      }
 
-      _states[request.Name] = request.State;
       snapshot = new Dictionary<string, object>(_states);
     }
 

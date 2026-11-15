@@ -334,6 +334,37 @@ public class HumidifierTests : IDisposable
         (await SyncAsync(force: false)).ShouldBe(false);
     }
 
+    [Fact]
+    public async Task Deleted_RunningHumidifier_IsSentOffAndItsStateForgotten()
+    {
+        await AddDeviceAsync();
+        await ReportRelayAsync(true);
+        var outbound = new DeviceOutboundChannel();
+
+        await new CleanUpDeletedHumidifierHandler(outbound, _deviceStates).HandleAsync(
+            new DeviceDeletedEvent(
+                new HumidifierDevice { Name = "Humidifier", MacAddress = MacAddress }
+            )
+        );
+
+        ReadSentState(outbound).ShouldBe(false);
+        ReportedRelayState().ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Deleted_HumidifierWithoutAMac_IsLeftAlone()
+    {
+        await ReportRelayAsync(true);
+        var outbound = new DeviceOutboundChannel();
+
+        await new CleanUpDeletedHumidifierHandler(outbound, _deviceStates).HandleAsync(
+            new DeviceDeletedEvent(new HumidifierDevice { Name = "Humidifier" })
+        );
+
+        ReadSentState(outbound).ShouldBeNull();
+        ReportedRelayState().ShouldBe(true);
+    }
+
     private static byte[] Uplink(HumidifierMessageType type, bool relayOn) =>
         DeviceEnvelope
             .Encode(
@@ -420,6 +451,11 @@ public class HumidifierTests : IDisposable
             (await handler.HandleAsync(new SyncHumidifierRequest(force))).IsSuccess.ShouldBeTrue();
         }
 
+        return ReadSentState(outbound);
+    }
+
+    private static bool? ReadSentState(DeviceOutboundChannel outbound)
+    {
         if (!outbound.TryRead(out var frame))
             return null;
 

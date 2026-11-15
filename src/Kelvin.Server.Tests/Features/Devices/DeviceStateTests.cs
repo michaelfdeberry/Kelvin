@@ -61,13 +61,21 @@ public class DeviceStateTests
     }
 
     [Fact]
-    public async Task Update_DisabledDevice_IsNotBroadcastAndDropsCachedState()
+    public async Task Update_DisabledDevice_DropsCachedStateAndBroadcastsTheRemoval()
     {
         await UpdateAsync(true, true);
 
         await UpdateAsync(false, true);
 
-        MustHaveBroadcast(1);
+        MustHaveBroadcast(2);
         (await _handler.HandleAsync(new GetDeviceStatesRequest())).Value!.States.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Update_DisabledDeviceWithNoCachedState_IsNotBroadcast()
+    {
+        await UpdateAsync(false, true);
+
+        MustHaveBroadcast(0);
     }
 }
