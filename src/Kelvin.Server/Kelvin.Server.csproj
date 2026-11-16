@@ -8,15 +8,15 @@
   <ItemGroup>
     <Compile Include="..\Kelvin.Protocol\HmiCbor.cs" Link="Features\Hmi\HmiCbor.cs" />
     <Compile Include="..\Kelvin.Protocol\DeviceEnvelope.cs" Link="Features\Devices\DeviceEnvelope.cs" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
-    <PackageReference Include="Microsoft.OpenApi" Version="2.13.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15" />
+    <PackageReference Include="Microsoft.OpenApi" Version="3.11.0" />
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <PackageReference Include="System.Device.Gpio" Version="4.2.0" />
-    <PackageReference Include="System.IO.Ports" Version="10.0.14" />
+    <PackageReference Include="System.IO.Ports" Version="11.0.0" />
   </ItemGroup>
 </Project>
