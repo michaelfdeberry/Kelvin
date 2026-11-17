@@ -30,8 +30,10 @@ import {
   defaultSchedules,
   schedulesContext,
 } from './contexts/thermostat-context.js';
+import { defaultWeather, weatherContext } from './contexts/weather-context.js';
 import { events } from './events.js';
 import { DeviceChange, DevicesSettings, DeviceStates } from './models/devices.js';
+import { WeatherForecastResponse } from './models/forecast-day.js';
 import { Sensor } from './models/sensors.js';
 import './router.js';
 import { Thermostat, ThermostatSettings } from './models/thermostat.js';
@@ -88,6 +90,11 @@ export class KelvinApp extends LitElement {
     initialValue: defaultSchedules,
   });
 
+  private weatherProvider = new ContextProvider(this, {
+    context: weatherContext,
+    initialValue: defaultWeather,
+  });
+
   @consume({ context: bannerContext, subscribe: true })
   private banner?: ToastDetail;
 
@@ -106,6 +113,7 @@ export class KelvinApp extends LitElement {
     this.handleDeviceDeleted = this.handleDeviceDeleted.bind(this);
     this.handleDeviceStateChanged = this.handleDeviceStateChanged.bind(this);
     this.handleThermostatUpdated = this.handleThermostatUpdated.bind(this);
+    this.handleWeatherUpdated = this.handleWeatherUpdated.bind(this);
 
     this.addEventListener(events.preferencesSaved, this.handlePreferencesSaved);
     this.addEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
@@ -116,6 +124,7 @@ export class KelvinApp extends LitElement {
     this.addEventListener(events.deviceDeleted, this.handleDeviceDeleted);
     this.addEventListener(events.deviceStateChanged, this.handleDeviceStateChanged);
     this.addEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
+    this.addEventListener(events.weatherUpdated, this.handleWeatherUpdated);
   }
 
   override disconnectedCallback(): void {
@@ -130,6 +139,7 @@ export class KelvinApp extends LitElement {
     this.removeEventListener(events.deviceDeleted, this.handleDeviceDeleted);
     this.removeEventListener(events.deviceStateChanged, this.handleDeviceStateChanged);
     this.removeEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
+    this.removeEventListener(events.weatherUpdated, this.handleWeatherUpdated);
   }
 
   handlePreferencesSaved(event: Event): void {
@@ -181,6 +191,11 @@ export class KelvinApp extends LitElement {
     const id = (event as CustomEvent<string>).detail;
     this.devicesProvider.setValue(removeById(this.devicesProvider.value, id));
     this.humidifiersProvider.setValue(removeById(this.humidifiersProvider.value, id));
+  }
+
+  handleWeatherUpdated(event: Event): void {
+    event.stopPropagation();
+    this.weatherProvider.setValue((event as CustomEvent<WeatherForecastResponse>).detail);
   }
 
   handleDeviceStateChanged(event: Event): void {

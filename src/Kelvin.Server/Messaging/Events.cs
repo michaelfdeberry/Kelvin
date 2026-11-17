@@ -1,4 +1,5 @@
 using Kelvin.Server.Features.Gateways;
+using Kelvin.Server.Features.Weather;
 using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Messaging;
@@ -29,6 +30,9 @@ public record DeviceDisabledEvent(Device Device);
 
 /// <summary>Raised after the RelayController moves any HVAC relay; carries the state of every relay.</summary>
 public record RelayStatesChangedEvent(GetRelayStatesResponse States);
+
+/// <summary>Raised whenever a fresh weather forecast is fetched and cached; carries the forecast for the current location.</summary>
+public record WeatherForecastChangedEvent(GetWeatherForecastResponse Forecast);
 
 /// <summary>Raised whenever a device's reported state changes; carries the latest state of every device type by name.</summary>
 public record DeviceStateChangedEvent(IReadOnlyDictionary<string, object> States);

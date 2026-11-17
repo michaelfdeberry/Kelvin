@@ -49,16 +49,6 @@ const statsPanelStyles = css`
   .stats-panel__status-dot--danger {
     background: var(--accent-danger);
   }
-
-  .stats-panel__message {
-    margin: 0;
-    color: var(--text-muted);
-    line-height: 1.5;
-  }
-
-  .stats-panel__message--error {
-    color: var(--accent-danger);
-  }
 `;
 
 export default statsPanelStyles;

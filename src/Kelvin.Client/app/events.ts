@@ -15,12 +15,14 @@ export const events = {
   toast: 'toast',
   clearToast: 'clear-toast',
   thermostatUpdated: 'thermostat-updated',
+  weatherUpdated: 'weather-updated',
 };
 
 export const signalrEvents = {
   controlHub: {
     controlStateChanged: 'signalr:control-hub:control-state-changed',
     callStateChanged: 'signalr:control-hub:call-state-changed',
+    lifecycleStateChanged: 'signalr:control-hub:lifecycle-state-changed',
     relayStatesChanged: 'signalr:control-hub:relay-states-changed',
   },
   readingsHub: {

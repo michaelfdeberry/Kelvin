@@ -7,6 +7,7 @@ using Kelvin.Server.Features.Humidifiers;
 using Kelvin.Server.Features.Preferences;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Features.Thermostat;
+using Kelvin.Server.Features.Weather;
 using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Shouldly;
@@ -43,6 +44,8 @@ public class RealtimeSnapshotsTests
     private readonly IHandler<GetRelayStatesRequest, GetRelayStatesResponse> _relayStates = A.Fake<
         IHandler<GetRelayStatesRequest, GetRelayStatesResponse>
     >();
+    private readonly IHandler<GetWeatherForecastRequest, GetWeatherForecastResponse> _weather =
+        A.Fake<IHandler<GetWeatherForecastRequest, GetWeatherForecastResponse>>();
     private readonly IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse> _deviceStates =
         A.Fake<IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse>>();
     private readonly IHandler<GetPreferencesRequest, GetPreferencesResponse> _preferences = A.Fake<
@@ -96,6 +99,17 @@ public class RealtimeSnapshotsTests
                 )
             );
         A.CallTo(() =>
+                _weather.HandleAsync(
+                    A<GetWeatherForecastRequest>.That.Matches(r => r.CachedOnly),
+                    A<CancellationToken>._
+                )
+            )
+            .Returns(
+                Result<GetWeatherForecastResponse>.Success(
+                    new GetWeatherForecastResponse(0, 0, "UTC", DateTimeOffset.UtcNow, null, [])
+                )
+            );
+        A.CallTo(() =>
                 _deviceStates.HandleAsync(A<GetDeviceStatesRequest>._, A<CancellationToken>._)
             )
             .Returns(Result<GetDeviceStatesResponse>.Success(new GetDeviceStatesResponse([])));
@@ -122,6 +136,7 @@ public class RealtimeSnapshotsTests
             _humidifiers,
             _deviceStates,
             _relayStates,
+            _weather,
             _preferences
         );
     }
@@ -145,6 +160,7 @@ public class RealtimeSnapshotsTests
                 RealtimeMessageTypes.DevicesSettingsChanged,
                 RealtimeMessageTypes.DeviceStateChanged,
                 RealtimeMessageTypes.RelayStatesChanged,
+                RealtimeMessageTypes.WeatherForecastChanged,
                 RealtimeMessageTypes.PreferencesChanged,
             ]);
         messages[0].Payload.ShouldBe(change);
@@ -156,7 +172,7 @@ public class RealtimeSnapshotsTests
         var messages = await CreateSnapshots().AllAsync();
 
         messages.ShouldNotContain(m => m.Type == RealtimeMessageTypes.ControlStateChanged);
-        messages.Count.ShouldBe(7);
+        messages.Count.ShouldBe(8);
     }
 
     [Fact]

@@ -9,6 +9,7 @@ import { dispatchCustomEvent, dispatchToast } from '../services/utilities.js';
 
 import type { ControlStateChange } from '../models/control-state-change.js';
 import type { DeviceChange, DevicesSettings, DeviceStates } from '../models/devices.js';
+import type { WeatherForecastResponse } from '../models/forecast-day.js';
 import type { RelayStates } from '../models/gateway.js';
 import type { EnvironmentReading, Sensor } from '../models/sensors.js';
 import type { ThermostatSettings } from '../models/thermostat.js';
@@ -28,6 +29,7 @@ const MessageType = {
   DeviceDeleted: 'DeviceDeleted',
   DeviceStateChanged: 'DeviceStateChanged',
   RelayStatesChanged: 'RelayStatesChanged',
+  WeatherForecastChanged: 'WeatherForecastChanged',
   EnvironmentReadingChanged: 'EnvironmentReadingChanged',
   NotificationSent: 'NotificationSent',
   NotificationDismissed: 'NotificationDismissed',
@@ -70,6 +72,10 @@ export class RealtimeHub extends SignalRHubBase {
           dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.callStateChanged, controlStateChange);
         }
 
+        if (controlStateChange.kind === 'Lifecycle') {
+          dispatchCustomEvent<ControlStateChange>(this, signalrEvents.controlHub.lifecycleStateChanged, controlStateChange);
+        }
+
         break;
       }
       case MessageType.ThermostatSettingsChanged:
@@ -98,6 +104,9 @@ export class RealtimeHub extends SignalRHubBase {
         break;
       case MessageType.RelayStatesChanged:
         dispatchCustomEvent<RelayStates>(this, signalrEvents.controlHub.relayStatesChanged, message.payload as RelayStates);
+        break;
+      case MessageType.WeatherForecastChanged:
+        dispatchCustomEvent<WeatherForecastResponse>(this, events.weatherUpdated, message.payload as WeatherForecastResponse);
         break;
       case MessageType.PreferencesChanged:
         dispatchCustomEvent(this, events.preferencesSaved, message.payload as Preferences);

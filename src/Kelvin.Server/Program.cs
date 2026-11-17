@@ -52,6 +52,7 @@ builder.Services.AddHostedService<ControlService>();
 builder.Services.AddHostedService<GatewayService>();
 builder.Services.AddHostedService<SensingService>();
 builder.Services.AddHostedService<ThermostatService>();
+builder.Services.AddHostedService<WeatherRefreshService>();
 builder.Services.AddSingleton<IFanArbiter, FanArbiter>();
 builder.Services.AddSingleton<RecirculationService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RecirculationService>());

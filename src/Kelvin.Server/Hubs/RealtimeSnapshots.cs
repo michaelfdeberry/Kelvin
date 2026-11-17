@@ -6,6 +6,7 @@ using Kelvin.Server.Features.Humidifiers;
 using Kelvin.Server.Features.Preferences;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Features.Thermostat;
+using Kelvin.Server.Features.Weather;
 
 namespace Kelvin.Server.Hubs;
 
@@ -27,6 +28,7 @@ public class RealtimeSnapshots(
   IHandler<GetHumidifiersRequest, GetHumidifiersResponse> humidifiers,
   IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse> deviceStates,
   IHandler<GetRelayStatesRequest, GetRelayStatesResponse> relayStates,
+  IHandler<GetWeatherForecastRequest, GetWeatherForecastResponse> weather,
   IHandler<GetPreferencesRequest, GetPreferencesResponse> preferences
 )
 {
@@ -42,6 +44,7 @@ public class RealtimeSnapshots(
       await DevicesAsync(ct),
       await DeviceStatesAsync(ct),
       await RelayStatesAsync(ct),
+      await WeatherAsync(ct),
       await PreferencesAsync(ct),
     };
 
@@ -104,6 +107,13 @@ public class RealtimeSnapshots(
   {
     var result = await relayStates.HandleAsync(new GetRelayStatesRequest(), ct);
     return result.IsSuccess ? new RealtimeMessage(RealtimeMessageTypes.RelayStatesChanged, result.Value) : null;
+  }
+
+  // Cached only, so connecting never waits on the weather service; the refresh service keeps the cache warm and pushes what it fetches.
+  private async Task<RealtimeMessage?> WeatherAsync(CancellationToken ct = default)
+  {
+    var result = await weather.HandleAsync(new GetWeatherForecastRequest(CachedOnly: true), ct);
+    return result.IsSuccess ? new RealtimeMessage(RealtimeMessageTypes.WeatherForecastChanged, result.Value) : null;
   }
 
   private async Task<RealtimeMessage?> PreferencesAsync(CancellationToken ct = default)

@@ -21,6 +21,7 @@ public static class RealtimeMessageTypes
   public const string DeviceDeleted = "DeviceDeleted";
   public const string DeviceStateChanged = "DeviceStateChanged";
   public const string RelayStatesChanged = "RelayStatesChanged";
+  public const string WeatherForecastChanged = "WeatherForecastChanged";
   public const string EnvironmentReadingChanged = "EnvironmentReadingChanged";
   public const string NotificationSent = "NotificationSent";
   public const string NotificationDismissed = "NotificationDismissed";

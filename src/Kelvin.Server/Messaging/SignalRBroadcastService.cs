@@ -17,6 +17,7 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
     IEventHandler<DeviceDeletedEvent>,
     IEventHandler<DeviceStateChangedEvent>,
     IEventHandler<RelayStatesChangedEvent>,
+    IEventHandler<WeatherForecastChangedEvent>,
     IEventHandler<SendNotificationEvent>,
     IEventHandler<DismissNotificationEvent>,
     IEventHandler<PreferencesChangedEvent>
@@ -50,6 +51,9 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
   public Task HandleAsync(RelayStatesChangedEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.RelayStatesChanged, @event.States));
 
+  public Task HandleAsync(WeatherForecastChangedEvent @event, CancellationToken cancellationToken = default) =>
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.WeatherForecastChanged, @event.Forecast));
+
   public Task HandleAsync(SendNotificationEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.NotificationSent, @event.Notification));
 
@@ -73,6 +77,7 @@ public class SignalRBroadcastServiceRegistration : IRegistration
     services.AddScoped<IEventHandler<DeviceDeletedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<DeviceStateChangedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<RelayStatesChangedEvent>, SignalRBroadcastService>();
+    services.AddScoped<IEventHandler<WeatherForecastChangedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<SendNotificationEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<DismissNotificationEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<PreferencesChangedEvent>, SignalRBroadcastService>();

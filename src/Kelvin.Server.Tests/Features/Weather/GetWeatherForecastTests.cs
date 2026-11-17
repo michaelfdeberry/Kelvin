@@ -3,6 +3,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Features.GeoCoding;
 using Kelvin.Server.Features.Weather;
 using Kelvin.Server.Integration.Weather;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -180,6 +181,16 @@ public class GetWeatherForecastTests
                 )
             )
             .MustHaveHappenedOnceExactly();
+        // A cache hit is not a new forecast, so only the fetch is pushed.
+        A.CallTo(() =>
+                dispatcher.PublishAsync(
+                    A<WeatherForecastChangedEvent>.That.Matches(e =>
+                        e.Forecast == firstResult.Value
+                    ),
+                    A<CancellationToken>._
+                )
+            )
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -205,6 +216,10 @@ public class GetWeatherForecastTests
         result.Error.ShouldBe(GetWeatherForecastErrors.NotCached);
         A.CallTo(() =>
                 weatherApi.GetForecastAsync(A<double>._, A<double>._, A<CancellationToken>._)
+            )
+            .MustNotHaveHappened();
+        A.CallTo(() =>
+                dispatcher.PublishAsync(A<WeatherForecastChangedEvent>._, A<CancellationToken>._)
             )
             .MustNotHaveHappened();
     }
