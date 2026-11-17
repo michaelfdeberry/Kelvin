@@ -8,7 +8,8 @@ import { Preferences } from '../models/preferences.js';
 import { dispatchCustomEvent, dispatchToast } from '../services/utilities.js';
 
 import type { ControlStateChange } from '../models/control-state-change.js';
-import type { DevicesSettings, DeviceStates } from '../models/devices.js';
+import type { DeviceChange, DevicesSettings, DeviceStates } from '../models/devices.js';
+import type { RelayStates } from '../models/gateway.js';
 import type { EnvironmentReading, Sensor } from '../models/sensors.js';
 import type { ThermostatSettings } from '../models/thermostat.js';
 import type { ToastDetail } from '../models/toast-detail.js';
@@ -20,8 +21,13 @@ const MessageType = {
   ControlStateChanged: 'ControlStateChanged',
   ThermostatSettingsChanged: 'ThermostatSettingsChanged',
   SensorsSettingsChanged: 'SensorsSettingsChanged',
+  SensorChanged: 'SensorChanged',
+  SensorDeleted: 'SensorDeleted',
   DevicesSettingsChanged: 'DevicesSettingsChanged',
+  DeviceChanged: 'DeviceChanged',
+  DeviceDeleted: 'DeviceDeleted',
   DeviceStateChanged: 'DeviceStateChanged',
+  RelayStatesChanged: 'RelayStatesChanged',
   EnvironmentReadingChanged: 'EnvironmentReadingChanged',
   NotificationSent: 'NotificationSent',
   NotificationDismissed: 'NotificationDismissed',
@@ -72,11 +78,26 @@ export class RealtimeHub extends SignalRHubBase {
       case MessageType.SensorsSettingsChanged:
         dispatchCustomEvent<Sensor[]>(this, events.sensorsUpdated, message.payload as Sensor[]);
         break;
+      case MessageType.SensorChanged:
+        dispatchCustomEvent<Sensor>(this, events.sensorChanged, message.payload as Sensor);
+        break;
+      case MessageType.SensorDeleted:
+        dispatchCustomEvent<string>(this, events.sensorDeleted, message.payload as string);
+        break;
       case MessageType.DevicesSettingsChanged:
         dispatchCustomEvent<DevicesSettings>(this, events.devicesUpdated, message.payload as DevicesSettings);
         break;
+      case MessageType.DeviceChanged:
+        dispatchCustomEvent<DeviceChange>(this, events.deviceChanged, message.payload as DeviceChange);
+        break;
+      case MessageType.DeviceDeleted:
+        dispatchCustomEvent<string>(this, events.deviceDeleted, message.payload as string);
+        break;
       case MessageType.DeviceStateChanged:
         dispatchCustomEvent<DeviceStates>(this, events.deviceStateChanged, message.payload as DeviceStates);
+        break;
+      case MessageType.RelayStatesChanged:
+        dispatchCustomEvent<RelayStates>(this, signalrEvents.controlHub.relayStatesChanged, message.payload as RelayStates);
         break;
       case MessageType.PreferencesChanged:
         dispatchCustomEvent(this, events.preferencesSaved, message.payload as Preferences);

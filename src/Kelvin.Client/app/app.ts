@@ -31,7 +31,7 @@ import {
   schedulesContext,
 } from './contexts/thermostat-context.js';
 import { events } from './events.js';
-import { DevicesSettings, DeviceStates } from './models/devices.js';
+import { DeviceChange, DevicesSettings, DeviceStates } from './models/devices.js';
 import { Sensor } from './models/sensors.js';
 import './router.js';
 import { Thermostat, ThermostatSettings } from './models/thermostat.js';
@@ -39,7 +39,7 @@ import { ToastDetail } from './models/toast-detail.js';
 import resources from './services/api-resources.js';
 import { apiPut } from './services/api.js';
 import { isKioskMode } from './services/kiosk.js';
-import { dispatchToast } from './services/utilities.js';
+import { dispatchToast, removeById, upsertByName } from './services/utilities.js';
 import sharedStyles from './shared.styles.js';
 
 import type { Preferences } from './models/preferences.js';
@@ -99,13 +99,21 @@ export class KelvinApp extends LitElement {
 
     this.handlePreferencesSaved = this.handlePreferencesSaved.bind(this);
     this.handleSensorsUpdated = this.handleSensorsUpdated.bind(this);
+    this.handleSensorChanged = this.handleSensorChanged.bind(this);
+    this.handleSensorDeleted = this.handleSensorDeleted.bind(this);
     this.handleDevicesUpdated = this.handleDevicesUpdated.bind(this);
+    this.handleDeviceChanged = this.handleDeviceChanged.bind(this);
+    this.handleDeviceDeleted = this.handleDeviceDeleted.bind(this);
     this.handleDeviceStateChanged = this.handleDeviceStateChanged.bind(this);
     this.handleThermostatUpdated = this.handleThermostatUpdated.bind(this);
 
     this.addEventListener(events.preferencesSaved, this.handlePreferencesSaved);
     this.addEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
+    this.addEventListener(events.sensorChanged, this.handleSensorChanged);
+    this.addEventListener(events.sensorDeleted, this.handleSensorDeleted);
     this.addEventListener(events.devicesUpdated, this.handleDevicesUpdated);
+    this.addEventListener(events.deviceChanged, this.handleDeviceChanged);
+    this.addEventListener(events.deviceDeleted, this.handleDeviceDeleted);
     this.addEventListener(events.deviceStateChanged, this.handleDeviceStateChanged);
     this.addEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
   }
@@ -115,7 +123,11 @@ export class KelvinApp extends LitElement {
 
     this.removeEventListener(events.preferencesSaved, this.handlePreferencesSaved);
     this.removeEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
+    this.removeEventListener(events.sensorChanged, this.handleSensorChanged);
+    this.removeEventListener(events.sensorDeleted, this.handleSensorDeleted);
     this.removeEventListener(events.devicesUpdated, this.handleDevicesUpdated);
+    this.removeEventListener(events.deviceChanged, this.handleDeviceChanged);
+    this.removeEventListener(events.deviceDeleted, this.handleDeviceDeleted);
     this.removeEventListener(events.deviceStateChanged, this.handleDeviceStateChanged);
     this.removeEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
   }
@@ -132,6 +144,16 @@ export class KelvinApp extends LitElement {
     this.sensorsProvider.setValue((event as CustomEvent<Sensor[]>).detail);
   }
 
+  handleSensorChanged(event: Event): void {
+    event.stopPropagation();
+    this.sensorsProvider.setValue(upsertByName(this.sensorsProvider.value, (event as CustomEvent<Sensor>).detail));
+  }
+
+  handleSensorDeleted(event: Event): void {
+    event.stopPropagation();
+    this.sensorsProvider.setValue(removeById(this.sensorsProvider.value, (event as CustomEvent<string>).detail));
+  }
+
   handleThermostatUpdated(event: Event): void {
     event.stopPropagation();
     this.applyThermostatSettings((event as CustomEvent<Partial<ThermostatSettings>>).detail);
@@ -140,9 +162,25 @@ export class KelvinApp extends LitElement {
   handleDevicesUpdated(event: Event): void {
     event.stopPropagation();
 
-    const { devices, humidifiers } = (event as CustomEvent<Partial<DevicesSettings>>).detail;
-    if (devices) this.devicesProvider.setValue(devices);
-    if (humidifiers) this.humidifiersProvider.setValue(humidifiers);
+    const { devices, humidifiers } = (event as CustomEvent<DevicesSettings>).detail;
+    this.devicesProvider.setValue(devices);
+    this.humidifiersProvider.setValue(humidifiers);
+  }
+
+  handleDeviceChanged(event: Event): void {
+    event.stopPropagation();
+
+    const { device, humidifier } = (event as CustomEvent<DeviceChange>).detail;
+    if (device) this.devicesProvider.setValue(upsertByName(this.devicesProvider.value, device));
+    if (humidifier) this.humidifiersProvider.setValue(upsertByName(this.humidifiersProvider.value, humidifier));
+  }
+
+  handleDeviceDeleted(event: Event): void {
+    event.stopPropagation();
+
+    const id = (event as CustomEvent<string>).detail;
+    this.devicesProvider.setValue(removeById(this.devicesProvider.value, id));
+    this.humidifiersProvider.setValue(removeById(this.humidifiersProvider.value, id));
   }
 
   handleDeviceStateChanged(event: Event): void {

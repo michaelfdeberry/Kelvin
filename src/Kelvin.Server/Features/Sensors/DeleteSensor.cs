@@ -21,7 +21,7 @@ public class DeleteSensorHandler(KelvinContext context, IMemoryCache cache, IDis
     await context.Hmis.Where(h => h.SensorId == request.SensorId).ExecuteUpdateAsync(h => h.SetProperty(h => h.DeletedAt, DateTime.UtcNow), ct);
     cache.Remove(SensorsCache.Key);
 
-    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
+    await dispatcher.PublishAsync(new SensorDeletedEvent(request.SensorId), ct);
     return Result.Success();
   }
 }

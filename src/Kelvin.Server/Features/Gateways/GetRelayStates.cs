@@ -1,18 +1,21 @@
 using Kelvin.Server.Application;
+using Kelvin.Server.Models;
 using Kelvin.Server.Services;
 
 namespace Kelvin.Server.Features.Gateways;
 
 public record GetRelayStatesRequest() : IRequest<GetRelayStatesResponse>;
 
-public record GetRelayStatesResponse(bool? Heating, bool? Cooling, bool? Fan, bool? Control);
+public record GetRelayStatesResponse(bool? Heating, bool? Cooling, bool? Fan, bool? Control)
+{
+  public static GetRelayStatesResponse FromState(RelayState state) => new(state.Heating, state.Cooling, state.Fan, state.Control);
+}
 
 public class GetRelayStatesHandler(IRelayController relayController) : IHandler<GetRelayStatesRequest, GetRelayStatesResponse>
 {
   public async Task<Result<GetRelayStatesResponse>> HandleAsync(GetRelayStatesRequest request, CancellationToken ct = default)
   {
-    var state = relayController.GetState();
-    var response = new GetRelayStatesResponse(state.Heating, state.Cooling, state.Fan, state.Control);
+    var response = GetRelayStatesResponse.FromState(relayController.GetState());
     return Result<GetRelayStatesResponse>.Success(response);
   }
 }

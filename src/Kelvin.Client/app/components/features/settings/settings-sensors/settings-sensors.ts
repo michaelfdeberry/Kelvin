@@ -44,10 +44,6 @@ export class SettingsSensors extends LitElement {
     args: () => [],
   });
 
-  private updateSensors(sensors: Sensor[]): void {
-    dispatchCustomEvent<Sensor[]>(this, events.sensorsUpdated, sensors);
-  }
-
   private handleSensorSelected(sensorId: string) {
     if (!this.sensorSettings) return;
     this.sensorSettings.sensorId = sensorId;
@@ -62,7 +58,9 @@ export class SettingsSensors extends LitElement {
         await apiPost<void>(resources.sensors.enableSensor, { body: undefined, routeParams: { sensorId } });
       }
       dispatchToast(this, 'Success', `Sensor ${enabled ? 'disabled' : 'enabled'} successfully`);
-      this.updateSensors(this.sensors.map(sensor => (sensor.id === sensorId ? { ...sensor, enabled: !enabled } : sensor)));
+
+      const sensor = this.sensors.find(existing => existing.id === sensorId);
+      if (sensor) dispatchCustomEvent<Sensor>(this, events.sensorChanged, { ...sensor, enabled: !enabled });
     } catch {
       dispatchToast(this, 'Error', `Failed to ${enabled ? 'disable' : 'enable'} sensor`);
     }
@@ -72,8 +70,7 @@ export class SettingsSensors extends LitElement {
     try {
       await apiPost<void>(resources.sensors.restoreSensor, { body: undefined, routeParams: { id: sensor.id } });
       dispatchToast(this, 'Success', `Sensor ${sensor.name} restored successfully`);
-      const others = this.sensors.filter(existing => existing.id !== sensor.id);
-      this.updateSensors([...others, sensor].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')));
+      dispatchCustomEvent<Sensor>(this, events.sensorChanged, sensor);
     } catch {
       dispatchToast(this, 'Error', 'Failed to restore sensor');
     }
@@ -101,7 +98,7 @@ export class SettingsSensors extends LitElement {
           </button>
         `,
       });
-      this.updateSensors(this.sensors.filter(existing => existing.id !== sensor.id));
+      dispatchCustomEvent<string>(this, events.sensorDeleted, sensor.id);
     } catch (error) {
       console.error('Failed to remove sensor:', error);
       dispatchToast(this, 'Error', 'Failed to remove sensor');

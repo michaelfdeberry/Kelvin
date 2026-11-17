@@ -33,7 +33,14 @@ public class UpdateSensorTests
         result.IsSuccess.ShouldBeTrue();
         cache.TryGetValue(SensorsCache.Key, out _).ShouldBeFalse();
         FakeItEasy
-            .A.CallTo(() => bus.PublishAsync(A<SensorsChangedEvent>._, A<CancellationToken>._))
+            .A.CallTo(() =>
+                bus.PublishAsync(
+                    A<SensorChangedEvent>.That.Matches(e =>
+                        e.Sensor.Id == sensor.Id && e.Sensor.Name == "New"
+                    ),
+                    A<CancellationToken>._
+                )
+            )
             .MustHaveHappenedOnceExactly();
         var updated = (await harness.CreateContext().Sensors.FindAsync(sensor.Id))!;
         updated.Name.ShouldBe("New");

@@ -95,11 +95,7 @@ export class SensorSettings extends LitElement {
     });
 
     dispatchToast(this, 'Success', 'Sensor updated successfully.', { duration: 3000 });
-    dispatchCustomEvent<Sensor[]>(
-      this,
-      events.sensorsUpdated,
-      this.sensors.map(sensor => (sensor.id === updatedSensor.id ? updatedSensor : sensor)),
-    );
+    dispatchCustomEvent<Sensor>(this, events.sensorChanged, updatedSensor);
 
     this.isModalOpen = false;
   }

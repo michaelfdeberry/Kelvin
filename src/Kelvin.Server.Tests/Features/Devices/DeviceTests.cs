@@ -31,8 +31,13 @@ public class DeviceTests : IDisposable
         return device.Id;
     }
 
-    private void MustHavePublished() =>
-        A.CallTo(() => _dispatcher.PublishAsync(A<DevicesChangedEvent>._, A<CancellationToken>._))
+    private void MustHavePublishedChange(Func<Device, bool> matches) =>
+        A.CallTo(() =>
+                _dispatcher.PublishAsync(
+                    A<DeviceChangedEvent>.That.Matches(e => matches(e.Device)),
+                    A<CancellationToken>._
+                )
+            )
             .MustHaveHappenedOnceExactly();
 
     [Fact]
@@ -67,7 +72,12 @@ public class DeviceTests : IDisposable
             ).IsSuccess.ShouldBeTrue();
         }
         (await _harness.CreateContext().Devices.FindAsync(id))!.Enabled.ShouldBeFalse();
-        A.CallTo(() => _dispatcher.PublishAsync(A<DeviceDisabledEvent>.That.Matches(e => e.Device.Id == id), A<CancellationToken>._))
+        A.CallTo(() =>
+                _dispatcher.PublishAsync(
+                    A<DeviceDisabledEvent>.That.Matches(e => e.Device.Id == id),
+                    A<CancellationToken>._
+                )
+            )
             .MustHaveHappenedOnceExactly();
 
         await using (var context = _harness.CreateContext())
@@ -79,7 +89,12 @@ public class DeviceTests : IDisposable
             ).IsSuccess.ShouldBeTrue();
         }
         (await _harness.CreateContext().Devices.FindAsync(id))!.Enabled.ShouldBeTrue();
-        A.CallTo(() => _dispatcher.PublishAsync(A<DevicesChangedEvent>._, A<CancellationToken>._))
+        A.CallTo(() =>
+                _dispatcher.PublishAsync(
+                    A<DeviceChangedEvent>.That.Matches(e => e.Device.Id == id),
+                    A<CancellationToken>._
+                )
+            )
             .MustHaveHappenedTwiceExactly();
     }
 
@@ -126,6 +141,7 @@ public class DeviceTests : IDisposable
             ).IsSuccess.ShouldBeTrue();
         }
         (await _harness.CreateContext().Devices.FindAsync(id))!.DeletedAt.ShouldBeNull();
+        MustHavePublishedChange(device => device.Id == id && device.DeletedAt is null);
     }
 
     [Fact]
@@ -142,7 +158,7 @@ public class DeviceTests : IDisposable
         var device = (await _harness.CreateContext().Devices.FindAsync(id))!;
         device.Name.ShouldBe("Basement");
         device.MacAddress.ShouldBe("aa:bb:cc:dd:ee:ff");
-        MustHavePublished();
+        MustHavePublishedChange(changed => changed.Name == "Basement");
     }
 
     [Fact]

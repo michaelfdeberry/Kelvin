@@ -83,6 +83,19 @@ export function generateProvisionalId(): string {
   });
 }
 
+/**
+ * Adds or replaces the item with the same id, keeping the list ordered by name the way the server returns it. The server's ordering is
+ * a plain binary comparison, so this is one too - localeCompare would order differently.
+ */
+export function upsertByName<T extends { id: string; name?: string | null }>(items: T[], item: T): T[] {
+  const name = (value: T) => value.name ?? '';
+  return [...items.filter(existing => existing.id !== item.id), item].sort((a, b) => (name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0));
+}
+
+export function removeById<T extends { id: string }>(items: T[], id: string): T[] {
+  return items.filter(item => item.id !== id);
+}
+
 export function timestampToDate(timestamp: string): Date {
   const now = new Date();
   const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

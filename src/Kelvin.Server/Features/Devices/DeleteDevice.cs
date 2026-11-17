@@ -27,7 +27,6 @@ public class DeleteDeviceHandler(KelvinContext context, IDispatcher dispatcher) 
     await context.SaveChangesAsync(ct);
 
     await dispatcher.PublishAsync(new DeviceDeletedEvent(device), ct);
-    await dispatcher.PublishAsync(new DevicesChangedEvent(), ct);
     return Result.Success();
   }
 }

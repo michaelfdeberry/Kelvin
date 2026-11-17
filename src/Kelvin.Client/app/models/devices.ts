@@ -9,10 +9,17 @@ export type Device = {
   lastSeenAt?: string | null;
 };
 
-// Everything the server pushes about devices; local updates may carry only the parts that changed.
+// Everything the server pushes about devices when a client connects.
 export type DevicesSettings = {
   devices: Device[];
   humidifiers: Humidifier[];
+};
+
+// One created or changed device. The device and its per-type configuration are separate lists on the client, so either may be absent
+// when only one of them changed.
+export type DeviceChange = {
+  device?: Device;
+  humidifier?: Humidifier;
 };
 
 export type HumidifierState = {

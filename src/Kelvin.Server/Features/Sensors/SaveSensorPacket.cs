@@ -63,7 +63,7 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     if (clearCache)
     {
       cache.Remove(SensorsCache.Key);
-      await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
+      await dispatcher.PublishAsync(new SensorChangedEvent(sensor), ct);
     }
 
     // Always save the packet if one comes in so the latest sensor state is retained,

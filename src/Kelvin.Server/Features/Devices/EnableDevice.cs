@@ -25,7 +25,7 @@ public class EnableDeviceHandler(KelvinContext context, IDispatcher dispatcher) 
     device.Enabled = true;
     await context.SaveChangesAsync(ct);
 
-    await dispatcher.PublishAsync(new DevicesChangedEvent(), ct);
+    await dispatcher.PublishAsync(new DeviceChangedEvent(device), ct);
     return Result.Success();
   }
 }

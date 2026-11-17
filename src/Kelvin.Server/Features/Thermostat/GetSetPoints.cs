@@ -7,7 +7,10 @@ namespace Kelvin.Server.Features.Thermostat;
 
 public record GetSetPointsRequest() : IRequest<GetSetPointsResponse>;
 
-public record SetPointResponse(Guid Id, RunType Type, float TargetTemperatureC);
+public record SetPointResponse(Guid Id, RunType Type, float TargetTemperatureC)
+{
+  public static SetPointResponse FromEntity(SetPoint setPoint) => new(setPoint.Id, setPoint.Type, setPoint.TargetTemperatureC);
+}
 
 public record GetSetPointsResponse(IEnumerable<SetPointResponse> SetPoints);
 
@@ -16,9 +19,7 @@ public class GetSetPointsHandler(KelvinContext context) : IHandler<GetSetPointsR
   public async Task<Result<GetSetPointsResponse>> HandleAsync(GetSetPointsRequest request, CancellationToken ct = default)
   {
     var setPoints = await context.SetPoints.Where(sp => sp.DeletedAt == null).ToListAsync(ct);
-    return Result<GetSetPointsResponse>.Success(
-      new GetSetPointsResponse(setPoints.Select(sp => new SetPointResponse(sp.Id, sp.Type, sp.TargetTemperatureC)))
-    );
+    return Result<GetSetPointsResponse>.Success(new GetSetPointsResponse(setPoints.Select(SetPointResponse.FromEntity)));
   }
 }
 

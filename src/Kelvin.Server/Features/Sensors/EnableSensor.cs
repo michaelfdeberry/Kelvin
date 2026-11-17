@@ -26,7 +26,7 @@ public class EnableSensorHandler(KelvinContext context, IMemoryCache cache, IDis
     await context.SaveChangesAsync(ct);
     cache.Remove(SensorsCache.Key);
 
-    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
+    await dispatcher.PublishAsync(new SensorChangedEvent(sensor), ct);
     return Result.Success();
   }
 }

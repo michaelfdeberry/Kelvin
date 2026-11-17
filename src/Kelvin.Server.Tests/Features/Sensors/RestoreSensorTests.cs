@@ -24,13 +24,22 @@ public class RestoreSensorTests
 
         var bus = SensorTestHelpers.CreateDispatcher();
 
-        var result = await new RestoreSensorHandler(context, cache, bus).HandleAsync(new RestoreSensorRequest(sensor.Id));
+        var result = await new RestoreSensorHandler(context, cache, bus).HandleAsync(
+            new RestoreSensorRequest(sensor.Id)
+        );
 
         result.IsSuccess.ShouldBeTrue();
         cache.TryGetValue(SensorsCache.Key, out _).ShouldBeFalse();
         (await harness.CreateContext().Sensors.FindAsync(sensor.Id))!.DeletedAt.ShouldBeNull();
         FakeItEasy
-            .A.CallTo(() => bus.PublishAsync(A<SensorsChangedEvent>._, A<CancellationToken>._))
+            .A.CallTo(() =>
+                bus.PublishAsync(
+                    A<SensorChangedEvent>.That.Matches(e =>
+                        e.Sensor.Id == sensor.Id && e.Sensor.DeletedAt == null
+                    ),
+                    A<CancellationToken>._
+                )
+            )
             .MustHaveHappenedOnceExactly();
     }
 }

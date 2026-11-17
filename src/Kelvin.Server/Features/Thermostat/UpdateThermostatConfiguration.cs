@@ -125,7 +125,7 @@ public class UpdateThermostatConfigurationHandler(KelvinContext context, IMemory
     await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
 
-    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(), ct);
+    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(thermostat), ct);
     return Result.Success();
   }
 }

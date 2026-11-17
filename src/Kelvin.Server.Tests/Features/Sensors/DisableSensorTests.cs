@@ -33,7 +33,14 @@ public class DisableSensorTests
         result.IsSuccess.ShouldBeTrue();
         cache.TryGetValue(SensorsCache.Key, out _).ShouldBeFalse();
         FakeItEasy
-            .A.CallTo(() => bus.PublishAsync(A<SensorsChangedEvent>._, A<CancellationToken>._))
+            .A.CallTo(() =>
+                bus.PublishAsync(
+                    A<SensorChangedEvent>.That.Matches(e =>
+                        e.Sensor.Id == sensorId && !e.Sensor.Enabled
+                    ),
+                    A<CancellationToken>._
+                )
+            )
             .MustHaveHappenedOnceExactly();
         (await harness.CreateContext().Sensors.FindAsync(sensorId))!.Enabled.ShouldBeFalse();
     }

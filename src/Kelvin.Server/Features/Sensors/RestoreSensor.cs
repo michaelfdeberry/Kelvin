@@ -19,7 +19,13 @@ public class RestoreSensorHandler(KelvinContext context, IMemoryCache cache, IDi
   {
     await context.Sensors.Where(s => s.Id == request.Id).ExecuteUpdateAsync(s => s.SetProperty(s => s.DeletedAt, (DateTime?)null), ct);
     cache.Remove(SensorsCache.Key);
-    await dispatcher.PublishAsync(new SensorsChangedEvent(), ct);
+
+    var sensor = await context.Sensors.AsNoTracking().FirstOrDefaultAsync(s => s.Id == request.Id, ct);
+    if (sensor is not null)
+    {
+      await dispatcher.PublishAsync(new SensorChangedEvent(sensor), ct);
+    }
+
     return Result.Success();
   }
 }

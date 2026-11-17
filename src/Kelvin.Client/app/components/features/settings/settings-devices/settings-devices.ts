@@ -11,9 +11,9 @@ import settingsDevicesStyles from './settings-devices.styles.js';
 import editIcon from '../../../../../assets/icons/edit.svg?raw';
 import powerIcon from '../../../../../assets/icons/power.svg?raw';
 import trashIcon from '../../../../../assets/icons/trash.svg?raw';
-import { devicesContext } from '../../../../contexts/devices-context.js';
+import { devicesContext, humidifiersContext } from '../../../../contexts/devices-context.js';
 import { events } from '../../../../events.js';
-import { Device, DevicesSettings, UpdateDeviceRequest } from '../../../../models/devices.js';
+import { Device, DeviceChange, Humidifier, UpdateDeviceRequest } from '../../../../models/devices.js';
 import resources from '../../../../services/api-resources.js';
 import { apiDelete, apiPost, apiPut } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
@@ -31,6 +31,9 @@ export class SettingsDevices extends LitElement {
 
   @consume({ context: devicesContext, subscribe: true })
   private devices!: Device[];
+
+  @consume({ context: humidifiersContext, subscribe: true })
+  private humidifiers!: Humidifier[];
 
   @query('app-modal')
   private modal?: Modal;
@@ -62,8 +65,8 @@ export class SettingsDevices extends LitElement {
     return this.devices?.find(device => device.id === this.editingId);
   }
 
-  private updateDevices(devices: Device[]): void {
-    dispatchCustomEvent<Partial<DevicesSettings>>(this, events.devicesUpdated, { devices });
+  private notifyChanged(change: DeviceChange): void {
+    dispatchCustomEvent<DeviceChange>(this, events.deviceChanged, change);
   }
 
   private handleEdit(device: Device): void {
@@ -91,7 +94,9 @@ export class SettingsDevices extends LitElement {
     try {
       await apiPut<void>(resources.devices.updateDevice, { body, routeParams: { id: device.id } });
       dispatchToast(this, 'Success', 'Device updated successfully.');
-      this.updateDevices(this.devices.map(existing => (existing.id === device.id ? { ...existing, name } : existing)));
+
+      const humidifier = this.humidifiers.find(existing => existing.id === device.id);
+      this.notifyChanged({ device: { ...device, name }, humidifier: humidifier && { ...humidifier, name } });
       this.isModalOpen = false;
     } catch {
       // apiPut already surfaces an error toast.
@@ -106,18 +111,22 @@ export class SettingsDevices extends LitElement {
         await apiPost<void>(resources.devices.enableDevice, { body: undefined, routeParams: { deviceId: device.id } });
       }
       dispatchToast(this, 'Success', `Device ${device.enabled ? 'disabled' : 'enabled'} successfully`);
-      this.updateDevices(this.devices.map(existing => (existing.id === device.id ? { ...existing, enabled: !device.enabled } : existing)));
+
+      const humidifier = this.humidifiers.find(existing => existing.id === device.id);
+      this.notifyChanged({
+        device: { ...device, enabled: !device.enabled },
+        humidifier: humidifier && { ...humidifier, enabled: !device.enabled },
+      });
     } catch {
       // The api helpers already surface an error toast.
     }
   }
 
-  private async handleRestore(device: Device): Promise<void> {
+  private async handleRestore(device: Device, humidifier?: Humidifier): Promise<void> {
     try {
       await apiPost<void>(resources.devices.restoreDevice, { body: undefined, routeParams: { id: device.id } });
       dispatchToast(this, 'Success', `Device ${device.name} restored successfully`);
-      const others = this.devices.filter(existing => existing.id !== device.id);
-      this.updateDevices([...others, device].sort((a, b) => a.name.localeCompare(b.name)));
+      this.notifyChanged({ device, humidifier });
     } catch {
       // The api helpers already surface an error toast.
     }
@@ -125,6 +134,9 @@ export class SettingsDevices extends LitElement {
 
   private async handleRemove(device: Device): Promise<void> {
     if (!(await confirmModal('Are you sure you want to remove this device?'))) return;
+
+    // Removing the device drops its configuration too, so keep it for the undo.
+    const humidifier = this.humidifiers.find(existing => existing.id === device.id);
 
     try {
       await apiDelete<void>(resources.devices.deleteDevice, { routeParams: { id: device.id } });
@@ -136,13 +148,13 @@ export class SettingsDevices extends LitElement {
           <button
             slot="actions"
             class="button button--success button--small"
-            @click=${() => this.handleRestore(device)}
+            @click=${() => this.handleRestore(device, humidifier)}
           >
             Undo
           </button>
         `,
       });
-      this.updateDevices(this.devices.filter(existing => existing.id !== device.id));
+      dispatchCustomEvent<string>(this, events.deviceDeleted, device.id);
     } catch {
       // The api helpers already surface an error toast.
     }

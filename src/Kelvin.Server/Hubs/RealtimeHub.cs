@@ -14,8 +14,13 @@ public static class RealtimeMessageTypes
   public const string ControlStateChanged = "ControlStateChanged";
   public const string ThermostatSettingsChanged = "ThermostatSettingsChanged";
   public const string SensorsSettingsChanged = "SensorsSettingsChanged";
+  public const string SensorChanged = "SensorChanged";
+  public const string SensorDeleted = "SensorDeleted";
   public const string DevicesSettingsChanged = "DevicesSettingsChanged";
+  public const string DeviceChanged = "DeviceChanged";
+  public const string DeviceDeleted = "DeviceDeleted";
   public const string DeviceStateChanged = "DeviceStateChanged";
+  public const string RelayStatesChanged = "RelayStatesChanged";
   public const string EnvironmentReadingChanged = "EnvironmentReadingChanged";
   public const string NotificationSent = "NotificationSent";
   public const string NotificationDismissed = "NotificationDismissed";

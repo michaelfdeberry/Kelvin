@@ -2,6 +2,7 @@ using FakeItEasy;
 using Kelvin.Server.Application;
 using Kelvin.Server.Features.Control;
 using Kelvin.Server.Features.Devices;
+using Kelvin.Server.Features.Gateways;
 using Kelvin.Server.Features.Humidifiers;
 using Kelvin.Server.Features.Preferences;
 using Kelvin.Server.Features.Sensors;
@@ -17,12 +18,10 @@ public class RealtimeSnapshotsTests
 {
     private static readonly Error Failed = new("Test.Failed", "failed");
 
-    private readonly IHandler<GetControlStateRequest, GetControlStateResponse> _controlState = A.Fake<
-        IHandler<GetControlStateRequest, GetControlStateResponse>
-    >();
-    private readonly IHandler<GetLatestReadingsRequest, GetLatestReadingsResponse> _readings = A.Fake<
-        IHandler<GetLatestReadingsRequest, GetLatestReadingsResponse>
-    >();
+    private readonly IHandler<GetControlStateRequest, GetControlStateResponse> _controlState =
+        A.Fake<IHandler<GetControlStateRequest, GetControlStateResponse>>();
+    private readonly IHandler<GetLatestReadingsRequest, GetLatestReadingsResponse> _readings =
+        A.Fake<IHandler<GetLatestReadingsRequest, GetLatestReadingsResponse>>();
     private readonly IHandler<GetThermostatRequest, GetThermostatResponse> _thermostat = A.Fake<
         IHandler<GetThermostatRequest, GetThermostatResponse>
     >();
@@ -41,25 +40,45 @@ public class RealtimeSnapshotsTests
     private readonly IHandler<GetHumidifiersRequest, GetHumidifiersResponse> _humidifiers = A.Fake<
         IHandler<GetHumidifiersRequest, GetHumidifiersResponse>
     >();
-    private readonly IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse> _deviceStates = A.Fake<
-        IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse>
+    private readonly IHandler<GetRelayStatesRequest, GetRelayStatesResponse> _relayStates = A.Fake<
+        IHandler<GetRelayStatesRequest, GetRelayStatesResponse>
     >();
+    private readonly IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse> _deviceStates =
+        A.Fake<IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse>>();
     private readonly IHandler<GetPreferencesRequest, GetPreferencesResponse> _preferences = A.Fake<
         IHandler<GetPreferencesRequest, GetPreferencesResponse>
     >();
 
     private RealtimeSnapshots CreateSnapshots(ControlStateChangeDto? lastChange = null)
     {
-        A.CallTo(() => _controlState.HandleAsync(A<GetControlStateRequest>._, A<CancellationToken>._))
+        A.CallTo(() =>
+                _controlState.HandleAsync(A<GetControlStateRequest>._, A<CancellationToken>._)
+            )
             .Returns(
                 Result<GetControlStateResponse>.Success(
-                    new GetControlStateResponse(ControlState.Disable, null, ControlState.Dwell, null, false, null, lastChange)
+                    new GetControlStateResponse(
+                        ControlState.Disable,
+                        null,
+                        ControlState.Dwell,
+                        null,
+                        false,
+                        null,
+                        lastChange
+                    )
                 )
             );
         A.CallTo(() => _readings.HandleAsync(A<GetLatestReadingsRequest>._, A<CancellationToken>._))
-            .Returns(Result<GetLatestReadingsResponse>.Success(new GetLatestReadingsResponse(new EnvironmentReading())));
+            .Returns(
+                Result<GetLatestReadingsResponse>.Success(
+                    new GetLatestReadingsResponse(new EnvironmentReading())
+                )
+            );
         A.CallTo(() => _thermostat.HandleAsync(A<GetThermostatRequest>._, A<CancellationToken>._))
-            .Returns(Result<GetThermostatResponse>.Success(new GetThermostatResponse(new Models.Thermostat { Mode = RunMode.Heating })));
+            .Returns(
+                Result<GetThermostatResponse>.Success(
+                    new GetThermostatResponse(new Models.Thermostat { Mode = RunMode.Heating })
+                )
+            );
         A.CallTo(() => _setPoints.HandleAsync(A<GetSetPointsRequest>._, A<CancellationToken>._))
             .Returns(Result<GetSetPointsResponse>.Success(new GetSetPointsResponse([])));
         A.CallTo(() => _schedules.HandleAsync(A<GetSchedulesRequest>._, A<CancellationToken>._))
@@ -70,11 +89,26 @@ public class RealtimeSnapshotsTests
             .Returns(Result<GetDevicesResponse>.Success(new GetDevicesResponse([])));
         A.CallTo(() => _humidifiers.HandleAsync(A<GetHumidifiersRequest>._, A<CancellationToken>._))
             .Returns(Result<GetHumidifiersResponse>.Success(new GetHumidifiersResponse([])));
-        A.CallTo(() => _deviceStates.HandleAsync(A<GetDeviceStatesRequest>._, A<CancellationToken>._))
+        A.CallTo(() => _relayStates.HandleAsync(A<GetRelayStatesRequest>._, A<CancellationToken>._))
+            .Returns(
+                Result<GetRelayStatesResponse>.Success(
+                    new GetRelayStatesResponse(null, null, null, null)
+                )
+            );
+        A.CallTo(() =>
+                _deviceStates.HandleAsync(A<GetDeviceStatesRequest>._, A<CancellationToken>._)
+            )
             .Returns(Result<GetDeviceStatesResponse>.Success(new GetDeviceStatesResponse([])));
         A.CallTo(() => _preferences.HandleAsync(A<GetPreferencesRequest>._, A<CancellationToken>._))
             .Returns(
-                Result<GetPreferencesResponse>.Success(new GetPreferencesResponse(TemperatureUnit.Celsius, TimeFormat.Hour24, null, null))
+                Result<GetPreferencesResponse>.Success(
+                    new GetPreferencesResponse(
+                        TemperatureUnit.Celsius,
+                        TimeFormat.Hour24,
+                        null,
+                        null
+                    )
+                )
             );
 
         return new RealtimeSnapshots(
@@ -87,6 +121,7 @@ public class RealtimeSnapshotsTests
             _devices,
             _humidifiers,
             _deviceStates,
+            _relayStates,
             _preferences
         );
     }
@@ -102,17 +137,16 @@ public class RealtimeSnapshotsTests
 
         messages
             .Select(m => m.Type)
-            .ShouldBe(
-                [
-                    RealtimeMessageTypes.ControlStateChanged,
-                    RealtimeMessageTypes.EnvironmentReadingChanged,
-                    RealtimeMessageTypes.ThermostatSettingsChanged,
-                    RealtimeMessageTypes.SensorsSettingsChanged,
-                    RealtimeMessageTypes.DevicesSettingsChanged,
-                    RealtimeMessageTypes.DeviceStateChanged,
-                    RealtimeMessageTypes.PreferencesChanged,
-                ]
-            );
+            .ShouldBe([
+                RealtimeMessageTypes.ControlStateChanged,
+                RealtimeMessageTypes.EnvironmentReadingChanged,
+                RealtimeMessageTypes.ThermostatSettingsChanged,
+                RealtimeMessageTypes.SensorsSettingsChanged,
+                RealtimeMessageTypes.DevicesSettingsChanged,
+                RealtimeMessageTypes.DeviceStateChanged,
+                RealtimeMessageTypes.RelayStatesChanged,
+                RealtimeMessageTypes.PreferencesChanged,
+            ]);
         messages[0].Payload.ShouldBe(change);
     }
 
@@ -122,15 +156,16 @@ public class RealtimeSnapshotsTests
         var messages = await CreateSnapshots().AllAsync();
 
         messages.ShouldNotContain(m => m.Type == RealtimeMessageTypes.ControlStateChanged);
-        messages.Count.ShouldBe(6);
+        messages.Count.ShouldBe(7);
     }
 
     [Fact]
     public async Task Thermostat_CombinesThermostatSetPointsAndSchedules()
     {
-        var message = await CreateSnapshots().ThermostatAsync();
+        var message = (await CreateSnapshots().AllAsync()).Single(m =>
+            m.Type == RealtimeMessageTypes.ThermostatSettingsChanged
+        );
 
-        message!.Type.ShouldBe(RealtimeMessageTypes.ThermostatSettingsChanged);
         var payload = message.Payload.ShouldBeOfType<ThermostatSettingsPayload>();
         payload.Thermostat.Mode.ShouldBe(RunMode.Heating);
     }
@@ -142,7 +177,8 @@ public class RealtimeSnapshotsTests
         A.CallTo(() => _humidifiers.HandleAsync(A<GetHumidifiersRequest>._, A<CancellationToken>._))
             .Returns(Result<GetHumidifiersResponse>.Failure(Failed));
 
-        (await snapshots.DevicesAsync()).ShouldBeNull();
-        (await snapshots.AllAsync()).ShouldNotContain(m => m.Type == RealtimeMessageTypes.DevicesSettingsChanged);
+        (await snapshots.AllAsync()).ShouldNotContain(m =>
+            m.Type == RealtimeMessageTypes.DevicesSettingsChanged
+        );
     }
 }
