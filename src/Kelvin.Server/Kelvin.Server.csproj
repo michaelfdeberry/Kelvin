@@ -9,7 +9,7 @@
     <Compile Include="..\Kelvin.Protocol\HmiCbor.cs" Link="Features\Hmi\HmiCbor.cs" />
     <Compile Include="..\Kelvin.Protocol\DeviceEnvelope.cs" Link="Features\Devices\DeviceEnvelope.cs" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
