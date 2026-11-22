@@ -2,16 +2,35 @@ import { consume } from '@lit/context';
 import { Task } from '@lit/task';
 import { html, LitElement, TemplateResult } from 'lit';
 import { customElement } from 'lit/decorators.js';
-import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
 
 import statsPanelStyles from './stats-panel.styles.js';
-import { defaultControlStateChange, controlContext } from '../../../../contexts/control-context.js';
-import { defaultThermostat, thermostatContext } from '../../../../contexts/thermostat-context.js';
-import { loadControlAnalyticsData, type ControlAnalyticsData } from '../../../../services/control-analytics.js';
+import {
+  callContext,
+  controlContext,
+  defaultCallStateChange,
+  defaultControlStateChange,
+  defaultLifecycleStateChange,
+  defaultRelayStates,
+  lifecycleContext,
+  relayStatesContext,
+} from '../../../../contexts/control-context.js';
+import { defaultEnvironmentReadings, environmentReadingsContext } from '../../../../contexts/sensors-context.js';
+import {
+  defaultSchedules,
+  defaultSetPoints,
+  defaultThermostat,
+  schedulesContext,
+  setPointsContext,
+  thermostatContext,
+} from '../../../../contexts/thermostat-context.js';
+import { loadControlStats } from '../../../../services/control-analytics.js';
 import sharedStyles from '../../../../shared.styles.js';
 
 import type { ControlStateChange } from '../../../../models/control-state-change.js';
+import type { ControlStats } from '../../../../models/control-stats.js';
+import type { RelayStates } from '../../../../models/gateway.js';
+import type { EnvironmentReading } from '../../../../models/sensors.js';
 import type { Schedule, SetPoint, Thermostat } from '../../../../models/thermostat.js';
 
 type HysteresisSource = Schedule | SetPoint;
@@ -34,11 +53,30 @@ export class StatsPanel extends LitElement {
   @consume({ context: thermostatContext, subscribe: true })
   thermostat: Thermostat = defaultThermostat;
 
+  @consume({ context: setPointsContext, subscribe: true })
+  setPoints: SetPoint[] = defaultSetPoints;
+
+  @consume({ context: schedulesContext, subscribe: true })
+  schedules: Schedule[] = defaultSchedules;
+
   @consume({ context: controlContext, subscribe: true })
   controlChange: Partial<ControlStateChange> = defaultControlStateChange;
 
-  private analyticsTask = new Task(this, {
-    task: async (_, { signal }) => loadControlAnalyticsData(signal),
+  @consume({ context: callContext, subscribe: true })
+  callChange: Partial<ControlStateChange> = defaultCallStateChange;
+
+  @consume({ context: lifecycleContext, subscribe: true })
+  lifecycleChange: Partial<ControlStateChange> = defaultLifecycleStateChange;
+
+  @consume({ context: relayStatesContext, subscribe: true })
+  relayStates: RelayStates = defaultRelayStates;
+
+  @consume({ context: environmentReadingsContext, subscribe: true })
+  environment: Partial<EnvironmentReading> = defaultEnvironmentReadings;
+
+  // Everything else is live state; only the runtime totals, an aggregate over the last 24 hours, have to be fetched.
+  private statsTask = new Task(this, {
+    task: async (_, { signal }) => loadControlStats(signal),
     args: () => [this.thermostat.mode, this.thermostat.fanEnabled, this.thermostat.hysteresisC, this.getRefreshKey()],
   });
 
@@ -48,28 +86,29 @@ export class StatsPanel extends LitElement {
     return `${id}:${changedAt}`;
   }
 
-  private buildSections(data: ControlAnalyticsData): StatSection[] {
-    return [this.buildTelemetrySection(data), this.buildHysteresisSection(data), this.buildForecastLockoutSection(), this.buildRelaySection(data)];
+  private buildSections(stats?: ControlStats): StatSection[] {
+    return [this.buildTelemetrySection(stats), this.buildHysteresisSection(), this.buildForecastLockoutSection(), this.buildRelaySection()];
   }
 
-  private buildTelemetrySection(data: ControlAnalyticsData): StatSection {
-    const context = data.latestCallChange ?? data.controlState.lastChange ?? undefined;
-    const serviceIsFaulted = data.latestLifecycleChange?.state === 'Fault';
+  private buildTelemetrySection(stats?: ControlStats): StatSection {
+    // The live average, falling back to what the last call was made on until the first reading arrives.
+    const temperatureC = this.environment.temperatureC ?? this.callChange.environmentTemperatureC;
+    const serviceIsFaulted = this.lifecycleChange.state === 'Fault';
 
     return {
       title: 'System Telemetry',
       rows: [
         {
           label: 'Aggregate Average:',
-          value: this.formatTemperature(context?.environmentTemperatureC),
+          value: this.formatTemperature(temperatureC),
         },
         {
           label: 'Heating Runtime (24h):',
-          value: this.formatDuration(data.controlStats.heatingSeconds),
+          value: stats ? this.formatDuration(stats.heatingSeconds) : '--',
         },
         {
           label: 'Cooling Runtime (24h):',
-          value: this.formatDuration(data.controlStats.coolingSeconds),
+          value: stats ? this.formatDuration(stats.coolingSeconds) : '--',
         },
         {
           label: 'Gateway Control:',
@@ -80,8 +119,8 @@ export class StatsPanel extends LitElement {
     };
   }
 
-  private buildHysteresisSection(data: ControlAnalyticsData): StatSection {
-    const hysteresisC = data.latestCallChange?.hysteresisC ?? this.thermostat.hysteresisC;
+  private buildHysteresisSection(): StatSection {
+    const hysteresisC = this.callChange.hysteresisC ?? this.thermostat.hysteresisC;
     const rows: StatRow[] = [
       {
         label: 'Dead Band:',
@@ -90,11 +129,11 @@ export class StatsPanel extends LitElement {
     ];
 
     if (this.thermostat.mode === 'Heating' || this.thermostat.mode === 'Automatic') {
-      rows.push(...this.buildThresholdRows('Heating', this.resolveSource(data, 'Heating'), hysteresisC));
+      rows.push(...this.buildThresholdRows('Heating', this.resolveSource('Heating'), hysteresisC));
     }
 
     if (this.thermostat.mode === 'Cooling' || this.thermostat.mode === 'Automatic') {
-      rows.push(...this.buildThresholdRows('Cooling', this.resolveSource(data, 'Cooling'), hysteresisC));
+      rows.push(...this.buildThresholdRows('Cooling', this.resolveSource('Cooling'), hysteresisC));
     }
 
     return {
@@ -132,14 +171,14 @@ export class StatsPanel extends LitElement {
     };
   }
 
-  private buildRelaySection(data: ControlAnalyticsData): StatSection {
+  private buildRelaySection(): StatSection {
     return {
       title: 'Hardware Relays (GPIO)',
       rows: [
-        { label: 'R1 (Cool - Y):', value: this.formatRelayState(data.relayStates.cooling === true) },
-        { label: 'R2 (Heat - W):', value: this.formatRelayState(data.relayStates.heating === true) },
-        { label: 'R3 (Fan - G):', value: this.formatRelayState(data.relayStates.fan === true) },
-        { label: 'R4 (Gateway Control):', value: this.formatRelayState(data.relayStates.control === true, 'ARMED', 'REVERTED') },
+        { label: 'R1 (Cool - Y):', value: this.formatRelayState(this.relayStates.cooling === true) },
+        { label: 'R2 (Heat - W):', value: this.formatRelayState(this.relayStates.heating === true) },
+        { label: 'R3 (Fan - G):', value: this.formatRelayState(this.relayStates.fan === true) },
+        { label: 'R4 (Gateway Control):', value: this.formatRelayState(this.relayStates.control === true, 'ARMED', 'REVERTED') },
       ],
     };
   }
@@ -190,24 +229,24 @@ export class StatsPanel extends LitElement {
     ];
   }
 
-  private resolveSource(data: ControlAnalyticsData, type: 'Heating' | 'Cooling'): HysteresisSource | undefined {
-    const matchedSchedule = data.latestCallChange?.scheduleId
-      ? data.schedules.find(schedule => schedule.id === data.latestCallChange?.scheduleId && schedule.type === type)
+  private resolveSource(type: 'Heating' | 'Cooling'): HysteresisSource | undefined {
+    const matchedSchedule = this.callChange.scheduleId
+      ? this.schedules.find(schedule => schedule.id === this.callChange.scheduleId && schedule.type === type)
       : undefined;
 
     if (matchedSchedule) {
       return matchedSchedule;
     }
 
-    const matchedSetPoint = data.latestCallChange?.setPointId
-      ? data.setPoints.find(setPoint => setPoint.id === data.latestCallChange?.setPointId && setPoint.type === type)
+    const matchedSetPoint = this.callChange.setPointId
+      ? this.setPoints.find(setPoint => setPoint.id === this.callChange.setPointId && setPoint.type === type)
       : undefined;
 
     if (matchedSetPoint) {
       return matchedSetPoint;
     }
 
-    return this.findActiveSchedule(data.schedules, type) ?? data.setPoints.find(setPoint => setPoint.type === type);
+    return this.findActiveSchedule(this.schedules, type) ?? this.setPoints.find(setPoint => setPoint.type === type);
   }
 
   private findActiveSchedule(schedules: Schedule[], type: 'Heating' | 'Cooling'): Schedule | undefined {
@@ -278,22 +317,6 @@ export class StatsPanel extends LitElement {
     return `${hours}h ${minutes}m`;
   }
 
-  private renderMessage(message: string, isError = false): TemplateResult {
-    return html`
-      <section class="stats-panel__section">
-        <h3 class="stats-panel__section-title">System Telemetry</h3>
-        <p
-          class="${classMap({
-            'stats-panel__message': true,
-            'stats-panel__message--error': isError,
-          })}"
-        >
-          ${message}
-        </p>
-      </section>
-    `;
-  }
-
   private renderSections(sections: StatSection[]): TemplateResult[] {
     return sections.map(
       section => html`
@@ -326,11 +349,8 @@ export class StatsPanel extends LitElement {
   }
 
   override render() {
-    return this.analyticsTask.render({
-      pending: () => this.renderMessage('Loading analytics...'),
-      complete: data => this.renderSections(this.buildSections(data)),
-      error: error => this.renderMessage(error instanceof Error ? error.message : 'Failed to load analytics.', true),
-    });
+    // The task keeps its last result while it refreshes, and apiGet already reports a failed load, so the runtime rows just show '--'.
+    return this.renderSections(this.buildSections(this.statsTask.value));
   }
 }
 

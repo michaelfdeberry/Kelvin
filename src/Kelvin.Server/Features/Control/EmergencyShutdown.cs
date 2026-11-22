@@ -27,7 +27,7 @@ public class EmergencyShutdownHandler(
 
     // update the thermostat outside of the update thermostat handler to
     // prevent sending multiple control messages for the same state change.
-    var thermostat = await context.Thermostats.FirstAsync(ct);
+    var thermostat = await context.Thermostats.Include(t => t.SetPoints).Include(t => t.Schedules).FirstAsync(ct);
     thermostat.Mode = RunMode.Disabled;
     thermostat.FanEnabled = false;
     await context.SaveChangesAsync(ct);
@@ -35,7 +35,7 @@ public class EmergencyShutdownHandler(
 
     var notification = new SendNotificationRequest(request.Reason, NotificationType.Error, Heading: "Emergency Shutdown", Banner: true);
     await dispatcher.DispatchAsync<SendNotificationRequest, SendNotificationResponse>(notification, ct);
-    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(), ct);
+    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(thermostat), ct);
 
     return Result.Success();
   }

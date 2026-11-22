@@ -1,4 +1,6 @@
+using FakeItEasy;
 using Kelvin.Server.Features.Sensors;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
 using Microsoft.Extensions.Caching.Memory;
@@ -20,10 +22,24 @@ public class RestoreSensorTests
         var cache = new MemoryCache(new MemoryCacheOptions());
         cache.Set(SensorsCache.Key, new object());
 
-        var result = await new RestoreSensorHandler(context, cache).HandleAsync(new RestoreSensorRequest(sensor.Id));
+        var bus = SensorTestHelpers.CreateDispatcher();
+
+        var result = await new RestoreSensorHandler(context, cache, bus).HandleAsync(
+            new RestoreSensorRequest(sensor.Id)
+        );
 
         result.IsSuccess.ShouldBeTrue();
         cache.TryGetValue(SensorsCache.Key, out _).ShouldBeFalse();
         (await harness.CreateContext().Sensors.FindAsync(sensor.Id))!.DeletedAt.ShouldBeNull();
+        FakeItEasy
+            .A.CallTo(() =>
+                bus.PublishAsync(
+                    A<SensorChangedEvent>.That.Matches(e =>
+                        e.Sensor.Id == sensor.Id && e.Sensor.DeletedAt == null
+                    ),
+                    A<CancellationToken>._
+                )
+            )
+            .MustHaveHappenedOnceExactly();
     }
 }

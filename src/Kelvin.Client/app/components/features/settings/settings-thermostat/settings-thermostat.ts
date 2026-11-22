@@ -3,19 +3,19 @@ import '../../../shared/number-input/number-input.js';
 import '../../../shared/toggle/toggle.js';
 
 import { consume } from '@lit/context';
-import { Task } from '@lit/task';
 import { html, LitElement, TemplateResult } from 'lit';
 import { customElement, query, state } from 'lit/decorators.js';
 
 import settingsThermostatStyles from './settings-thermostat.styles.js';
+import { defaultRelayStates, relayStatesContext } from '../../../../contexts/control-context.js';
 import { preferencesContext } from '../../../../contexts/preferences-context.js';
 import { thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
 import { RelayStates } from '../../../../models/gateway.js';
 import { Preferences } from '../../../../models/preferences.js';
-import { FanMode, Thermostat, UpdateThermostatConfigurationRequest } from '../../../../models/thermostat.js';
+import { FanMode, Thermostat, ThermostatSettings, UpdateThermostatConfigurationRequest } from '../../../../models/thermostat.js';
 import apiResources from '../../../../services/api-resources.js';
-import { apiGet, apiPut } from '../../../../services/api.js';
+import { apiPut } from '../../../../services/api.js';
 import {
   convertDeltaToPreferredUnit,
   deltaFromPreferredUnit,
@@ -66,10 +66,8 @@ export class SettingsThermostat extends LitElement {
     if (section === 'balance') this.balanceEnabledDraft = undefined;
   }
 
-  private relayStatesTask = new Task(this, {
-    task: async ([,], { signal }) => apiGet<RelayStates>(apiResources.gateways.getRelayStates, { signal }),
-    args: () => [this.thermostat?.mode],
-  });
+  @consume({ context: relayStatesContext, subscribe: true })
+  private relayStates: RelayStates = defaultRelayStates;
 
   private async handleSave(section: ThermostatSection, event: Event): Promise<void> {
     event.preventDefault();
@@ -118,7 +116,7 @@ export class SettingsThermostat extends LitElement {
     try {
       await apiPut<void>(apiResources.thermostat.updateThermostatConfiguration, { body: request });
       this.clearDraft(section);
-      dispatchCustomEvent(this, events.thermostatUpdated);
+      dispatchCustomEvent<Partial<ThermostatSettings>>(this, events.thermostatUpdated, { thermostat: { ...this.thermostat, ...request } });
       dispatchToast(this, 'Success', 'Thermostat settings saved successfully.');
     } catch {
       // apiPut already surfaces an error toast.
@@ -150,7 +148,7 @@ export class SettingsThermostat extends LitElement {
     }
 
     await apiPut(apiResources.thermostat.updateThermostat, { body: updatedThermostat });
-    dispatchCustomEvent(this, events.thermostatUpdated);
+    dispatchCustomEvent<Partial<ThermostatSettings>>(this, events.thermostatUpdated, { thermostat: updatedThermostat });
   }
 
   private renderDelta(id: string, label: string, deltaC: number, disabled: boolean): TemplateResult {
@@ -417,17 +415,11 @@ export class SettingsThermostat extends LitElement {
             <h2 class="card__title">Thermostat Settings</h2>
             <label class="settings-thermostat__toggle-label">
               HVAC Control
-              ${this.relayStatesTask.render({
-                complete: relayStates => html`
-                  <app-toggle
-                    class="settings-thermostat__control"
-                    @change=${this.handleControlChange}
-                    ?checked=${relayStates?.control ?? false}
-                  ></app-toggle>
-                `,
-                pending: () => html`<app-toggle disabled></app-toggle>`,
-                error: () => html`<span class="error">Unavailable</span>`,
-              })}
+              <app-toggle
+                class="settings-thermostat__control"
+                @change=${this.handleControlChange}
+                ?checked=${this.relayStates.control ?? false}
+              ></app-toggle>
             </label>
           </div>
           ${this.renderHysteresisForm()}

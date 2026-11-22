@@ -4,10 +4,20 @@ import { ContextProvider } from '@lit/context';
 import { css, html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
 
-import { callContext, controlContext, defaultCallStateChange, defaultControlStateChange } from '../contexts/control-context';
+import {
+  callContext,
+  controlContext,
+  defaultCallStateChange,
+  defaultControlStateChange,
+  defaultLifecycleStateChange,
+  defaultRelayStates,
+  lifecycleContext,
+  relayStatesContext,
+} from '../contexts/control-context';
 import { defaultEnvironmentReadings, environmentReadingsContext } from '../contexts/sensors-context';
 import { signalrEvents } from '../events';
 import { ControlStateChange } from '../models/control-state-change';
+import { RelayStates } from '../models/gateway';
 import { EnvironmentReading } from '../models/sensors';
 
 @customElement('signalr-context')
@@ -26,6 +36,16 @@ export class SignalRContext extends LitElement {
   private controlProvider = new ContextProvider(this, {
     context: controlContext,
     initialValue: defaultControlStateChange,
+  });
+
+  private lifecycleProvider = new ContextProvider(this, {
+    context: lifecycleContext,
+    initialValue: defaultLifecycleStateChange,
+  });
+
+  private relayStatesProvider = new ContextProvider(this, {
+    context: relayStatesContext,
+    initialValue: defaultRelayStates,
   });
 
   private sensorReadingsProvider = new ContextProvider(this, {
@@ -51,6 +71,14 @@ export class SignalRContext extends LitElement {
     this.addEventListener(signalrEvents.controlHub.callStateChanged, event => {
       const customEvent = event as CustomEvent<ControlStateChange>;
       this.callProvider.setValue(customEvent.detail);
+    });
+
+    this.addEventListener(signalrEvents.controlHub.lifecycleStateChanged, event => {
+      this.lifecycleProvider.setValue((event as CustomEvent<ControlStateChange>).detail);
+    });
+
+    this.addEventListener(signalrEvents.controlHub.relayStatesChanged, event => {
+      this.relayStatesProvider.setValue((event as CustomEvent<RelayStates>).detail);
     });
   }
 

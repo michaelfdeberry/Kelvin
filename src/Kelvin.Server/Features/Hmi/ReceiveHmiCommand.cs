@@ -4,6 +4,7 @@ using Kelvin.Server.Data;
 using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Features.Thermostat;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,7 +27,7 @@ public static class ReceiveHmiCommandErrors
 public class ReceiveHmiCommandHandler(
   KelvinContext context,
   IHandler<UpdateThermostatRequest> updateThermostat,
-  IHandler<UpdateThermostatSettingsRequest> updateThermostatSettings,
+  IHandler<UpdateThermostatSettingsRequest, ThermostatSettingsPayload> updateThermostatSettings,
   IHandler<SaveSensorPacketRequest> saveSensorPacket,
   IHandler<SendHmiStateRequest> sendHmiState,
   IHandler<DismissNotificationRequest> dismissNotification
@@ -43,7 +44,7 @@ public class ReceiveHmiCommandHandler(
 
     var messageType = (HmiMessageType)type;
 
-    IRequest? command;
+    object? command;
     try
     {
       var body = HmiCborMap.Parse(DecodeBody(request.Payload));

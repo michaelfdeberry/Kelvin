@@ -15,7 +15,7 @@ import { ThermostatEditorSetPoints } from './thermostat-editor-set-points.js';
 import thermostatEditorStyles from './thermostat-editor.styles.js';
 import { thermostatContext } from '../../../../contexts/thermostat-context.js';
 import { events } from '../../../../events.js';
-import { RunMode, Thermostat, UpdateThermostatSettingsRequest } from '../../../../models/thermostat.js';
+import { RunMode, Thermostat, ThermostatSettings, UpdateThermostatSettingsRequest } from '../../../../models/thermostat.js';
 import resources from '../../../../services/api-resources.js';
 import { apiPut } from '../../../../services/api.js';
 import { dispatchCustomEvent, dispatchToast } from '../../../../services/utilities.js';
@@ -101,8 +101,9 @@ export class ThermostatEditor extends LitElement {
     };
 
     try {
-      await apiPut<void>(resources.thermostat.updateThermostatSettings, { body: request });
-      dispatchCustomEvent(this, events.thermostatUpdated);
+      // The server returns the saved records, which carry the ids it assigned; the same payload is also pushed, so applying it twice is harmless.
+      const saved = await apiPut<ThermostatSettings | undefined>(resources.thermostat.updateThermostatSettings, { body: request });
+      if (saved) dispatchCustomEvent<ThermostatSettings>(this, events.thermostatUpdated, saved);
       dispatchToast(this, 'Success', 'Thermostat settings saved successfully.');
       this.modal.hide();
     } catch {

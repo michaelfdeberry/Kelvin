@@ -1,6 +1,7 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Features.GeoCoding;
 using Kelvin.Server.Integration.Weather;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -67,6 +68,7 @@ public class GetWeatherForecastHandler(IDispatcher dispatcher, ILogger<GetWeathe
       );
 
       cache.Set(cacheKey, response, TimeSpan.FromHours(1));
+      await dispatcher.PublishAsync(new WeatherForecastChangedEvent(response), ct);
       return Result<GetWeatherForecastResponse>.Success(response);
     }
     catch (Exception ex)

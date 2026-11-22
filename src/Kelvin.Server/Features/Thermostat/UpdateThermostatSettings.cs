@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Data;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ public record UpdateThermostatSettingsRequest(
   IEnumerable<SetPointInput> SetPoints,
   IEnumerable<ScheduleInput> Schedules,
   RunMode? TargetMode = null
-) : IRequest;
+) : IRequest<ThermostatSettingsPayload>;
 
 public static class UpdateThermostatSettingsErrors
 {
@@ -28,14 +29,14 @@ public static class UpdateThermostatSettingsErrors
 }
 
 public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache cache, IDispatcher dispatcher)
-  : IHandler<UpdateThermostatSettingsRequest>
+  : IHandler<UpdateThermostatSettingsRequest, ThermostatSettingsPayload>
 {
-  public async Task<Result> HandleAsync(UpdateThermostatSettingsRequest request, CancellationToken ct = default)
+  public async Task<Result<ThermostatSettingsPayload>> HandleAsync(UpdateThermostatSettingsRequest request, CancellationToken ct = default)
   {
     var thermostat = await context.Thermostats.Include(t => t.SetPoints).Include(t => t.Schedules).FirstOrDefaultAsync(ct);
     if (thermostat is null)
     {
-      return Result.Failure(UpdateThermostatSettingsErrors.ThermostatNotFound);
+      return Result<ThermostatSettingsPayload>.Failure(UpdateThermostatSettingsErrors.ThermostatNotFound);
     }
 
     var mode = request.TargetMode ?? thermostat.Mode;
@@ -75,7 +76,7 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
 
     if (safetyResult.IsFailure)
     {
-      return safetyResult;
+      return Result<ThermostatSettingsPayload>.Failure(safetyResult.Error);
     }
 
     var heatingSetPoint = request.SetPoints.FirstOrDefault(x => x.Type == RunType.Heating);
@@ -90,8 +91,8 @@ public class UpdateThermostatSettingsHandler(KelvinContext context, IMemoryCache
     await context.SaveChangesAsync(ct);
     cache.Remove(ThermostatCache.Key);
 
-    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(), ct);
-    return Result.Success();
+    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(thermostat), ct);
+    return Result<ThermostatSettingsPayload>.Success(ThermostatSettingsPayload.FromEntity(thermostat));
   }
 
   private void ApplySetPoint(Models.Thermostat thermostat, SetPointInput? setPoint)
@@ -161,7 +162,7 @@ public class UpdateThermostatSettingsEndpoint : IEndpointMapper
   {
     app.MapPut(
         "/api/thermostat/settings",
-        async (UpdateThermostatSettingsRequest request, IHandler<UpdateThermostatSettingsRequest> handler, CancellationToken ct) =>
+        async (UpdateThermostatSettingsRequest request, IHandler<UpdateThermostatSettingsRequest, ThermostatSettingsPayload> handler, CancellationToken ct) =>
         {
           var result = await handler.HandleAsync(request, ct);
           if (result.IsFailure)
@@ -174,7 +175,7 @@ public class UpdateThermostatSettingsEndpoint : IEndpointMapper
             return Results.BadRequest(result.Error);
           }
 
-          return Results.NoContent();
+          return Results.Ok(result.Value);
         }
       )
       .WithName("UpdateThermostatSettings")
@@ -186,6 +187,6 @@ public class UpdateThermostatSettingsRegistration : IRegistration
 {
   public void Register(IServiceCollection services)
   {
-    services.AddScoped<IHandler<UpdateThermostatSettingsRequest>, UpdateThermostatSettingsHandler>();
+    services.AddScoped<IHandler<UpdateThermostatSettingsRequest, ThermostatSettingsPayload>, UpdateThermostatSettingsHandler>();
   }
 }

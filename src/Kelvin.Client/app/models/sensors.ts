@@ -1,7 +1,3 @@
-export type Sensors = {
-  sensors: Sensor[];
-};
-
 export type Sensor = {
   id: string;
   name: string;

@@ -1,6 +1,7 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Data;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -9,7 +10,7 @@ namespace Kelvin.Server.Features.Sensors;
 
 public record SaveSensorPacketRequest(SensorPacket SensorPacket, DeviceType DeviceType) : IRequest;
 
-public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel sensorPacketChannel, IMemoryCache cache)
+public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel sensorPacketChannel, IMemoryCache cache, IDispatcher dispatcher)
   : IHandler<SaveSensorPacketRequest>
 {
   public async Task<Result> HandleAsync(SaveSensorPacketRequest request, CancellationToken ct = default)
@@ -35,6 +36,7 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     {
       sensor.Enabled = false;
       sensor.DeletedAt = null;
+      clearCache = true;
 
       if (request.DeviceType == DeviceType.Hmi)
       {
@@ -61,6 +63,7 @@ public class SaveSensorPacketHandler(KelvinContext context, ISensorPacketChannel
     if (clearCache)
     {
       cache.Remove(SensorsCache.Key);
+      await dispatcher.PublishAsync(new SensorChangedEvent(sensor), ct);
     }
 
     // Always save the packet if one comes in so the latest sensor state is retained,

@@ -90,7 +90,7 @@ public class UpdateThermostatHandler(KelvinContext context, IMemoryCache cache, 
 
     cache.Remove(ThermostatCache.Key);
 
-    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(), ct);
+    await dispatcher.PublishAsync(new ThermostatConfigChangedEvent(thermostat), ct);
     return Result.Success();
   }
 }

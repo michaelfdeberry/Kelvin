@@ -9,6 +9,7 @@ using Kelvin.Server.Features.Notifications;
 using Kelvin.Server.Features.Preferences;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Features.Thermostat;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Kelvin.Server.Services;
@@ -136,7 +137,7 @@ public class HmiNotificationTests
         var handler = new ReceiveHmiCommandHandler(
             context,
             A.Fake<IHandler<UpdateThermostatRequest>>(),
-            A.Fake<IHandler<UpdateThermostatSettingsRequest>>(),
+            A.Fake<IHandler<UpdateThermostatSettingsRequest, ThermostatSettingsPayload>>(),
             A.Fake<IHandler<SaveSensorPacketRequest>>(),
             A.Fake<IHandler<SendHmiStateRequest>>(),
             new DismissNotificationHandler(context, dispatcher)

@@ -1,5 +1,6 @@
 using Kelvin.Server.Application;
 using Kelvin.Server.Features.Control;
+using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Hubs;
 using Microsoft.AspNetCore.SignalR;
 
@@ -10,9 +11,13 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
   : IEventHandler<ControlStateChangedEvent>,
     IEventHandler<EnvironmentReadingChangedEvent>,
     IEventHandler<ThermostatConfigChangedEvent>,
-    IEventHandler<SensorsChangedEvent>,
-    IEventHandler<DevicesChangedEvent>,
+    IEventHandler<SensorChangedEvent>,
+    IEventHandler<SensorDeletedEvent>,
+    IEventHandler<DeviceChangedEvent>,
+    IEventHandler<DeviceDeletedEvent>,
     IEventHandler<DeviceStateChangedEvent>,
+    IEventHandler<RelayStatesChangedEvent>,
+    IEventHandler<WeatherForecastChangedEvent>,
     IEventHandler<SendNotificationEvent>,
     IEventHandler<DismissNotificationEvent>,
     IEventHandler<PreferencesChangedEvent>
@@ -24,16 +29,30 @@ public class SignalRBroadcastService(IHubContext<RealtimeHub, IRealtimeClient> h
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.EnvironmentReadingChanged, @event.Reading));
 
   public Task HandleAsync(ThermostatConfigChangedEvent @event, CancellationToken cancellationToken = default) =>
-    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.ThermostatSettingsChanged, null));
+    hub.Clients.All.Receive(
+      new RealtimeMessage(RealtimeMessageTypes.ThermostatSettingsChanged, ThermostatSettingsPayload.FromEntity(@event.Thermostat))
+    );
 
-  public Task HandleAsync(SensorsChangedEvent @event, CancellationToken cancellationToken = default) =>
-    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.SensorsSettingsChanged, null));
+  public Task HandleAsync(SensorChangedEvent @event, CancellationToken cancellationToken = default) =>
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.SensorChanged, SensorResponse.FromSensor(@event.Sensor)));
 
-  public Task HandleAsync(DevicesChangedEvent @event, CancellationToken cancellationToken = default) =>
-    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DevicesSettingsChanged, null));
+  public Task HandleAsync(SensorDeletedEvent @event, CancellationToken cancellationToken = default) =>
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.SensorDeleted, @event.SensorId));
+
+  public Task HandleAsync(DeviceChangedEvent @event, CancellationToken cancellationToken = default) =>
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DeviceChanged, DeviceChangedPayload.FromEntity(@event.Device)));
+
+  public Task HandleAsync(DeviceDeletedEvent @event, CancellationToken cancellationToken = default) =>
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DeviceDeleted, @event.Device.Id));
 
   public Task HandleAsync(DeviceStateChangedEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.DeviceStateChanged, @event.States));
+
+  public Task HandleAsync(RelayStatesChangedEvent @event, CancellationToken cancellationToken = default) =>
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.RelayStatesChanged, @event.States));
+
+  public Task HandleAsync(WeatherForecastChangedEvent @event, CancellationToken cancellationToken = default) =>
+    hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.WeatherForecastChanged, @event.Forecast));
 
   public Task HandleAsync(SendNotificationEvent @event, CancellationToken cancellationToken = default) =>
     hub.Clients.All.Receive(new RealtimeMessage(RealtimeMessageTypes.NotificationSent, @event.Notification));
@@ -52,9 +71,13 @@ public class SignalRBroadcastServiceRegistration : IRegistration
     services.AddScoped<IEventHandler<ControlStateChangedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<EnvironmentReadingChangedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<ThermostatConfigChangedEvent>, SignalRBroadcastService>();
-    services.AddScoped<IEventHandler<SensorsChangedEvent>, SignalRBroadcastService>();
-    services.AddScoped<IEventHandler<DevicesChangedEvent>, SignalRBroadcastService>();
+    services.AddScoped<IEventHandler<SensorChangedEvent>, SignalRBroadcastService>();
+    services.AddScoped<IEventHandler<SensorDeletedEvent>, SignalRBroadcastService>();
+    services.AddScoped<IEventHandler<DeviceChangedEvent>, SignalRBroadcastService>();
+    services.AddScoped<IEventHandler<DeviceDeletedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<DeviceStateChangedEvent>, SignalRBroadcastService>();
+    services.AddScoped<IEventHandler<RelayStatesChangedEvent>, SignalRBroadcastService>();
+    services.AddScoped<IEventHandler<WeatherForecastChangedEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<SendNotificationEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<DismissNotificationEvent>, SignalRBroadcastService>();
     services.AddScoped<IEventHandler<PreferencesChangedEvent>, SignalRBroadcastService>();

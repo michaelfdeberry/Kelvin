@@ -45,7 +45,7 @@ public class ReceiveHumidifierMessageHandler(
 
     // Refreshes the device list's last seen time, and the integration service answers with the current state.
     if (type == HumidifierMessageType.CheckIn)
-      await dispatcher.PublishAsync(new DevicesChangedEvent(), ct);
+      await dispatcher.PublishAsync(new DeviceChangedEvent(device), ct);
 
     return Result.Success();
   }

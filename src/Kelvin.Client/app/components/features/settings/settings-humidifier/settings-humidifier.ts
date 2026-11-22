@@ -1,17 +1,15 @@
 import './humidifier-editor.js';
 
 import { consume } from '@lit/context';
-import { html, LitElement, nothing, PropertyValues, TemplateResult } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
+import { html, LitElement, nothing, TemplateResult } from 'lit';
+import { customElement, property, query } from 'lit/decorators.js';
 
 import { HumidifierEditor, MONTHS } from './humidifier-editor.js';
 import settingsHumidifierStyles from './settings-humidifier.styles.js';
-import { devicesContext } from '../../../../contexts/devices-context.js';
+import { humidifiersContext } from '../../../../contexts/devices-context.js';
 import { preferencesContext } from '../../../../contexts/preferences-context.js';
-import { Device, Humidifier, Humidifiers } from '../../../../models/devices.js';
+import { Humidifier } from '../../../../models/devices.js';
 import { Preferences } from '../../../../models/preferences.js';
-import apiResources from '../../../../services/api-resources.js';
-import { apiGet } from '../../../../services/api.js';
 import { convertToPreferredUnit, getPreferredUnit } from '../../../../services/utilities.js';
 import sharedStyles from '../../../../shared.styles.js';
 
@@ -19,10 +17,8 @@ import sharedStyles from '../../../../shared.styles.js';
 export class SettingsHumidifier extends LitElement {
   static override styles = [sharedStyles, settingsHumidifierStyles];
 
-  // The device list changing is the cue to reload the humidifiers' configuration.
-  @consume({ context: devicesContext, subscribe: true })
-  @property({ attribute: false })
-  private devices?: Device[];
+  @consume({ context: humidifiersContext, subscribe: true })
+  private humidifiers: Humidifier[] = [];
 
   @consume({ context: preferencesContext, subscribe: true })
   @property({ attribute: false })
@@ -30,32 +26,6 @@ export class SettingsHumidifier extends LitElement {
 
   @query('app-humidifier-editor')
   private editor!: HumidifierEditor;
-
-  @state()
-  private humidifiers: Humidifier[] = [];
-
-  private loadRequest = 0;
-
-  override willUpdate(changed: PropertyValues): void {
-    if (changed.has('devices')) {
-      void this.load();
-    }
-  }
-
-  private async load(): Promise<void> {
-    const request = ++this.loadRequest;
-    if (!this.devices?.some(device => device.type === 'Humidifier')) {
-      this.humidifiers = [];
-      return;
-    }
-
-    try {
-      const response = await apiGet<Humidifiers>(apiResources.humidifiers.getHumidifiers);
-      if (request === this.loadRequest) this.humidifiers = response.humidifiers;
-    } catch {
-      // apiGet already surfaces an error toast.
-    }
-  }
 
   private renderHumidifier(humidifier: Humidifier): TemplateResult | typeof nothing {
     if (!humidifier.enabled) return nothing;

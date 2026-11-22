@@ -1,45 +1,23 @@
 import '../../../shared/temperature/temperature.js';
 
-import { Task } from '@lit/task';
-import { html, LitElement } from 'lit';
+import { consume } from '@lit/context';
+import { html, LitElement, nothing } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 
 import weatherForecastStyles from './weather-forecast.styles.js';
 import { WEATHER_ICONS } from './weather-icons.js';
+import { defaultWeather, weatherContext } from '../../../../contexts/weather-context.js';
 import { WeatherForecastResponse, WeatherForecastDay } from '../../../../models/forecast-day.js';
-import resources from '../../../../services/api-resources.js';
-import { apiGet } from '../../../../services/api.js';
 import sharedStyles from '../../../../shared.styles.js';
-
-const WEATHER_UPDATE_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 @customElement('app-weather-forecast')
 export class WeatherForecast extends LitElement {
   static override styles = [sharedStyles, weatherForecastStyles];
 
-  private intervalId: ReturnType<typeof setInterval> | undefined;
-
-  override connectedCallback() {
-    super.connectedCallback();
-
-    this.intervalId = setInterval(() => this.getWeatherTask.run(), WEATHER_UPDATE_INTERVAL_MS);
-  }
-
-  override disconnectedCallback() {
-    super.disconnectedCallback();
-
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-    }
-  }
-
-  private getWeatherTask = new Task(this, {
-    task: async (_, { signal }) => {
-      return apiGet<WeatherForecastResponse>(resources.weather.getWeatherForecast, { signal });
-    },
-    args: () => [this],
-  });
+  // The server pushes a new forecast whenever it fetches one, so there is nothing to poll for.
+  @consume({ context: weatherContext, subscribe: true })
+  private forecast: WeatherForecastResponse | undefined = defaultWeather;
 
   private renderItem(summary: string, label: string, high: number, low?: number) {
     return html`
@@ -86,18 +64,15 @@ export class WeatherForecast extends LitElement {
   }
 
   override render() {
+    if (!this.forecast) return nothing;
+
+    const forecast = this.forecast;
     return html`
       <div
         class="weather-forecast__container"
         aria-label="3 day forecast"
       >
-        ${this.getWeatherTask.render({
-          pending: () => html`<p>Loading weather forecast...</p>`,
-          complete: (forecast: WeatherForecastResponse) => html`
-            ${this.renderCurrent(forecast)} ${forecast.daily.map((day, index) => this.renderForecastDay(day, index))}
-          `,
-          error: () => html`<p class="error">Failed to retrieve forecast</p>`,
-        })}
+        ${this.renderCurrent(forecast)} ${forecast.daily.map((day, index) => this.renderForecastDay(day, index))}
       </div>
     `;
   }

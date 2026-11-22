@@ -72,7 +72,15 @@ public class HumidifierConfigurationTests : IDisposable
         saved.StartMonth.ShouldBe(11);
         saved.EndMonth.ShouldBe(2);
         saved.Targets.Select(t => t.OutdoorTemperatureC).ShouldBe([-10f, 0f]);
-        A.CallTo(() => _dispatcher.PublishAsync(A<DevicesChangedEvent>._, A<CancellationToken>._))
+        A.CallTo(() =>
+                _dispatcher.PublishAsync(
+                    A<DeviceChangedEvent>.That.Matches(e =>
+                        e.Device.Id == id
+                        && ((HumidifierDevice)e.Device).Configuration.StartMonth == 11
+                    ),
+                    A<CancellationToken>._
+                )
+            )
             .MustHaveHappenedOnceExactly();
     }
 

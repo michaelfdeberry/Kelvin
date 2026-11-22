@@ -15,7 +15,6 @@ const apiResources = {
   gateways: {
     getGateway: '/api/gateway',
     updateGateway: '/api/gateway',
-    getRelayStates: '/api/gateway/relays/states',
   },
   humidifiers: {
     getHumidifiers: '/api/humidifiers',
@@ -34,7 +33,6 @@ const apiResources = {
     deleteSensor: '/api/sensors/{id}',
     disableSensor: '/api/sensors/{sensorId}/disable',
     enableSensor: '/api/sensors/{sensorId}/enable',
-    getLatestReading: '/api/sensors/readings/latest',
     getLatestSensorReadingsBefore: '/api/sensors/readings/latest-before',
     getSensorHistory: '/api/sensors/readings/history',
     getSensorHistoryPeriods: '/api/sensors/readings/periods',
@@ -49,9 +47,6 @@ const apiResources = {
     updateThermostat: '/api/thermostat',
     updateThermostatConfiguration: '/api/thermostat/configuration',
     updateThermostatSettings: '/api/thermostat/settings',
-  },
-  weather: {
-    getWeatherForecast: '/api/weather/forecast',
   },
   notifications: {
     dismissNotification: '/api/notifications/{id}',

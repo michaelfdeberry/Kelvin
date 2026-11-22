@@ -65,7 +65,10 @@ public class DeviceIntegrationServiceTests
         await _service.HandleAsync(Change(ControlChangeKind.Call, ControlState.Heating));
         (await NextSyncAsync()).ShouldBeTrue();
 
-        await _service.HandleAsync(new DevicesChangedEvent());
+        await _service.HandleAsync(new DeviceChangedEvent(new HumidifierDevice()));
+        (await NextSyncAsync()).ShouldBeTrue();
+
+        await _service.HandleAsync(new DeviceDeletedEvent(new HumidifierDevice()));
         (await NextSyncAsync()).ShouldBeTrue();
 
         _syncs.Reader.TryRead(out _).ShouldBeFalse();

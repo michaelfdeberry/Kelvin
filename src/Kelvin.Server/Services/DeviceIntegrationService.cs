@@ -14,7 +14,8 @@ namespace Kelvin.Server.Services;
 public class DeviceIntegrationService(ILogger<DeviceIntegrationService> logger, TimeProvider time, IDispatcher dispatcher)
   : BackgroundService,
     IEventHandler<ControlStateChangedEvent>,
-    IEventHandler<DevicesChangedEvent>
+    IEventHandler<DeviceChangedEvent>,
+    IEventHandler<DeviceDeletedEvent>
 {
   /// <summary>Well inside the humidifier's 2 minute fail-safe, so a few lost frames don't release the relay.</summary>
   public static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
@@ -33,7 +34,14 @@ public class DeviceIntegrationService(ILogger<DeviceIntegrationService> logger, 
   }
 
   /// <summary>Called from a scoped publish, so it only wakes the loop.</summary>
-  public Task HandleAsync(DevicesChangedEvent @event, CancellationToken cancellationToken = default)
+  public Task HandleAsync(DeviceChangedEvent @event, CancellationToken cancellationToken = default)
+  {
+    _changed.TrySetResult();
+    return Task.CompletedTask;
+  }
+
+  /// <summary>Called from a scoped publish, so it only wakes the loop.</summary>
+  public Task HandleAsync(DeviceDeletedEvent @event, CancellationToken cancellationToken = default)
   {
     _changed.TrySetResult();
     return Task.CompletedTask;

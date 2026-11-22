@@ -9,8 +9,17 @@ export type Device = {
   lastSeenAt?: string | null;
 };
 
-export type Devices = {
+// Everything the server pushes about devices when a client connects.
+export type DevicesSettings = {
   devices: Device[];
+  humidifiers: Humidifier[];
+};
+
+// One created or changed device. The device and its per-type configuration are separate lists on the client, so either may be absent
+// when only one of them changed.
+export type DeviceChange = {
+  device?: Device;
+  humidifier?: Humidifier;
 };
 
 export type HumidifierState = {
@@ -38,10 +47,6 @@ export type Humidifier = {
   startMonth: number;
   endMonth: number;
   targets: HumidityTarget[];
-};
-
-export type Humidifiers = {
-  humidifiers: Humidifier[];
 };
 
 export type UpdateHumidifierConfigurationRequest = Pick<Humidifier, 'startMonth' | 'endMonth' | 'targets'>;

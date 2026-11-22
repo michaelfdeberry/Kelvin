@@ -229,7 +229,12 @@ public class HumidifierTests : IDisposable
         var result = await ReceiveAsync(Uplink(HumidifierMessageType.CheckIn, relayOn: false));
 
         result.IsSuccess.ShouldBeTrue();
-        A.CallTo(() => _dispatcher.PublishAsync(A<DevicesChangedEvent>._, A<CancellationToken>._))
+        A.CallTo(() =>
+                _dispatcher.PublishAsync(
+                    A<DeviceChangedEvent>.That.Matches(e => e.Device.MacAddress == MacAddress),
+                    A<CancellationToken>._
+                )
+            )
             .MustHaveHappenedOnceExactly();
         using var context = _harness.CreateContext();
         var device = await context.Devices.OfType<HumidifierDevice>().SingleAsync();
@@ -250,7 +255,7 @@ public class HumidifierTests : IDisposable
         using var context = _harness.CreateContext();
         (await context.Devices.SingleAsync()).LastSeenAt.ShouldBe(_harness.Time.GetUtcNow());
         ReportedRelayState().ShouldBe(true);
-        A.CallTo(() => _dispatcher.PublishAsync(A<DevicesChangedEvent>._, A<CancellationToken>._))
+        A.CallTo(() => _dispatcher.PublishAsync(A<DeviceChangedEvent>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 
@@ -265,7 +270,7 @@ public class HumidifierTests : IDisposable
         using var context = _harness.CreateContext();
         (await context.Devices.SingleAsync()).MacAddress.ShouldBe(MacAddress);
         ReportedRelayState().ShouldBeNull();
-        A.CallTo(() => _dispatcher.PublishAsync(A<DevicesChangedEvent>._, A<CancellationToken>._))
+        A.CallTo(() => _dispatcher.PublishAsync(A<DeviceChangedEvent>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 

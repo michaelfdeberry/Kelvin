@@ -1,6 +1,8 @@
 using FakeItEasy;
+using Kelvin.Server.Application;
 using Kelvin.Server.Channels;
 using Kelvin.Server.Features.Sensors;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
 using Microsoft.Extensions.Caching.Memory;
@@ -36,10 +38,15 @@ public class SaveSensorPacketTests
         var channel = A.Fake<ISensorPacketChannel>();
         var cache = A.Fake<IMemoryCache>();
 
+        var dispatcher = A.Fake<IDispatcher>();
+
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet, DeviceType.Node)
-        );
+        var result = await new SaveSensorPacketHandler(
+            context,
+            channel,
+            cache,
+            dispatcher
+        ).HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Node));
 
         result.IsSuccess.ShouldBeTrue();
 
@@ -49,6 +56,14 @@ public class SaveSensorPacketTests
 
         var savedPacket = readContext.SensorPackets.Single();
         savedPacket.SensorId.ShouldBe(sensor.Id);
+
+        A.CallTo(() =>
+                dispatcher.PublishAsync(
+                    A<SensorChangedEvent>.That.Matches(e => e.Sensor.Id == sensor.Id),
+                    A<CancellationToken>._
+                )
+            )
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -67,16 +82,64 @@ public class SaveSensorPacketTests
         await using var writeContext = harness.CreateContext();
         var channel = A.Fake<ISensorPacketChannel>();
         var cache = A.Fake<IMemoryCache>();
+        var dispatcher = A.Fake<IDispatcher>();
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        var result = await new SaveSensorPacketHandler(writeContext, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet, DeviceType.Node)
-        );
+        var result = await new SaveSensorPacketHandler(
+            writeContext,
+            channel,
+            cache,
+            dispatcher
+        ).HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Node));
 
         result.IsSuccess.ShouldBeTrue();
 
         await using var readContext = harness.CreateContext();
         readContext.Sensors.Count().ShouldBe(1);
         readContext.SensorPackets.Single().SensorId.ShouldBe(existingSensorId);
+
+        A.CallTo(() => dispatcher.PublishAsync(A<SensorChangedEvent>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task DeletedSensor_IsRestoredAndPublished()
+    {
+        using var harness = new KelvinContextHarness();
+        await using (var context = harness.CreateContext())
+        {
+            context.Sensors.Add(
+                new Sensor
+                {
+                    MacAddress = "aa:bb:cc:dd:ee:ff",
+                    Enabled = true,
+                    DeletedAt = DateTimeOffset.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        await using var writeContext = harness.CreateContext();
+        var dispatcher = A.Fake<IDispatcher>();
+        var result = await new SaveSensorPacketHandler(
+            writeContext,
+            A.Fake<ISensorPacketChannel>(),
+            A.Fake<IMemoryCache>(),
+            dispatcher
+        ).HandleAsync(
+            new SaveSensorPacketRequest(CreatePacket("aa:bb:cc:dd:ee:ff"), DeviceType.Node)
+        );
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await using var readContext = harness.CreateContext();
+        readContext.Sensors.Single().DeletedAt.ShouldBeNull();
+        A.CallTo(() =>
+                dispatcher.PublishAsync(
+                    A<SensorChangedEvent>.That.Matches(e => e.Sensor.DeletedAt == null),
+                    A<CancellationToken>._
+                )
+            )
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -88,9 +151,12 @@ public class SaveSensorPacketTests
         var cache = A.Fake<IMemoryCache>();
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet, DeviceType.Node)
-        );
+        await new SaveSensorPacketHandler(
+            context,
+            channel,
+            cache,
+            A.Fake<IDispatcher>()
+        ).HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Node));
 
         A.CallTo(() => channel.WriteAsync(packet, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
@@ -105,9 +171,12 @@ public class SaveSensorPacketTests
         var cache = A.Fake<IMemoryCache>();
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff", null);
-        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet, DeviceType.Node)
-        );
+        var result = await new SaveSensorPacketHandler(
+            context,
+            channel,
+            cache,
+            A.Fake<IDispatcher>()
+        ).HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Node));
 
         result.IsSuccess.ShouldBeTrue();
 
@@ -136,9 +205,12 @@ public class SaveSensorPacketTests
         var cache = A.Fake<IMemoryCache>();
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet, deviceType)
-        );
+        var result = await new SaveSensorPacketHandler(
+            context,
+            channel,
+            cache,
+            A.Fake<IDispatcher>()
+        ).HandleAsync(new SaveSensorPacketRequest(packet, deviceType));
 
         result.IsSuccess.ShouldBeTrue();
 
@@ -158,9 +230,12 @@ public class SaveSensorPacketTests
         var cache = A.Fake<IMemoryCache>();
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet, DeviceType.Hmi)
-        );
+        var result = await new SaveSensorPacketHandler(
+            context,
+            channel,
+            cache,
+            A.Fake<IDispatcher>()
+        ).HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Hmi));
 
         result.IsSuccess.ShouldBeTrue();
 
@@ -187,9 +262,12 @@ public class SaveSensorPacketTests
         var cache = A.Fake<IMemoryCache>();
 
         var packet = CreatePacket("aa:bb:cc:dd:ee:ff");
-        var result = await new SaveSensorPacketHandler(context, channel, cache).HandleAsync(
-            new SaveSensorPacketRequest(packet, DeviceType.Hmi)
-        );
+        var result = await new SaveSensorPacketHandler(
+            context,
+            channel,
+            cache,
+            A.Fake<IDispatcher>()
+        ).HandleAsync(new SaveSensorPacketRequest(packet, DeviceType.Hmi));
 
         result.IsSuccess.ShouldBeTrue();
 

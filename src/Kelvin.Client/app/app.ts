@@ -12,7 +12,14 @@ import { when } from 'lit/directives/when.js';
 import appShellStyles from './app.styles.js';
 import { bannerContext } from './contexts/banner-context.js';
 import './components/layout/app-sidebar/app-sidebar.js';
-import { defaultDevices, defaultDeviceStates, devicesContext, deviceStatesContext } from './contexts/devices-context.js';
+import {
+  defaultDevices,
+  defaultDeviceStates,
+  defaultHumidifiers,
+  devicesContext,
+  deviceStatesContext,
+  humidifiersContext,
+} from './contexts/devices-context.js';
 import { defaultPreferences, preferencesContext } from './contexts/preferences-context.js';
 import { defaultSensors, sensorsContext } from './contexts/sensors-context.js';
 import {
@@ -23,16 +30,18 @@ import {
   defaultSchedules,
   schedulesContext,
 } from './contexts/thermostat-context.js';
+import { defaultWeather, weatherContext } from './contexts/weather-context.js';
 import { events } from './events.js';
-import { Devices as DevicesResponse, DeviceStates } from './models/devices.js';
-import { Sensors as SensorsResponse } from './models/sensors.js';
+import { DeviceChange, DevicesSettings, DeviceStates } from './models/devices.js';
+import { WeatherForecastResponse } from './models/forecast-day.js';
+import { Sensor } from './models/sensors.js';
 import './router.js';
-import { SchedulesResponse, SetPointsResponse, Thermostat } from './models/thermostat.js';
+import { Thermostat, ThermostatSettings } from './models/thermostat.js';
 import { ToastDetail } from './models/toast-detail.js';
 import resources from './services/api-resources.js';
-import { apiGet, apiPut } from './services/api.js';
+import { apiPut } from './services/api.js';
 import { isKioskMode } from './services/kiosk.js';
-import { dispatchToast } from './services/utilities.js';
+import { dispatchToast, removeById, upsertByName } from './services/utilities.js';
 import sharedStyles from './shared.styles.js';
 
 import type { Preferences } from './models/preferences.js';
@@ -56,6 +65,11 @@ export class KelvinApp extends LitElement {
     initialValue: defaultDevices,
   });
 
+  private humidifiersProvider = new ContextProvider(this, {
+    context: humidifiersContext,
+    initialValue: defaultHumidifiers,
+  });
+
   private deviceStatesProvider = new ContextProvider(this, {
     context: deviceStatesContext,
     initialValue: defaultDeviceStates,
@@ -76,6 +90,11 @@ export class KelvinApp extends LitElement {
     initialValue: defaultSchedules,
   });
 
+  private weatherProvider = new ContextProvider(this, {
+    context: weatherContext,
+    initialValue: defaultWeather,
+  });
+
   @consume({ context: bannerContext, subscribe: true })
   private banner?: ToastDetail;
 
@@ -85,22 +104,27 @@ export class KelvinApp extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
 
-    this.loadThermostat();
-    this.loadSensors();
-    this.loadDevices();
-    this.loadPreferences();
-
     this.handlePreferencesSaved = this.handlePreferencesSaved.bind(this);
     this.handleSensorsUpdated = this.handleSensorsUpdated.bind(this);
+    this.handleSensorChanged = this.handleSensorChanged.bind(this);
+    this.handleSensorDeleted = this.handleSensorDeleted.bind(this);
     this.handleDevicesUpdated = this.handleDevicesUpdated.bind(this);
+    this.handleDeviceChanged = this.handleDeviceChanged.bind(this);
+    this.handleDeviceDeleted = this.handleDeviceDeleted.bind(this);
     this.handleDeviceStateChanged = this.handleDeviceStateChanged.bind(this);
     this.handleThermostatUpdated = this.handleThermostatUpdated.bind(this);
+    this.handleWeatherUpdated = this.handleWeatherUpdated.bind(this);
 
     this.addEventListener(events.preferencesSaved, this.handlePreferencesSaved);
     this.addEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
+    this.addEventListener(events.sensorChanged, this.handleSensorChanged);
+    this.addEventListener(events.sensorDeleted, this.handleSensorDeleted);
     this.addEventListener(events.devicesUpdated, this.handleDevicesUpdated);
+    this.addEventListener(events.deviceChanged, this.handleDeviceChanged);
+    this.addEventListener(events.deviceDeleted, this.handleDeviceDeleted);
     this.addEventListener(events.deviceStateChanged, this.handleDeviceStateChanged);
     this.addEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
+    this.addEventListener(events.weatherUpdated, this.handleWeatherUpdated);
   }
 
   override disconnectedCallback(): void {
@@ -108,9 +132,14 @@ export class KelvinApp extends LitElement {
 
     this.removeEventListener(events.preferencesSaved, this.handlePreferencesSaved);
     this.removeEventListener(events.sensorsUpdated, this.handleSensorsUpdated);
+    this.removeEventListener(events.sensorChanged, this.handleSensorChanged);
+    this.removeEventListener(events.sensorDeleted, this.handleSensorDeleted);
     this.removeEventListener(events.devicesUpdated, this.handleDevicesUpdated);
+    this.removeEventListener(events.deviceChanged, this.handleDeviceChanged);
+    this.removeEventListener(events.deviceDeleted, this.handleDeviceDeleted);
     this.removeEventListener(events.deviceStateChanged, this.handleDeviceStateChanged);
     this.removeEventListener(events.thermostatUpdated, this.handleThermostatUpdated);
+    this.removeEventListener(events.weatherUpdated, this.handleWeatherUpdated);
   }
 
   handlePreferencesSaved(event: Event): void {
@@ -122,17 +151,51 @@ export class KelvinApp extends LitElement {
 
   handleSensorsUpdated(event: Event): void {
     event.stopPropagation();
-    this.loadSensors();
+    this.sensorsProvider.setValue((event as CustomEvent<Sensor[]>).detail);
+  }
+
+  handleSensorChanged(event: Event): void {
+    event.stopPropagation();
+    this.sensorsProvider.setValue(upsertByName(this.sensorsProvider.value, (event as CustomEvent<Sensor>).detail));
+  }
+
+  handleSensorDeleted(event: Event): void {
+    event.stopPropagation();
+    this.sensorsProvider.setValue(removeById(this.sensorsProvider.value, (event as CustomEvent<string>).detail));
   }
 
   handleThermostatUpdated(event: Event): void {
     event.stopPropagation();
-    this.loadThermostat();
+    this.applyThermostatSettings((event as CustomEvent<Partial<ThermostatSettings>>).detail);
   }
 
   handleDevicesUpdated(event: Event): void {
     event.stopPropagation();
-    this.loadDevices();
+
+    const { devices, humidifiers } = (event as CustomEvent<DevicesSettings>).detail;
+    this.devicesProvider.setValue(devices);
+    this.humidifiersProvider.setValue(humidifiers);
+  }
+
+  handleDeviceChanged(event: Event): void {
+    event.stopPropagation();
+
+    const { device, humidifier } = (event as CustomEvent<DeviceChange>).detail;
+    if (device) this.devicesProvider.setValue(upsertByName(this.devicesProvider.value, device));
+    if (humidifier) this.humidifiersProvider.setValue(upsertByName(this.humidifiersProvider.value, humidifier));
+  }
+
+  handleDeviceDeleted(event: Event): void {
+    event.stopPropagation();
+
+    const id = (event as CustomEvent<string>).detail;
+    this.devicesProvider.setValue(removeById(this.devicesProvider.value, id));
+    this.humidifiersProvider.setValue(removeById(this.humidifiersProvider.value, id));
+  }
+
+  handleWeatherUpdated(event: Event): void {
+    event.stopPropagation();
+    this.weatherProvider.setValue((event as CustomEvent<WeatherForecastResponse>).detail);
   }
 
   handleDeviceStateChanged(event: Event): void {
@@ -140,60 +203,21 @@ export class KelvinApp extends LitElement {
     this.deviceStatesProvider.setValue((event as CustomEvent<DeviceStates>).detail);
   }
 
-  private async loadPreferences(): Promise<void> {
-    try {
-      const preferences = await apiGet<Preferences>(resources.preferences.getPreferences);
-      this.preferencesProvider.setValue(preferences);
-    } catch (err) {
-      dispatchToast(this, 'Error', 'Failed to load preferences.');
-      console.error('Failed to load preferences:', err);
-    }
-  }
-
-  private async loadSensors(): Promise<void> {
-    try {
-      const response = await apiGet<SensorsResponse>(resources.sensors.getSensors);
-      this.sensorsProvider.setValue(response.sensors);
-    } catch (err) {
-      dispatchToast(this, 'Error', 'Failed to load sensors.');
-      console.error('Failed to load sensors:', err);
-    }
-  }
-
-  private async loadDevices(): Promise<void> {
-    try {
-      const response = await apiGet<DevicesResponse>(resources.devices.getDevices);
-      this.devicesProvider.setValue(response.devices);
-    } catch (err) {
-      dispatchToast(this, 'Error', 'Failed to load devices.');
-      console.error('Failed to load devices:', err);
-    }
-  }
-
-  private async loadThermostat(): Promise<void> {
-    try {
-      const thermostat = await apiGet<Thermostat>(resources.thermostat.getThermostat);
+  private applyThermostatSettings({ thermostat, setPoints, schedules }: Partial<ThermostatSettings>): void {
+    if (thermostat) {
       this.isThermostatDisabled = thermostat.mode === 'Disabled';
       this.thermostatProvider.setValue(thermostat);
-
-      const setPointsResponse = await apiGet<SetPointsResponse>(resources.thermostat.getSetPoints);
-      this.setPointsProvider.setValue(setPointsResponse.setPoints);
-
-      const schedulesResponse = await apiGet<SchedulesResponse>(resources.thermostat.getSchedules);
-      this.schedulesProvider.setValue(schedulesResponse.schedules);
-    } catch (err) {
-      dispatchToast(this, 'Error', 'Failed to load thermostat.');
-      console.error('Failed to load thermostat:', err);
     }
+
+    if (setPoints) this.setPointsProvider.setValue(setPoints);
+    if (schedules) this.schedulesProvider.setValue(schedules);
   }
 
   private async handleTakeControlClick(): Promise<void> {
     try {
-      console.log('Current thermostat mode:', this.thermostatProvider.value.mode);
-      await apiPut<void>(resources.thermostat.updateThermostat, {
-        body: { ...this.thermostatProvider.value, mode: 'Off' },
-      });
-      this.loadThermostat();
+      const thermostat: Thermostat = { ...this.thermostatProvider.value, mode: 'Off' };
+      await apiPut<void>(resources.thermostat.updateThermostat, { body: thermostat });
+      this.applyThermostatSettings({ thermostat });
     } catch (error) {
       dispatchToast(this, 'Error', 'Failed to take control of the thermostat.');
       console.error('Failed to take control of the thermostat:', error);

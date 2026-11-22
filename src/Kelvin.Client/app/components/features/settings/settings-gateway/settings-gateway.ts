@@ -1,10 +1,12 @@
 import '../../../shared/number-input/number-input.js';
 
+import { consume } from '@lit/context';
 import { Task } from '@lit/task';
 import { html, LitElement, TemplateResult } from 'lit';
 import { customElement } from 'lit/decorators.js';
 
 import settingsGatewayStyles from './settings-gateway.styles';
+import { defaultRelayStates, relayStatesContext } from '../../../../contexts/control-context';
 import { Gateway, RelayStates } from '../../../../models/gateway';
 import { apiGet, apiPut } from '../../../../services/api';
 import apiResources from '../../../../services/api-resources';
@@ -15,16 +17,11 @@ import sharedStyles from '../../../../shared.styles';
 export class SettingsGateway extends LitElement {
   static override styles = [sharedStyles, settingsGatewayStyles];
 
-  private gatewayTask = new Task(this, {
-    task: async (_, { signal }) => {
-      const gateway = await apiGet<Gateway>(apiResources.gateways.getGateway, { signal });
-      const relayStates = await apiGet<RelayStates>(apiResources.gateways.getRelayStates, { signal });
+  @consume({ context: relayStatesContext, subscribe: true })
+  private relayStates: RelayStates = defaultRelayStates;
 
-      return {
-        ...gateway,
-        relayStates,
-      };
-    },
+  private gatewayTask = new Task(this, {
+    task: async (_, { signal }) => apiGet<Gateway>(apiResources.gateways.getGateway, { signal }),
     args: () => [],
   });
 
@@ -48,7 +45,7 @@ export class SettingsGateway extends LitElement {
     dispatchToast(this, 'Success', 'Gateway settings saved successfully.');
   }
 
-  private renderGateway(gateway: Gateway & { relayStates: RelayStates }): TemplateResult {
+  private renderGateway(gateway: Gateway): TemplateResult {
     return html`
       <form @submit=${this.handleSave}>
         <div class="form-group">
@@ -75,8 +72,8 @@ export class SettingsGateway extends LitElement {
                   step="1"
                   class="form-control__input"
                   .value=${gateway.heatingPin}
-                  title="${gateway.relayStates?.heating === true ? 'Heating is currently active, this pin cannot be changed.' : ''}"
-                  ?disabled=${gateway.heatingPin != null && gateway.relayStates?.heating === true}
+                  title="${this.relayStates.heating === true ? 'Heating is currently active, this pin cannot be changed.' : ''}"
+                  ?disabled=${gateway.heatingPin != null && this.relayStates.heating === true}
                 ></app-number-input>
               </label>
             </div>
@@ -89,8 +86,8 @@ export class SettingsGateway extends LitElement {
                   step="1"
                   class="form-control__input"
                   .value=${gateway.coolingPin}
-                  title="${gateway.relayStates?.cooling === true ? 'Cooling is currently active, this pin cannot be changed.' : ''}"
-                  ?disabled=${gateway.coolingPin != null && gateway.relayStates?.cooling === true}
+                  title="${this.relayStates.cooling === true ? 'Cooling is currently active, this pin cannot be changed.' : ''}"
+                  ?disabled=${gateway.coolingPin != null && this.relayStates.cooling === true}
                 ></app-number-input>
               </label>
             </div>
@@ -103,8 +100,8 @@ export class SettingsGateway extends LitElement {
                   step="1"
                   class="form-control__input"
                   .value=${gateway.fanPin}
-                  title="${gateway.relayStates?.fan === true ? 'Fan is currently active, this pin cannot be changed.' : ''}"
-                  ?disabled=${gateway.fanPin != null && gateway.relayStates?.fan === true}
+                  title="${this.relayStates.fan === true ? 'Fan is currently active, this pin cannot be changed.' : ''}"
+                  ?disabled=${gateway.fanPin != null && this.relayStates.fan === true}
                 ></app-number-input>
               </label>
             </div>
@@ -117,8 +114,8 @@ export class SettingsGateway extends LitElement {
                   step="1"
                   class="form-control__input"
                   .value=${gateway.controlPin}
-                  title="${gateway.relayStates?.control === true ? 'Control is currently active, this pin cannot be changed.' : ''}"
-                  ?disabled=${gateway.controlPin != null && gateway.relayStates?.control === true}
+                  title="${this.relayStates.control === true ? 'Control is currently active, this pin cannot be changed.' : ''}"
+                  ?disabled=${gateway.controlPin != null && this.relayStates.control === true}
                 ></app-number-input>
               </label>
             </div>

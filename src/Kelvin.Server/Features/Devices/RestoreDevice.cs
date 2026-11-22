@@ -25,7 +25,7 @@ public class RestoreDeviceHandler(KelvinContext context, IDispatcher dispatcher)
     device.DeletedAt = null;
     await context.SaveChangesAsync(ct);
 
-    await dispatcher.PublishAsync(new DevicesChangedEvent(), ct);
+    await dispatcher.PublishAsync(new DeviceChangedEvent(device), ct);
     return Result.Success();
   }
 }

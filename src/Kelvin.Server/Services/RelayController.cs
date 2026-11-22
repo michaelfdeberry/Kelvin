@@ -1,6 +1,8 @@
 using System.Device.Gpio;
 using System.Device.Gpio.Drivers;
+using Kelvin.Server.Application;
 using Kelvin.Server.Features.Gateways;
+using Kelvin.Server.Messaging;
 using Kelvin.Server.Models;
 
 namespace Kelvin.Server.Services;
@@ -25,7 +27,7 @@ public interface IRelayController
   RelayState GetState();
 }
 
-public class RelayController(ILogger<RelayController> logger, IConfiguration configuration) : IRelayController, IDisposable
+public class RelayController(ILogger<RelayController> logger, IConfiguration configuration, IDispatcher dispatcher) : IRelayController, IDisposable
 {
   // Set Gpio:Required to false only for development on machines without GPIO hardware.
   // On the appliance it must stay true: a thermostat that logs "Activating Heating Relay" while
@@ -42,6 +44,8 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
   private GetGatewayResponse? _gateway;
 
   private readonly RelayState _state = new();
+  private volatile GetRelayStatesResponse _published = GetRelayStatesResponse.FromState(new RelayState());
+  private int _flushing;
 
   public void Initialize()
   {
@@ -83,67 +87,148 @@ public class RelayController(ILogger<RelayController> logger, IConfiguration con
 
   public void EnableControl()
   {
-    DisableHeating();
-    DisableCooling();
-    DisableFan();
-
-    WritePin(_gateway?.ControlPin, RelayOn, nameof(GetGatewayResponse.ControlPin));
-    _state.Control = true;
+    try
+    {
+      SetHeating(false);
+      SetCooling(false);
+      SetFan(false);
+      SetControl(true);
+    }
+    finally
+    {
+      NotifyStateChanged();
+    }
   }
 
   public void DisableControl()
   {
-    DisableHeating();
-    DisableCooling();
-    DisableFan();
-
-    WritePin(_gateway?.ControlPin, RelayOff, nameof(GetGatewayResponse.ControlPin));
-    _state.Control = false;
+    try
+    {
+      SetHeating(false);
+      SetCooling(false);
+      SetFan(false);
+      SetControl(false);
+    }
+    finally
+    {
+      NotifyStateChanged();
+    }
   }
 
   public void EnableDwell()
   {
-    DisableHeating();
-    DisableCooling();
+    try
+    {
+      SetHeating(false);
+      SetCooling(false);
+    }
+    finally
+    {
+      NotifyStateChanged();
+    }
   }
 
   public void EnableHeating()
   {
-    WritePin(_gateway?.HeatingPin, RelayOn, nameof(GetGatewayResponse.HeatingPin));
-    _state.Heating = true;
+    SetHeating(true);
+    NotifyStateChanged();
   }
 
   public void DisableHeating()
   {
-    WritePin(_gateway?.HeatingPin, RelayOff, nameof(GetGatewayResponse.HeatingPin));
-    _state.Heating = false;
+    SetHeating(false);
+    NotifyStateChanged();
   }
 
   public void EnableCooling()
   {
-    WritePin(_gateway?.CoolingPin, RelayOn, nameof(GetGatewayResponse.CoolingPin));
-    _state.Cooling = true;
+    SetCooling(true);
+    NotifyStateChanged();
   }
 
   public void DisableCooling()
   {
-    WritePin(_gateway?.CoolingPin, RelayOff, nameof(GetGatewayResponse.CoolingPin));
-    _state.Cooling = false;
+    SetCooling(false);
+    NotifyStateChanged();
   }
 
   public void EnableFan()
   {
-    WritePin(_gateway?.FanPin, RelayOn, nameof(GetGatewayResponse.FanPin));
-    _state.Fan = true;
+    SetFan(true);
+    NotifyStateChanged();
   }
 
   public void DisableFan()
   {
-    WritePin(_gateway?.FanPin, RelayOff, nameof(GetGatewayResponse.FanPin));
-    _state.Fan = false;
+    SetFan(false);
+    NotifyStateChanged();
   }
 
   public RelayState GetState() => _state;
+
+  // The Set* methods move a single relay without publishing, so a public method that moves several relays publishes once, when it is done.
+  // The composites publish in a finally so a failed write still reports the relays that did move.
+  private void SetControl(bool on)
+  {
+    WritePin(_gateway?.ControlPin, on ? RelayOn : RelayOff, nameof(GetGatewayResponse.ControlPin));
+    _state.Control = on;
+  }
+
+  private void SetHeating(bool on)
+  {
+    WritePin(_gateway?.HeatingPin, on ? RelayOn : RelayOff, nameof(GetGatewayResponse.HeatingPin));
+    _state.Heating = on;
+  }
+
+  private void SetCooling(bool on)
+  {
+    WritePin(_gateway?.CoolingPin, on ? RelayOn : RelayOff, nameof(GetGatewayResponse.CoolingPin));
+    _state.Cooling = on;
+  }
+
+  private void SetFan(bool on)
+  {
+    WritePin(_gateway?.FanPin, on ? RelayOn : RelayOff, nameof(GetGatewayResponse.FanPin));
+    _state.Fan = on;
+  }
+
+  /// <summary>
+  /// Publishes off the calling thread so actuating a relay never waits on subscribers. A single flush runs at a time and always
+  /// publishes the latest state, so a burst of moves is coalesced and events can't arrive out of order.
+  /// </summary>
+  private void NotifyStateChanged()
+  {
+    if (!HasUnpublishedChange() || Interlocked.Exchange(ref _flushing, 1) == 1)
+      return;
+
+    _ = Task.Run(FlushAsync);
+  }
+
+  private async Task FlushAsync()
+  {
+    do
+    {
+      while (HasUnpublishedChange())
+      {
+        var current = GetRelayStatesResponse.FromState(_state);
+        _published = current;
+
+        try
+        {
+          await dispatcher.PublishAsync(new RelayStatesChangedEvent(current));
+        }
+        catch (Exception ex)
+        {
+          logger.LogError(ex, "Failed to publish the relay states.");
+        }
+      }
+
+      Volatile.Write(ref _flushing, 0);
+      // A move can land between the last check and clearing the flag, when its notification saw a flush still running.
+    } while (HasUnpublishedChange() && Interlocked.Exchange(ref _flushing, 1) == 0);
+  }
+
+  private bool HasUnpublishedChange() => GetRelayStatesResponse.FromState(_state) != _published;
 
   private void ClosePinIfReplaced(int? previous, int? configured)
   {

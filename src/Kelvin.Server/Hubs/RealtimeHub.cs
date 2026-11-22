@@ -1,5 +1,4 @@
 using Kelvin.Server.Application;
-using Kelvin.Server.Features.Devices;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Kelvin.Server.Hubs;
@@ -15,8 +14,14 @@ public static class RealtimeMessageTypes
   public const string ControlStateChanged = "ControlStateChanged";
   public const string ThermostatSettingsChanged = "ThermostatSettingsChanged";
   public const string SensorsSettingsChanged = "SensorsSettingsChanged";
+  public const string SensorChanged = "SensorChanged";
+  public const string SensorDeleted = "SensorDeleted";
   public const string DevicesSettingsChanged = "DevicesSettingsChanged";
+  public const string DeviceChanged = "DeviceChanged";
+  public const string DeviceDeleted = "DeviceDeleted";
   public const string DeviceStateChanged = "DeviceStateChanged";
+  public const string RelayStatesChanged = "RelayStatesChanged";
+  public const string WeatherForecastChanged = "WeatherForecastChanged";
   public const string EnvironmentReadingChanged = "EnvironmentReadingChanged";
   public const string NotificationSent = "NotificationSent";
   public const string NotificationDismissed = "NotificationDismissed";
@@ -36,15 +41,14 @@ public interface IRealtimeClient
 /// Broadcast only - clients subscribe and listen, there is nothing they can invoke. Anything that changes the
 /// system goes through the API so it passes the same handlers and safety guards.
 /// </remarks>
-public class RealtimeHub(IHandler<GetDeviceStatesRequest, GetDeviceStatesResponse> deviceStates) : Hub<IRealtimeClient>
+public class RealtimeHub(RealtimeSnapshots snapshots) : Hub<IRealtimeClient>
 {
-  // Device state is only broadcast on change, so a new connection would otherwise not see it until the next one.
+  // Updates are only pushed on change, so a new (or reconnected) client is sent everything up front rather than pulling it.
   public override async Task OnConnectedAsync()
   {
-    var result = await deviceStates.HandleAsync(new GetDeviceStatesRequest(), Context.ConnectionAborted);
-    if (result.IsSuccess)
+    foreach (var message in await snapshots.AllAsync(Context.ConnectionAborted))
     {
-      await Clients.Caller.Receive(new RealtimeMessage(RealtimeMessageTypes.DeviceStateChanged, result.Value!.States));
+      await Clients.Caller.Receive(message);
     }
 
     await base.OnConnectedAsync();

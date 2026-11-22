@@ -130,6 +130,10 @@ public class UpdateThermostatSettingsTests
         schedules.ShouldContain(s => s.StartTime == new TimeOnly(6, 30));
         schedules.ShouldNotContain(s => s.Id == removedScheduleId);
         context.Schedules.Single(s => s.Id == removedScheduleId).DeletedAt.ShouldNotBeNull();
+
+        var saved = result.Value.ShouldNotBeNull();
+        saved.SetPoints.Select(sp => sp.Id).OrderBy(id => id).ShouldBe(setPoints.Select(sp => sp.Id).OrderBy(id => id));
+        saved.Schedules.Select(s => s.Id).ShouldBe(schedules.Select(s => s.Id));
     }
 
     [Fact]

@@ -32,7 +32,7 @@ public class UpdateDeviceHandler(KelvinContext context, IDispatcher dispatcher) 
     device.Name = name;
     await context.SaveChangesAsync(ct);
 
-    await dispatcher.PublishAsync(new DevicesChangedEvent(), ct);
+    await dispatcher.PublishAsync(new DeviceChangedEvent(device), ct);
     return Result.Success();
   }
 }

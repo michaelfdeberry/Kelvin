@@ -7,7 +7,11 @@ namespace Kelvin.Server.Features.Thermostat;
 
 public record GetSchedulesRequest() : IRequest<GetSchedulesResponse>;
 
-public record ScheduleResponse(Guid Id, RunType Type, TimeOnly StartTime, TimeOnly EndTime, float TargetTemperatureC);
+public record ScheduleResponse(Guid Id, RunType Type, TimeOnly StartTime, TimeOnly EndTime, float TargetTemperatureC)
+{
+  public static ScheduleResponse FromEntity(Schedule schedule) =>
+    new(schedule.Id, schedule.Type, schedule.StartTime, schedule.EndTime, schedule.TargetTemperatureC);
+}
 
 public record GetSchedulesResponse(IEnumerable<ScheduleResponse> Schedules);
 
@@ -16,9 +20,7 @@ public class GetSchedulesHandler(KelvinContext context) : IHandler<GetSchedulesR
   public async Task<Result<GetSchedulesResponse>> HandleAsync(GetSchedulesRequest request, CancellationToken ct = default)
   {
     var schedules = await context.Schedules.Where(s => s.DeletedAt == null).ToListAsync(ct);
-    return Result<GetSchedulesResponse>.Success(
-      new GetSchedulesResponse([.. schedules.Select(s => new ScheduleResponse(s.Id, s.Type, s.StartTime, s.EndTime, s.TargetTemperatureC))])
-    );
+    return Result<GetSchedulesResponse>.Success(new GetSchedulesResponse([.. schedules.Select(ScheduleResponse.FromEntity)]));
   }
 }
 

@@ -26,6 +26,13 @@ export type SchedulesResponse = {
   schedules: Schedule[];
 };
 
+// Everything the server pushes about the thermostat; local updates may carry only the parts that changed.
+export type ThermostatSettings = {
+  thermostat: Thermostat;
+  setPoints: SetPoint[];
+  schedules: Schedule[];
+};
+
 export type Thermostat = {
   id?: string;
   mode: RunMode;
