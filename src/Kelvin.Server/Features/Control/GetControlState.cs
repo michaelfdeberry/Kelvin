@@ -17,7 +17,8 @@ public record GetControlStateResponse(
   DateTimeOffset? CallSince,
   bool FanOn,
   DateTimeOffset? FanSince,
-  ControlStateChangeDto? LastChange
+  ControlStateChangeDto? LastChange,
+  ControlStateChangeDto? LifecycleChange = null
 );
 
 /// <summary>
@@ -38,6 +39,7 @@ public class GetControlStateHandler(KelvinContext context) : IHandler<GetControl
     var control = await LatestAsync(ControlChangeKind.Control, cancellationToken);
     var call = await LatestAsync(ControlChangeKind.Call, cancellationToken);
     var fan = await LatestAsync(ControlChangeKind.Fan, cancellationToken);
+    var lifecycle = await LatestAsync(ControlChangeKind.Lifecycle, cancellationToken);
 
     var lastChange = new[] { control, call, fan }.Where(change => change is not null).MaxBy(change => change!.CreatedAt);
 
@@ -49,7 +51,9 @@ public class GetControlStateHandler(KelvinContext context) : IHandler<GetControl
       FanOn: fan?.State == ControlState.FanOn,
       FanSince: fan?.CreatedAt,
       // this only needs the last call to ensure the UI is displaying the correct state.
-      LastChange: call is null ? null : ControlStateChangeDto.FromEntity(call)
+      LastChange: call is null ? null : ControlStateChangeDto.FromEntity(call),
+      // the service's fault/startup status, which a client can't derive from the call history.
+      LifecycleChange: lifecycle is null ? null : ControlStateChangeDto.FromEntity(lifecycle)
     );
 
     return Result<GetControlStateResponse>.Success(response);

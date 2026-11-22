@@ -66,6 +66,11 @@ public class ControlHistoryTests
             start.AddMinutes(2),
             ControlStateChangeFixtures.CreateCall(ControlState.Heating)
         );
+        await RecordAsync(
+            harness,
+            start.AddMinutes(2.5),
+            new ControlStateChange { Kind = ControlChangeKind.Lifecycle, State = ControlState.Fault }
+        );
         var latest = start.AddMinutes(3);
         await RecordAsync(
             harness,
@@ -86,6 +91,8 @@ public class ControlHistoryTests
         state.CallState.ShouldBe(ControlState.Dwell);
         state.CallSince.ShouldBe(latest);
         state.LastChange.ShouldNotBeNull().State.ShouldBe(ControlState.Dwell);
+        // The service's fault status is reported even though later changes landed on other axes.
+        state.LifecycleChange.ShouldNotBeNull().State.ShouldBe(ControlState.Fault);
     }
 
     [Fact]

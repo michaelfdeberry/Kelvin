@@ -52,7 +52,10 @@ public class RealtimeSnapshotsTests
         IHandler<GetPreferencesRequest, GetPreferencesResponse>
     >();
 
-    private RealtimeSnapshots CreateSnapshots(ControlStateChangeDto? lastChange = null)
+    private RealtimeSnapshots CreateSnapshots(
+        ControlStateChangeDto? lastChange = null,
+        ControlStateChangeDto? lifecycleChange = null
+    )
     {
         A.CallTo(() =>
                 _controlState.HandleAsync(A<GetControlStateRequest>._, A<CancellationToken>._)
@@ -66,7 +69,8 @@ public class RealtimeSnapshotsTests
                         null,
                         false,
                         null,
-                        lastChange
+                        lastChange,
+                        lifecycleChange
                     )
                 )
             );
@@ -164,6 +168,24 @@ public class RealtimeSnapshotsTests
                 RealtimeMessageTypes.PreferencesChanged,
             ]);
         messages[0].Payload.ShouldBe(change);
+    }
+
+    [Fact]
+    public async Task All_SendsTheLifecycleChangeSoAFaultSurvivesAReconnect()
+    {
+        var call = ControlStateChangeDto.FromEntity(
+            new ControlStateChange { Kind = ControlChangeKind.Call, State = ControlState.Heating }
+        );
+        var fault = ControlStateChangeDto.FromEntity(
+            new ControlStateChange { Kind = ControlChangeKind.Lifecycle, State = ControlState.Fault }
+        );
+
+        var messages = await CreateSnapshots(call, fault).AllAsync();
+
+        messages
+            .Where(m => m.Type == RealtimeMessageTypes.ControlStateChanged)
+            .Select(m => m.Payload)
+            .ShouldBe([call, fault]);
     }
 
     [Fact]

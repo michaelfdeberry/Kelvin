@@ -4,6 +4,7 @@ using Kelvin.Server.Application;
 using Kelvin.Server.Features.Hmi;
 using Kelvin.Server.Features.Sensors;
 using Kelvin.Server.Features.Thermostat;
+using Kelvin.Server.Hubs;
 using Kelvin.Server.Models;
 using Kelvin.Server.Tests.TestHelpers;
 using Shouldly;
@@ -371,7 +372,7 @@ public class HmiMessageTests
         context.Thermostats.Add(thermostat);
         await context.SaveChangesAsync();
         var update = A.Fake<IHandler<UpdateThermostatRequest>>();
-        var settings = A.Fake<IHandler<UpdateThermostatSettingsRequest>>();
+        var settings = A.Fake<IHandler<UpdateThermostatSettingsRequest, ThermostatSettingsPayload>>();
         var sensor = A.Fake<IHandler<SaveSensorPacketRequest>>();
         var snapshot = A.Fake<IHandler<SendHmiStateRequest>>();
         UpdateThermostatRequest? modeRequest = null;
@@ -389,7 +390,11 @@ public class HmiMessageTests
                 (UpdateThermostatSettingsRequest request, CancellationToken _) =>
                     settingsRequest = request
             )
-            .Returns(Result.Success());
+            .Returns(
+                Result<ThermostatSettingsPayload>.Success(
+                    ThermostatSettingsPayload.FromEntity(thermostat)
+                )
+            );
         A.CallTo(() => sensor.HandleAsync(A<SaveSensorPacketRequest>._, A<CancellationToken>._))
             .Invokes(
                 (SaveSensorPacketRequest request, CancellationToken _) => sensorRequest = request
@@ -495,7 +500,7 @@ public class HmiMessageTests
         context.Thermostats.Add(new Models.Thermostat());
         await context.SaveChangesAsync();
         var update = A.Fake<IHandler<UpdateThermostatRequest>>();
-        var settings = A.Fake<IHandler<UpdateThermostatSettingsRequest>>();
+        var settings = A.Fake<IHandler<UpdateThermostatSettingsRequest, ThermostatSettingsPayload>>();
         var sensor = A.Fake<IHandler<SaveSensorPacketRequest>>();
         var snapshot = A.Fake<IHandler<SendHmiStateRequest>>();
         var handler = new ReceiveHmiCommandHandler(

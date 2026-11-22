@@ -35,9 +35,8 @@ public class RealtimeSnapshots(
   /// <summary>Every snapshot, for a client that has just connected.</summary>
   public async Task<IReadOnlyList<RealtimeMessage>> AllAsync(CancellationToken ct = default)
   {
-    var messages = new[]
+    var messages = new List<RealtimeMessage?>(await ControlStateAsync(ct))
     {
-      await ControlStateAsync(ct),
       await EnvironmentReadingAsync(ct),
       await ThermostatAsync(ct),
       await SensorsAsync(ct),
@@ -51,11 +50,17 @@ public class RealtimeSnapshots(
     return [.. messages.OfType<RealtimeMessage>()];
   }
 
-  // Until anything has been actuated there is no call to report, so the client keeps its defaults.
-  private async Task<RealtimeMessage?> ControlStateAsync(CancellationToken ct = default)
+  // The last call and the last lifecycle change are sent separately because the client keeps them in separate state, routed by kind.
+  // Until anything has been recorded there is nothing to report, so the client keeps its defaults.
+  private async Task<IEnumerable<RealtimeMessage>> ControlStateAsync(CancellationToken ct = default)
   {
     var result = await controlState.HandleAsync(new GetControlStateRequest(), ct);
-    return result.IsSuccess && result.Value!.LastChange is { } change ? new RealtimeMessage(RealtimeMessageTypes.ControlStateChanged, change) : null;
+    if (result.IsFailure)
+      return [];
+
+    return new[] { result.Value!.LastChange, result.Value.LifecycleChange }
+      .OfType<ControlStateChangeDto>()
+      .Select(change => new RealtimeMessage(RealtimeMessageTypes.ControlStateChanged, change));
   }
 
   private async Task<RealtimeMessage?> EnvironmentReadingAsync(CancellationToken ct = default)
